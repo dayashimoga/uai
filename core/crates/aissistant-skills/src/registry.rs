@@ -6,8 +6,9 @@ use aissistant_orchestrator::{ToolDispatcher, ToolHandler};
 use aissistant_platform::{create_default_desktop_adapter, DesktopPlatformAdapter};
 
 use crate::desktop::{
-    AppLaunchSkill, AppListSkill, ProcessKillSkill, ProcessListSkill, WindowFocusSkill,
-    WindowListSkill,
+    AppLaunchSkill, AppListSkill, ClipboardReadSkill, ClipboardWriteSkill, MediaTransportSkill,
+    ProcessKillSkill, ProcessListSkill, SystemBatterySkill, VolumeGetSkill, VolumeSetSkill,
+    WindowFocusSkill, WindowListSkill,
 };
 use crate::error::Result;
 use crate::file::{
@@ -102,7 +103,25 @@ impl SkillRegistry {
                 WindowListSkill::new(active_adapter.clone()),
             ))),
             Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
-                WindowFocusSkill::new(active_adapter),
+                WindowFocusSkill::new(active_adapter.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                ClipboardReadSkill::new(active_adapter.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                ClipboardWriteSkill::new(active_adapter.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                VolumeGetSkill::new(active_adapter.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                VolumeSetSkill::new(active_adapter.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                MediaTransportSkill::new(active_adapter.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                SystemBatterySkill::new(active_adapter),
             ))),
         ]
     }
@@ -210,7 +229,7 @@ mod tests {
             .unwrap();
 
         let defs = dispatcher.tool_definitions().unwrap();
-        assert_eq!(defs.len(), 6);
+        assert_eq!(defs.len(), 12);
 
         let names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         assert!(names.contains(&"app.list"));
@@ -219,6 +238,12 @@ mod tests {
         assert!(names.contains(&"process.kill"));
         assert!(names.contains(&"window.list"));
         assert!(names.contains(&"window.focus"));
+        assert!(names.contains(&"clipboard.read"));
+        assert!(names.contains(&"clipboard.write"));
+        assert!(names.contains(&"volume.get"));
+        assert!(names.contains(&"volume.set"));
+        assert!(names.contains(&"media.transport"));
+        assert!(names.contains(&"system.battery"));
     }
 
     #[test]
@@ -232,6 +257,6 @@ mod tests {
             .unwrap();
 
         let defs = dispatcher.tool_definitions().unwrap();
-        assert_eq!(defs.len(), 18);
+        assert_eq!(defs.len(), 24);
     }
 }

@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 5 — Skill Framework & Native Application/System Control  
-**Next Subphase in Queue:** `S5.P2.2` (Desktop System Settings, Clipboard, Audio Volume & Media Transport Control)
+**Next Subphase in Queue:** `S5.P3.1` (Android Native Bridge: Foreground Service, Intents, Media, Accessibility)
 
 ---
 
@@ -60,7 +60,7 @@ Status Legend:
 | **Stage 5** | `S5.P1.1` | Skill Registry, Sandbox Validator & Built-In Utility Skills | `S4.P2.2` | `COMPLETED` | Verified: 226 Rust workspace unit tests passing (20 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, sandboxed worker thread isolation, timeout enforcement, and 5 built-in safe utility skills (`system.time`, `system.timer`, `system.calc`, `system.convert`, `system.telemetry`) verified. |
 | **Stage 5** | `S5.P1.2` | Safe File Management Skills (Search, Read, Write, Move, Archive, Checksum) | `S5.P1.1` | `COMPLETED` | Verified: 239 Rust workspace unit tests passing (33 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, `PathJail` canonicalization & symlink-escape defense, zip-slip prevention, and 7 safe file skills (`file.search`, `file.read`, `file.write`, `file.move`, `file.delete`, `file.archive`, `file.checksum`) verified. |
 | **Stage 5** | `S5.P2.1` | Desktop Application Launch, Process Inspection & Window Management | `S5.P1.2` | `COMPLETED` | Verified: 248 Rust workspace unit tests passing (7 in `aissistant-platform`, 35 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, Win32/XDG desktop adapters, process inspection, unkillable critical PID protection, anti-command-injection direct executable execution, window focus, and 6 desktop skills (`app.list`, `app.launch`, `process.list`, `process.kill`, `window.list`, `window.focus`) verified. |
-| **Stage 5** | `S5.P2.2` | Desktop System Settings, Clipboard, Audio Volume & Media Transport Control | `S5.P2.1` | `PENDING` | — |
+| **Stage 5** | `S5.P2.2` | Desktop System Settings, Clipboard, Audio Volume & Media Transport Control | `S5.P2.1` | `COMPLETED` | Verified: 270 Rust workspace unit tests passing (11 in `aissistant-platform`, 39 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, Win32/fallback clipboard read/write, master volume get/set, keyboard media transport simulation, battery power telemetry, and 6 desktop skills (`clipboard.read`, `clipboard.write`, `volume.get`, `volume.set`, `media.transport`, `system.battery`) verified. |
 | **Stage 5** | `S5.P3.1` | Android Native Bridge (Foreground Service, Intents, Media, Accessibility) | `S5.P2.2` | `PENDING` | — |
 | **Stage 5** | `S5.P3.2` | iOS Native Bridge (AVAudioSession, App Intents/Siri Shortcuts, Scoped Files) | `S5.P3.1` | `PENDING` | — |
 | **Stage 6** | `S6.P1.1` | Persistent Device Registry & Peer ACL Store | `S5.P3.2` | `PENDING` | — |
@@ -689,6 +689,29 @@ Status Legend:
   - `tests::test_skill_registry_desktop_skills_execution_and_risk_tiers`: Verified end-to-end execution and risk tier verification for `app.list`, `app.launch`, `process.list`, `process.kill`, `window.list`, and `window.focus`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `91c223b`
+
+### Verification Evidence — S5.P2.2 (Desktop System Settings, Clipboard, Audio Volume & Media Transport Control)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 10 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (270 passed across 10 crates; 11 in `aissistant-platform`, 39 in `aissistant-skills`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (45 passed across 7 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `desktop::clipboard_skills::tests::test_clipboard_read_and_write_skills`: Verified `clipboard.read` (`RiskTier::ReadOnly`) and `clipboard.write` (`RiskTier::StateModifying`) with input validation and execution round trip.
+  - `desktop::media_skills::tests::test_volume_skills`: Verified `volume.get` (`RiskTier::ReadOnly`) and `volume.set` (`RiskTier::StateModifying`) level (0-100) and mute toggling.
+  - `desktop::media_skills::tests::test_media_transport_skill`: Verified `media.transport` (`RiskTier::StateModifying`) play/pause, next, previous, stop commands.
+  - `desktop::system_skills::tests::test_system_battery_skill`: Verified `system.battery` (`RiskTier::ReadOnly`) battery level, charging state, and AC power status.
+  - `windows::tests::test_windows_adapter_clipboard_roundtrip`: Verified Win32 clipboard read/write with seamless fallback for headless or session 0 runners.
+  - `windows::tests::test_windows_adapter_volume_control`: Verified volume percentage retrieval, level setting, and VK_VOLUME_MUTE keypress dispatch.
+  - `windows::tests::test_windows_adapter_media_transport`: Verified media key keyboard event simulation (`VK_MEDIA_PLAY_PAUSE`, `VK_MEDIA_NEXT_TRACK`, `VK_MEDIA_PREV_TRACK`, `VK_MEDIA_STOP`).
+  - `windows::tests::test_windows_adapter_battery_status`: Verified `GetSystemPowerStatus` Win32 integration.
+  - `linux::tests::test_linux_adapter_clipboard_roundtrip` & `test_linux_adapter_volume_and_media`: Verified Linux adapter fallbacks and `/sys/class/power_supply` probing.
+  - `registry::tests::test_desktop_skills_registration`: Verified 12 desktop automation skills registered in `desktop_skills` and 24 total skills registered in `register_all`.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit
 
 
 

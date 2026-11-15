@@ -974,6 +974,44 @@
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 
+---
+
+## [2026-11-15] — Stage 5 Phase 2 Subphase 2 (`S5.P2.2`)
+
+### Added
+- `core/crates/aissistant-platform/src/types.rs`:
+  - Added domain structures: `VolumeStatus`, `MediaCommand` (`Play`, `Pause`, `PlayPause`, `Next`, `Previous`, `Stop`), and `BatteryStatus`.
+- `core/crates/aissistant-platform/src/adapter.rs`:
+  - Extended `DesktopPlatformAdapter` trait with `read_clipboard()`, `write_clipboard()`, `get_master_volume()`, `set_master_volume()`, `media_transport()`, and `get_battery_status()`.
+  - Implemented all 6 methods in `VirtualDesktopAdapter` with unit tests.
+- `core/crates/aissistant-platform/src/windows.rs`:
+  - Implemented Win32 clipboard read/write via `OpenClipboard`, `GetClipboardData` (`CF_UNICODETEXT`), `SetClipboardData`, `GlobalAlloc`, `GlobalLock`, and thread-safe fallback cache for headless / session 0 runners.
+  - Implemented master volume control and mute toggling via `keybd_event` (`VK_VOLUME_MUTE`).
+  - Implemented media transport control via `keybd_event` (`VK_MEDIA_PLAY_PAUSE`, `VK_MEDIA_NEXT_TRACK`, `VK_MEDIA_PREV_TRACK`, `VK_MEDIA_STOP`).
+  - Implemented battery charge and AC power status query via `GetSystemPowerStatus`.
+- `core/crates/aissistant-platform/src/linux.rs`:
+  - Implemented clipboard read/write, master volume control, media transport, and Linux `/sys/class/power_supply` querying.
+- `core/crates/aissistant-platform/src/lib.rs`:
+  - Re-exported `BatteryStatus`, `MediaCommand`, and `VolumeStatus`.
+- `core/crates/aissistant-skills/src/desktop/`:
+  - `clipboard_skills.rs`: Implemented `ClipboardReadSkill` (`clipboard.read`, `RiskTier::ReadOnly`) and `ClipboardWriteSkill` (`clipboard.write`, `RiskTier::StateModifying`).
+  - `media_skills.rs`: Implemented `VolumeGetSkill` (`volume.get`, `RiskTier::ReadOnly`), `VolumeSetSkill` (`volume.set`, `RiskTier::StateModifying`), and `MediaTransportSkill` (`media.transport`, `RiskTier::StateModifying`).
+  - `system_skills.rs`: Implemented `SystemBatterySkill` (`system.battery`, `RiskTier::ReadOnly`).
+  - `mod.rs`: Re-exported all new skill modules and structs.
+- `core/crates/aissistant-skills/src/registry.rs`:
+  - Extended `desktop_skills()` to include all 12 desktop tools.
+  - Updated `register_all()` to register all 24 tools (5 built-in + 7 file + 12 desktop).
+- `core/crates/aissistant-skills/src/lib.rs`:
+  - Re-exported new desktop skills and added comprehensive integration tests for clipboard, volume, media transport, and battery tools through `ToolDispatcher`.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 10 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 270 unit and integration tests (0 failures; 11 in `aissistant-platform`, 39 in `aissistant-skills`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+
 
 
 

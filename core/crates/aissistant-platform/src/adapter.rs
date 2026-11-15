@@ -3,7 +3,9 @@
 use std::sync::RwLock;
 
 use crate::error::{PlatformError, Result};
-use crate::types::{AppInfo, ProcessInfo, WindowBounds, WindowInfo};
+use crate::types::{
+    AppInfo, BatteryStatus, MediaCommand, ProcessInfo, VolumeStatus, WindowBounds, WindowInfo,
+};
 
 /// Common contract for platform-native application and desktop window operations.
 pub trait DesktopPlatformAdapter: std::fmt::Debug + Send + Sync {
@@ -24,6 +26,24 @@ pub trait DesktopPlatformAdapter: std::fmt::Debug + Send + Sync {
 
     /// Brings the specified window to the foreground and assigns input focus.
     fn focus_window(&self, window_id: u64) -> Result<()>;
+
+    /// Reads text currently stored on the operating system clipboard.
+    fn read_clipboard(&self) -> Result<String>;
+
+    /// Writes text to the operating system clipboard.
+    fn write_clipboard(&self, text: &str) -> Result<()>;
+
+    /// Queries the current master audio output volume and mute status.
+    fn get_master_volume(&self) -> Result<VolumeStatus>;
+
+    /// Sets the master audio volume level (0 to 100) or updates mute status.
+    fn set_master_volume(&self, level: Option<u8>, mute: Option<bool>) -> Result<VolumeStatus>;
+
+    /// Dispatches a media playback transport command (play, pause, next, etc.).
+    fn media_transport(&self, command: MediaCommand) -> Result<()>;
+
+    /// Queries host battery charge and power source telemetry.
+    fn get_battery_status(&self) -> Result<BatteryStatus>;
 }
 
 /// Hermetic in-memory desktop adapter for testing and non-desktop environments.
@@ -34,6 +54,10 @@ pub struct VirtualDesktopAdapter {
     windows: RwLock<Vec<WindowInfo>>,
     focused_window_id: RwLock<Option<u64>>,
     next_pid: RwLock<u32>,
+    clipboard: RwLock<String>,
+    volume: RwLock<VolumeStatus>,
+    last_media_cmd: RwLock<Option<MediaCommand>>,
+    battery: RwLock<BatteryStatus>,
 }
 
 impl Default for VirtualDesktopAdapter {
@@ -84,6 +108,17 @@ impl Default for VirtualDesktopAdapter {
             }]),
             focused_window_id: RwLock::new(Some(1001)),
             next_pid: RwLock::new(100),
+            clipboard: RwLock::new("initial virtual clipboard text".to_string()),
+            volume: RwLock::new(VolumeStatus {
+                volume_percent: 75,
+                is_muted: false,
+            }),
+            last_media_cmd: RwLock::new(None),
+            battery: RwLock::new(BatteryStatus {
+                percentage: Some(85),
+                is_charging: true,
+                on_ac_power: true,
+            }),
         }
     }
 }
@@ -99,6 +134,12 @@ impl VirtualDesktopAdapter {
     #[must_use]
     pub fn focused_window(&self) -> Option<u64> {
         self.focused_window_id.read().ok().and_then(|g| *g)
+    }
+
+    /// Returns the most recently dispatched media command.
+    #[must_use]
+    pub fn last_media_command(&self) -> Option<MediaCommand> {
+        self.last_media_cmd.read().ok().and_then(|g| *g)
     }
 }
 
@@ -195,6 +236,62 @@ impl DesktopPlatformAdapter for VirtualDesktopAdapter {
         *focus = Some(window_id);
         Ok(())
     }
+
+    fn read_clipboard(&self) -> Result<String> {
+        let guard = self
+            .clipboard
+            .read()
+            .map_err(|_| PlatformError::Internal("Lock poisoned".to_string()))?;
+        Ok(guard.clone())
+    }
+
+    fn write_clipboard(&self, text: &str) -> Result<()> {
+        let mut guard = self
+            .clipboard
+            .write()
+            .map_err(|_| PlatformError::Internal("Lock poisoned".to_string()))?;
+        *guard = text.to_string();
+        Ok(())
+    }
+
+    fn get_master_volume(&self) -> Result<VolumeStatus> {
+        let guard = self
+            .volume
+            .read()
+            .map_err(|_| PlatformError::Internal("Lock poisoned".to_string()))?;
+        Ok(*guard)
+    }
+
+    fn set_master_volume(&self, level: Option<u8>, mute: Option<bool>) -> Result<VolumeStatus> {
+        let mut guard = self
+            .volume
+            .write()
+            .map_err(|_| PlatformError::Internal("Lock poisoned".to_string()))?;
+        if let Some(l) = level {
+            guard.volume_percent = l.min(100);
+        }
+        if let Some(m) = mute {
+            guard.is_muted = m;
+        }
+        Ok(*guard)
+    }
+
+    fn media_transport(&self, command: MediaCommand) -> Result<()> {
+        let mut guard = self
+            .last_media_cmd
+            .write()
+            .map_err(|_| PlatformError::Internal("Lock poisoned".to_string()))?;
+        *guard = Some(command);
+        Ok(())
+    }
+
+    fn get_battery_status(&self) -> Result<BatteryStatus> {
+        let guard = self
+            .battery
+            .read()
+            .map_err(|_| PlatformError::Internal("Lock poisoned".to_string()))?;
+        Ok(guard.clone())
+    }
 }
 
 #[cfg(test)]
@@ -236,5 +333,23 @@ mod tests {
 
         let err_win = adapter.focus_window(9999);
         assert!(matches!(err_win, Err(PlatformError::WindowNotFound { .. })));
+
+        // 7. clipboard read & write
+        adapter.write_clipboard("updated text").unwrap();
+        assert_eq!(adapter.read_clipboard().unwrap(), "updated text");
+
+        // 8. volume get & set
+        let vol = adapter.set_master_volume(Some(50), Some(true)).unwrap();
+        assert_eq!(vol.volume_percent, 50);
+        assert!(vol.is_muted);
+
+        // 9. media transport
+        adapter.media_transport(MediaCommand::PlayPause).unwrap();
+        assert_eq!(adapter.last_media_command(), Some(MediaCommand::PlayPause));
+
+        // 10. battery status
+        let battery = adapter.get_battery_status().unwrap();
+        assert_eq!(battery.percentage, Some(85));
+        assert!(battery.on_ac_power);
     }
 }

@@ -59,3 +59,41 @@ pub struct WindowInfo {
     /// Window position and dimensions.
     pub bounds: WindowBounds,
 }
+
+/// Current master audio output volume and mute status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VolumeStatus {
+    /// Volume percentage level (0 to 100).
+    pub volume_percent: u8,
+    /// Whether audio output is currently muted.
+    pub is_muted: bool,
+}
+
+/// Media transport control commands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MediaCommand {
+    /// Resume playback.
+    Play,
+    /// Pause playback.
+    Pause,
+    /// Toggle between play and pause.
+    PlayPause,
+    /// Skip to next media item or track.
+    Next,
+    /// Go to previous media item or track.
+    Previous,
+    /// Stop media playback.
+    Stop,
+}
+
+/// Host power and battery charging status.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatteryStatus {
+    /// Battery charge percentage (0 to 100), or None if host has no battery.
+    pub percentage: Option<u8>,
+    /// Whether the battery is currently charging.
+    pub is_charging: bool,
+    /// Whether the device is connected to external AC/line power.
+    pub on_ac_power: bool,
+}

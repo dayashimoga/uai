@@ -19,7 +19,9 @@ use std::sync::Arc;
 
 pub use adapter::{DesktopPlatformAdapter, VirtualDesktopAdapter};
 pub use error::{PlatformError, Result};
-pub use types::{AppInfo, ProcessInfo, WindowBounds, WindowInfo};
+pub use types::{
+    AppInfo, BatteryStatus, MediaCommand, ProcessInfo, VolumeStatus, WindowBounds, WindowInfo,
+};
 
 #[cfg(windows)]
 pub use windows::WindowsDesktopAdapter;

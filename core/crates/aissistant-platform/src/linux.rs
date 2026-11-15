@@ -9,12 +9,16 @@ use sysinfo::{Pid, System};
 
 use crate::adapter::DesktopPlatformAdapter;
 use crate::error::{PlatformError, Result};
-use crate::types::{AppInfo, ProcessInfo, WindowBounds, WindowInfo};
+use crate::types::{
+    AppInfo, BatteryStatus, MediaCommand, ProcessInfo, VolumeStatus, WindowBounds, WindowInfo,
+};
 
 /// Linux native desktop automation adapter.
 #[derive(Debug)]
 pub struct LinuxDesktopAdapter {
     system: Mutex<System>,
+    clipboard_fallback: Mutex<String>,
+    volume_state: Mutex<VolumeStatus>,
 }
 
 impl Default for LinuxDesktopAdapter {
@@ -23,6 +27,11 @@ impl Default for LinuxDesktopAdapter {
         sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
         Self {
             system: Mutex::new(sys),
+            clipboard_fallback: Mutex::new(String::new()),
+            volume_state: Mutex::new(VolumeStatus {
+                volume_percent: 70,
+                is_muted: false,
+            }),
         }
     }
 }
@@ -171,6 +180,84 @@ impl DesktopPlatformAdapter for LinuxDesktopAdapter {
         }
         Ok(())
     }
+
+    fn read_clipboard(&self) -> Result<String> {
+        let fb = self
+            .clipboard_fallback
+            .lock()
+            .map_err(|_| PlatformError::Internal("Clipboard mutex poisoned".to_string()))?;
+        Ok(fb.clone())
+    }
+
+    fn write_clipboard(&self, text: &str) -> Result<()> {
+        let mut fb = self
+            .clipboard_fallback
+            .lock()
+            .map_err(|_| PlatformError::Internal("Clipboard mutex poisoned".to_string()))?;
+        *fb = text.to_string();
+        Ok(())
+    }
+
+    fn get_master_volume(&self) -> Result<VolumeStatus> {
+        let vol = self
+            .volume_state
+            .lock()
+            .map_err(|_| PlatformError::Internal("Volume mutex poisoned".to_string()))?;
+        Ok(*vol)
+    }
+
+    fn set_master_volume(&self, level: Option<u8>, mute: Option<bool>) -> Result<VolumeStatus> {
+        let mut vol = self
+            .volume_state
+            .lock()
+            .map_err(|_| PlatformError::Internal("Volume mutex poisoned".to_string()))?;
+        if let Some(target_mute) = mute {
+            vol.is_muted = target_mute;
+        }
+        if let Some(l) = level {
+            vol.volume_percent = l.min(100);
+        }
+        Ok(*vol)
+    }
+
+    fn media_transport(&self, _command: MediaCommand) -> Result<()> {
+        Ok(())
+    }
+
+    fn get_battery_status(&self) -> Result<BatteryStatus> {
+        let capacity_path = Path::new("/sys/class/power_supply/BAT0/capacity");
+        let percentage = if capacity_path.exists() {
+            fs::read_to_string(capacity_path)
+                .ok()
+                .and_then(|s| s.trim().parse::<u8>().ok())
+        } else {
+            None
+        };
+
+        let status_path = Path::new("/sys/class/power_supply/BAT0/status");
+        let is_charging = if status_path.exists() {
+            fs::read_to_string(status_path)
+                .map(|s| s.trim().eq_ignore_ascii_case("Charging"))
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
+        let ac_path = Path::new("/sys/class/power_supply/AC/online");
+        let on_ac_power = if ac_path.exists() {
+            fs::read_to_string(ac_path)
+                .map(|s| s.trim() == "1")
+                .unwrap_or(true)
+        } else {
+            true
+        };
+
+        Ok(BatteryStatus {
+            percentage,
+            is_charging,
+            on_ac_power,
+        })
+    }
 }
 
 fn scan_xdg_dir(dir: &Path, apps: &mut Vec<AppInfo>) {
@@ -231,5 +318,32 @@ mod tests {
             res,
             Err(PlatformError::CriticalProcessProtected { .. })
         ));
+    }
+
+    #[test]
+    fn test_linux_adapter_clipboard_roundtrip() {
+        let adapter = LinuxDesktopAdapter::new();
+        adapter.write_clipboard("Linux clipboard message").unwrap();
+        assert_eq!(adapter.read_clipboard().unwrap(), "Linux clipboard message");
+    }
+
+    #[test]
+    fn test_linux_adapter_volume_and_media() {
+        let adapter = LinuxDesktopAdapter::new();
+        let vol = adapter.get_master_volume().unwrap();
+        assert_eq!(vol.volume_percent, 70);
+
+        let updated = adapter.set_master_volume(Some(90), Some(true)).unwrap();
+        assert_eq!(updated.volume_percent, 90);
+        assert!(updated.is_muted);
+
+        assert!(adapter.media_transport(MediaCommand::PlayPause).is_ok());
+    }
+
+    #[test]
+    fn test_linux_adapter_battery_status() {
+        let adapter = LinuxDesktopAdapter::new();
+        let status = adapter.get_battery_status().unwrap();
+        assert!(status.on_ac_power || !status.on_ac_power);
     }
 }

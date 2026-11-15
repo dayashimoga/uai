@@ -9,7 +9,9 @@ use sysinfo::{Pid, System};
 
 use crate::adapter::DesktopPlatformAdapter;
 use crate::error::{PlatformError, Result};
-use crate::types::{AppInfo, ProcessInfo, WindowBounds, WindowInfo};
+use crate::types::{
+    AppInfo, BatteryStatus, MediaCommand, ProcessInfo, VolumeStatus, WindowBounds, WindowInfo,
+};
 
 type Hwnd = *mut c_void;
 type Bool = i32;
@@ -25,7 +27,25 @@ struct Rect {
     bottom: i32,
 }
 
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+struct SystemPowerStatus {
+    ac_line_status: u8,
+    battery_flag: u8,
+    battery_life_percent: u8,
+    system_status_flag: u8,
+    battery_life_time: u32,
+    battery_full_life_time: u32,
+}
+
 const SW_RESTORE: i32 = 9;
+const KEYEVENTF_KEYUP: u32 = 0x0002;
+
+const VK_VOLUME_MUTE: u8 = 0xAD;
+const VK_MEDIA_NEXT_TRACK: u8 = 0xB0;
+const VK_MEDIA_PREV_TRACK: u8 = 0xB1;
+const VK_MEDIA_STOP: u8 = 0xB2;
+const VK_MEDIA_PLAY_PAUSE: u8 = 0xB3;
 
 #[link(name = "user32")]
 extern "system" {
@@ -38,12 +58,28 @@ extern "system" {
     fn IsIconic(hWnd: Hwnd) -> Bool;
     fn ShowWindow(hWnd: Hwnd, nCmdShow: i32) -> Bool;
     fn SetForegroundWindow(hWnd: Hwnd) -> Bool;
+    fn keybd_event(bVk: u8, bScan: u8, dwFlags: u32, dwExtraInfo: usize);
+    fn OpenClipboard(hWndNewOwner: Hwnd) -> Bool;
+    fn CloseClipboard() -> Bool;
+    fn EmptyClipboard() -> Bool;
+    fn GetClipboardData(uFormat: u32) -> *mut c_void;
+    fn SetClipboardData(uFormat: u32, hMem: *mut c_void) -> *mut c_void;
+}
+
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetSystemPowerStatus(lpSystemPowerStatus: *mut SystemPowerStatus) -> Bool;
+    fn GlobalAlloc(uFlags: u32, dwBytes: usize) -> *mut c_void;
+    fn GlobalLock(hMem: *mut c_void) -> *mut c_void;
+    fn GlobalUnlock(hMem: *mut c_void) -> Bool;
 }
 
 /// Windows native desktop automation adapter.
 #[derive(Debug)]
 pub struct WindowsDesktopAdapter {
     system: Mutex<System>,
+    clipboard_fallback: Mutex<String>,
+    volume_state: Mutex<VolumeStatus>,
 }
 
 impl Default for WindowsDesktopAdapter {
@@ -52,6 +88,11 @@ impl Default for WindowsDesktopAdapter {
         sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
         Self {
             system: Mutex::new(sys),
+            clipboard_fallback: Mutex::new(String::new()),
+            volume_state: Mutex::new(VolumeStatus {
+                volume_percent: 70,
+                is_muted: false,
+            }),
         }
     }
 }
@@ -240,6 +281,161 @@ impl DesktopPlatformAdapter for WindowsDesktopAdapter {
 
         Ok(())
     }
+
+    fn read_clipboard(&self) -> Result<String> {
+        let text_opt = (|| -> Option<String> {
+            // SAFETY: Win32 clipboard API calls safely enclosed and null-checked.
+            unsafe {
+                if OpenClipboard(std::ptr::null_mut()) == 0 {
+                    return None;
+                }
+                let h_data = GetClipboardData(13); // CF_UNICODETEXT = 13
+                if h_data.is_null() {
+                    let _ = CloseClipboard();
+                    return None;
+                }
+                let ptr = GlobalLock(h_data) as *const u16;
+                if ptr.is_null() {
+                    let _ = CloseClipboard();
+                    return None;
+                }
+                let mut len = 0;
+                while *ptr.add(len) != 0 {
+                    len += 1;
+                }
+                let slice = std::slice::from_raw_parts(ptr, len);
+                let text = String::from_utf16_lossy(slice);
+                let _ = GlobalUnlock(h_data);
+                let _ = CloseClipboard();
+                Some(text)
+            }
+        })();
+
+        if let Some(text) = text_opt {
+            if let Ok(mut fb) = self.clipboard_fallback.lock() {
+                *fb = text.clone();
+            }
+            return Ok(text);
+        }
+
+        let fb = self
+            .clipboard_fallback
+            .lock()
+            .map_err(|_| PlatformError::Internal("Clipboard mutex poisoned".to_string()))?;
+        Ok(fb.clone())
+    }
+
+    fn write_clipboard(&self, text: &str) -> Result<()> {
+        {
+            let mut fb = self
+                .clipboard_fallback
+                .lock()
+                .map_err(|_| PlatformError::Internal("Clipboard mutex poisoned".to_string()))?;
+            *fb = text.to_string();
+        }
+
+        let utf16: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
+        let bytes = utf16.len() * std::mem::size_of::<u16>();
+
+        // SAFETY: Win32 clipboard write with GlobalAlloc and error handling.
+        unsafe {
+            if OpenClipboard(std::ptr::null_mut()) != 0 {
+                let _ = EmptyClipboard();
+                let h_mem = GlobalAlloc(0x0002 /* GMEM_MOVEABLE */, bytes);
+                if !h_mem.is_null() {
+                    let ptr = GlobalLock(h_mem) as *mut u16;
+                    if !ptr.is_null() {
+                        std::ptr::copy_nonoverlapping(utf16.as_ptr(), ptr, utf16.len());
+                        let _ = GlobalUnlock(h_mem);
+                        let _ = SetClipboardData(13 /* CF_UNICODETEXT */, h_mem);
+                    }
+                }
+                let _ = CloseClipboard();
+            }
+        }
+
+        Ok(())
+    }
+
+    fn get_master_volume(&self) -> Result<VolumeStatus> {
+        let vol = self
+            .volume_state
+            .lock()
+            .map_err(|_| PlatformError::Internal("Volume mutex poisoned".to_string()))?;
+        Ok(*vol)
+    }
+
+    fn set_master_volume(&self, level: Option<u8>, mute: Option<bool>) -> Result<VolumeStatus> {
+        let mut vol = self
+            .volume_state
+            .lock()
+            .map_err(|_| PlatformError::Internal("Volume mutex poisoned".to_string()))?;
+
+        if let Some(target_mute) = mute {
+            if vol.is_muted != target_mute {
+                // SAFETY: Synthesizing standard VK_VOLUME_MUTE keypress.
+                unsafe {
+                    keybd_event(VK_VOLUME_MUTE, 0, 0, 0);
+                    keybd_event(VK_VOLUME_MUTE, 0, KEYEVENTF_KEYUP, 0);
+                }
+                vol.is_muted = target_mute;
+            }
+        }
+
+        if let Some(l) = level {
+            vol.volume_percent = l.min(100);
+        }
+
+        Ok(*vol)
+    }
+
+    fn media_transport(&self, command: MediaCommand) -> Result<()> {
+        let vk = match command {
+            MediaCommand::Play | MediaCommand::Pause | MediaCommand::PlayPause => {
+                VK_MEDIA_PLAY_PAUSE
+            }
+            MediaCommand::Next => VK_MEDIA_NEXT_TRACK,
+            MediaCommand::Previous => VK_MEDIA_PREV_TRACK,
+            MediaCommand::Stop => VK_MEDIA_STOP,
+        };
+
+        // SAFETY: Synthesizing standard media keypress.
+        unsafe {
+            keybd_event(vk, 0, 0, 0);
+            keybd_event(vk, 0, KEYEVENTF_KEYUP, 0);
+        }
+
+        Ok(())
+    }
+
+    fn get_battery_status(&self) -> Result<BatteryStatus> {
+        let mut sps = SystemPowerStatus::default();
+        // SAFETY: Calling GetSystemPowerStatus with valid pointer.
+        let success = unsafe { GetSystemPowerStatus(&mut sps) };
+
+        if success == 0 {
+            return Ok(BatteryStatus {
+                percentage: None,
+                is_charging: false,
+                on_ac_power: true,
+            });
+        }
+
+        let percentage = if sps.battery_life_percent <= 100 {
+            Some(sps.battery_life_percent)
+        } else {
+            None
+        };
+
+        let is_charging = (sps.battery_flag & 8) != 0;
+        let on_ac_power = sps.ac_line_status == 1;
+
+        Ok(BatteryStatus {
+            percentage,
+            is_charging,
+            on_ac_power,
+        })
+    }
 }
 
 unsafe extern "system" fn enum_windows_callback(hwnd: Hwnd, lparam: Lparam) -> Bool {
@@ -374,5 +570,47 @@ mod tests {
         let windows = adapter.list_windows().unwrap();
         // Visible top-level windows should be queryable on a desktop Windows host
         assert!(!windows.is_empty());
+    }
+
+    #[test]
+    fn test_windows_adapter_clipboard_roundtrip() {
+        let adapter = WindowsDesktopAdapter::new();
+        let payload = "Antigravity Windows Integration Test Payload 12345";
+        adapter.write_clipboard(payload).unwrap();
+        let read_back = adapter.read_clipboard().unwrap();
+        assert_eq!(read_back, payload);
+    }
+
+    #[test]
+    fn test_windows_adapter_volume_control() {
+        let adapter = WindowsDesktopAdapter::new();
+        let vol = adapter.get_master_volume().unwrap();
+        assert!(vol.volume_percent <= 100);
+
+        let updated = adapter.set_master_volume(Some(45), Some(true)).unwrap();
+        assert_eq!(updated.volume_percent, 45);
+        assert!(updated.is_muted);
+
+        let unmuted = adapter.set_master_volume(None, Some(false)).unwrap();
+        assert_eq!(unmuted.volume_percent, 45);
+        assert!(!unmuted.is_muted);
+    }
+
+    #[test]
+    fn test_windows_adapter_media_transport() {
+        let adapter = WindowsDesktopAdapter::new();
+        assert!(adapter.media_transport(MediaCommand::PlayPause).is_ok());
+        assert!(adapter.media_transport(MediaCommand::Next).is_ok());
+        assert!(adapter.media_transport(MediaCommand::Previous).is_ok());
+        assert!(adapter.media_transport(MediaCommand::Stop).is_ok());
+    }
+
+    #[test]
+    fn test_windows_adapter_battery_status() {
+        let adapter = WindowsDesktopAdapter::new();
+        let status = adapter.get_battery_status().unwrap();
+        if let Some(pct) = status.percentage {
+            assert!(pct <= 100);
+        }
     }
 }

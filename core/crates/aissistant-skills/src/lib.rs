@@ -15,8 +15,9 @@ pub mod sandbox;
 pub mod utility;
 
 pub use desktop::{
-    AppLaunchSkill, AppListSkill, ProcessKillSkill, ProcessListSkill, WindowFocusSkill,
-    WindowListSkill,
+    AppLaunchSkill, AppListSkill, ClipboardReadSkill, ClipboardWriteSkill, MediaTransportSkill,
+    ProcessKillSkill, ProcessListSkill, SystemBatterySkill, VolumeGetSkill, VolumeSetSkill,
+    WindowFocusSkill, WindowListSkill,
 };
 pub use error::{Result, SkillError};
 pub use file::{
@@ -336,6 +337,42 @@ mod tests {
             .execute("process.kill", json!({"pid": spawned_pid}))
             .unwrap();
         assert!(kill_res["killed"].as_bool().unwrap());
+
+        // 7. clipboard.write & clipboard.read
+        let write_clip = dispatcher
+            .execute(
+                "clipboard.write",
+                json!({"text": "integration clipboard payload"}),
+            )
+            .unwrap();
+        assert_eq!(write_clip["success"], true);
+
+        let read_clip = dispatcher.execute("clipboard.read", json!({})).unwrap();
+        assert_eq!(read_clip["text"], "integration clipboard payload");
+
+        // 8. volume.set & volume.get
+        let set_vol = dispatcher
+            .execute("volume.set", json!({"level": 60, "mute": false}))
+            .unwrap();
+        assert_eq!(set_vol["volume_percent"], 60);
+        assert_eq!(set_vol["is_muted"], false);
+
+        let get_vol = dispatcher.execute("volume.get", json!({})).unwrap();
+        assert_eq!(get_vol["volume_percent"], 60);
+        assert_eq!(get_vol["is_muted"], false);
+
+        // 9. media.transport
+        let media_res = dispatcher
+            .execute("media.transport", json!({"command": "play_pause"}))
+            .unwrap();
+        assert_eq!(media_res["command"], "play_pause");
+        assert_eq!(media_res["status"], "dispatched");
+
+        // 10. system.battery
+        let bat_res = dispatcher.execute("system.battery", json!({})).unwrap();
+        assert_eq!(bat_res["percentage"], 85);
+        assert_eq!(bat_res["is_charging"], true);
+        assert_eq!(bat_res["on_ac_power"], true);
     }
 
     #[test]
