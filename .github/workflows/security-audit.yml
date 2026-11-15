@@ -1,0 +1,51 @@
+name: Security & Dependency Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secret-and-repo-hygiene:
+    name: Repository Hygiene & Forbidden File Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Zero Committed Model Binaries or Private Keys
+        run: |
+          FORBIDDEN=$(git ls-files '*.gguf' '*.onnx' '*.pem' '*.key' '*.jks' '*.keystore' '.env')
+          if [ -n "$FORBIDDEN" ]; then
+            echo "ERROR: Forbidden binary or secret files tracked in Git:"
+            echo "$FORBIDDEN"
+            exit 1
+          fi
+          echo "Repository hygiene check passed."
+
+  rust-security-audit:
+    name: Cargo Audit & License Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check if Cargo.lock Exists
+        id: check_cargo
+        run: |
+          if [ -f "core/Cargo.toml" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.check_cargo.outputs.exists == 'true'
+      - uses: taiki-e/install-action@cargo-audit
+        if: steps.check_cargo.outputs.exists == 'true'
+      - name: Run cargo audit
+        if: steps.check_cargo.outputs.exists == 'true'
+        working-directory: core
+        run: cargo audit

@@ -1,0 +1,57 @@
+name: Release Artifacts & Checksums
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-release:
+    name: Build & Package (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x86_64
+            os: windows-latest
+          - platform: linux-x86_64
+            os: ubuntu-latest
+          - platform: macos-universal
+            os: macos-latest
+          - platform: android-arm64
+            os: ubuntu-latest
+          - platform: ios-arm64
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake clang ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libasound2-dev libpipewire-0.3-dev libdbus-1-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Run Rust Verification Suite Before Release
+        if: hashFiles('core/Cargo.toml') != ''
+        run: cargo test --manifest-path core/Cargo.toml --workspace --release
+
+      - name: Generate Artifact Checksums
+        shell: bash
+        run: |
+          mkdir -p dist
+          git rev-parse HEAD > "dist/BUILD_COMMIT_${{ matrix.platform }}.txt"
+          shasum -a 256 "dist/BUILD_COMMIT_${{ matrix.platform }}.txt" > "dist/SHA256SUMS_${{ matrix.platform }}.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: dist/
