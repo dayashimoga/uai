@@ -667,7 +667,7 @@ Status Legend:
   - `registry::tests::test_file_skills_registration` & `test_register_all_combined`: Verified all 7 file skills register into `ToolDispatcher` with correct parameters schemas and risk tiers (total 12 tools).
   - `tests::test_skill_registry_file_skills_execution_and_risk_tiers`: Verified end-to-end tool execution and risk tier verification for all file skills through `ToolDispatcher`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `1c08055`
 
 
 
