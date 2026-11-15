@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 4 — Orchestration State Machine, Context Engine & Hybrid Vector Memory  
-**Next Subphase in Queue:** `S4.P1.1` (Conversation Persistence & SQLite FTS5 Episodic Search)
+**Next Subphase in Queue:** `S4.P1.2` (Local Embedding Generation & Hybrid Vector Memory Retrieval)
 
 ---
 
@@ -53,7 +53,7 @@ Status Legend:
 | **Stage 3** | `S3.P2.1` | `llama.cpp` Rust Bindings, Session Management & Token Streaming | `S3.P1.2` | `COMPLETED` | Verified [Commit `ff60c90`]: 159 Rust workspace unit tests passing (18 in `aissistant-llm`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, `SamplingParams` hyperparameter bounds validation, multi-turn `LlmSession` prefix caching & prompt formatters (ChatML, Llama 3), `LlmEngine` trait, `LocalLlmEngine` streaming token generation with throughput metrics, cooperative cancellation handle with sub-20ms latency, stop sequence interruption, and critical memory pressure auto-unloading verified. |
 | **Stage 3** | `S3.P2.2` | GBNF Grammar Compiler for Structured JSON Tool Calling | `S3.P2.1` | `COMPLETED` | Verified [Commit `0aed806`]: 164 Rust workspace unit tests passing (23 in `aissistant-llm`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, `GbnfGrammar` production rule AST with standard JSON primitives (`ws`, `string`, `number`, `integer`, `boolean`, `null`), `SchemaCompiler` translating JSON Schema (primitives, enums, objects with required properties, nested arrays) into GBNF grammars, single and multi-tool grammar compilation with conversational fallback, and strict `ToolCallValidator` verifying argument compliance verified. |
 | **Stage 3** | `S3.P2.3` | Flutter Model Manager UI & Live Benchmark Diagnostics | `S3.P2.2` | `COMPLETED` | Verified [Commit `fc57dde`]: 167 Rust workspace unit tests passing (24 in `aissistant-ffi`), 45 Flutter unit and widget tests passing (100%), `flutter analyze` zero issues, `ModelSupervisor` FFI bridge endpoints (`model_snapshot`, `model_load`, `model_unload`, `model_benchmark_run`), C-ABI functions, `ModelsScreen` responsive UI, hardware headroom & SIMD overview, active model card with unload control, live TTFT/throughput benchmark card, and segmented model catalog verified. |
-| **Stage 4** | `S4.P1.1` | Conversation Persistence & SQLite FTS5 Episodic Search | `S3.P2.3` | `PENDING` | — |
+| **Stage 4** | `S4.P1.1` | Conversation Persistence & SQLite FTS5 Episodic Search | `S3.P2.3` | `COMPLETED` | Verified: 175 Rust workspace unit tests passing (24 in `aissistant-storage`), 45 Flutter tests passing (100%), `flutter analyze` zero issues, `Migration 3` schema runner, `conversations` & `conversation_turns` relational tables, automatic `conversation_turns_fts` FTS5 index triggers, query sanitization, BM25 scoring, snippet excerpts, JSON export, and complete privacy purge verified. |
 | **Stage 4** | `S4.P1.2` | Local Embedding Generation & Hybrid Vector Memory Retrieval | `S4.P1.1` | `PENDING` | — |
 | **Stage 4** | `S4.P2.1` | Deterministic Orchestrator Turn State Machine (`aissistant-orchestrator`) | `S4.P1.2` | `PENDING` | — |
 | **Stage 4** | `S4.P2.2` | Policy-Enforced Tool Dispatcher & User Confirmation Flow | `S4.P2.1` | `PENDING` | — |
@@ -527,6 +527,27 @@ Status Legend:
   - `adaptive_shell.dart`: Verified "Models" navigation rail and bottom navigation bar destination integration.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `fc57dde`
+
+### Verification Evidence — S4.P1.1 (Conversation Persistence & SQLite FTS5 Episodic Search)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 7 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (175 passed across 7 crates; 24 in `aissistant-storage`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (45 passed across 7 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `migration::tests::test_migration_runner_applies_v1_and_is_idempotent`: Verified `Migration 3` creating `conversations`, `conversation_turns`, `conversation_turns_fts`, indices, and automatic triggers (`trg_turns_ai`, `trg_turns_ad`, `trg_turns_au`) keeping the FTS5 virtual table synchronized with relational tables.
+  - `conversation_store::tests::test_conversation_crud_lifecycle`: Verified conversation session creation, title updates, metadata updates (pinned, tags, summary, model ID, system prompt), listing with pagination, and error handling for missing conversations.
+  - `conversation_store::tests::test_conversation_turns_and_cascade_deletion`: Verified turn appending with sequential indices, updating parent conversation `updated_at_ms`, listing ordered turns, individual turn deletion, and cascading deletion removing turns and FTS index rows when the parent conversation is deleted.
+  - `conversation_store::tests::test_sqlite_fts5_episodic_search`: Verified full-text episodic memory search across conversations and scoped to individual conversations, calculating positive BM25 scores and generating formatted `<mark>` snippet excerpts.
+  - `conversation_store::tests::test_fts5_query_sanitization_resilience`: Verified `sanitize_fts5_query` converting arbitrary user input (unclosed quotes, SQL/FTS reserved operators `AND`, `OR`, `NOT`, colons, asterisks) into safe quoted prefix expressions without panics or SQLite syntax errors.
+  - `conversation_store::tests::test_memory_transparency_json_export_and_purge`: Verified full conversation and turn export to structured JSON and complete memory purge in accordance with Requirement `FR-3.2`.
+  - `conversation_store::tests::test_tool_calls_serialization_and_retrieval`: Verified storing and retrieving structured tool calls (`tool_calls_json`) on turns.
+  - `conversation_store::tests::test_turn_role_conversions`: Verified string conversions, case-insensitive parsing, and display formatting for all `TurnRole` variants (`user`, `assistant`, `system`, `tool`).
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+
 
 
 

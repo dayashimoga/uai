@@ -33,6 +33,24 @@ pub enum StorageError {
         key: String,
     },
 
+    /// Requested conversation was not found.
+    #[error("Conversation '{id}' was not found")]
+    ConversationNotFound {
+        /// Missing conversation ID.
+        id: String,
+    },
+
+    /// Requested turn was not found.
+    #[error("Conversation turn '{id}' was not found")]
+    TurnNotFound {
+        /// Missing turn ID.
+        id: String,
+    },
+
+    /// Search query string is invalid.
+    #[error("Invalid search query: {0}")]
+    InvalidSearchQuery(String),
+
     /// The cryptographic audit chain is broken or has been tampered with.
     #[error("Cryptographic audit log corrupted: {reason}")]
     CorruptAuditChain {
@@ -58,6 +76,18 @@ impl StorageError {
             Self::NotFound { key } => CoreError::NotFound {
                 entity: "StorageRecord",
                 id: key.clone(),
+            },
+            Self::ConversationNotFound { id } => CoreError::NotFound {
+                entity: "Conversation",
+                id: id.clone(),
+            },
+            Self::TurnNotFound { id } => CoreError::NotFound {
+                entity: "ConversationTurn",
+                id: id.clone(),
+            },
+            Self::InvalidSearchQuery(reason) => CoreError::ConfigValidation {
+                field: "search_query".to_string(),
+                reason: reason.clone(),
             },
             Self::CorruptAuditChain { reason } => CoreError::PermissionDenied {
                 action: "storage.audit_integrity".to_string(),
@@ -111,6 +141,28 @@ mod tests {
         assert_eq!(
             core_corrupt.category(),
             aissistant_core::ErrorCategory::Security
+        );
+
+        let conv_not_found = StorageError::ConversationNotFound {
+            id: "conv_123".to_string(),
+        };
+        assert_eq!(
+            conv_not_found.to_core_error().category(),
+            aissistant_core::ErrorCategory::NotFound
+        );
+
+        let turn_not_found = StorageError::TurnNotFound {
+            id: "turn_001".to_string(),
+        };
+        assert_eq!(
+            turn_not_found.to_core_error().category(),
+            aissistant_core::ErrorCategory::NotFound
+        );
+
+        let invalid_query = StorageError::InvalidSearchQuery("empty term".to_string());
+        assert_eq!(
+            invalid_query.to_core_error().category(),
+            aissistant_core::ErrorCategory::Configuration
         );
     }
 }

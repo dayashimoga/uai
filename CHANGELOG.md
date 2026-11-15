@@ -730,3 +730,35 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 167 unit and integration tests (0 failures; 24 in `aissistant-ffi`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+---
+
+## [2026-11-15] — Stage 4 Phase 1 Subphase 1 (`S4.P1.1`)
+
+### Added
+- `core/crates/aissistant-storage/src/migration.rs`:
+  - `Migration 3` — Multi-session conversation persistence, turn history, and SQLite FTS5 episodic search.
+  - Relational tables: `conversations` and `conversation_turns` with foreign key cascade deletion and compound indices (`idx_turns_conversation`, `idx_turns_timestamp`).
+  - Virtual full-text search table: `conversation_turns_fts` using SQLite FTS5 with `unicode61` tokenizer.
+  - Automatic triggers: `trg_turns_ai` (after insert), `trg_turns_ad` (after delete), `trg_turns_au` (after update) keeping `conversation_turns_fts` 100% synchronized with `conversation_turns`.
+- `core/crates/aissistant-storage/src/conversation_store.rs`:
+  - `ConversationStore` — Engine managing conversation lifecycle, turn history, and FTS5 episodic search.
+  - Domain models: `Conversation`, `ConversationMetadata`, `ConversationTurn`, `TurnRole`, `TurnMetadata`, `EpisodicSearchResult`, `ExportedConversation`.
+  - Methods: `create_conversation()`, `get_conversation()`, `list_conversations()`, `update_conversation_title()`, `update_conversation_metadata()`, `delete_conversation()`.
+  - Turn operations: `add_turn()`, `get_turn()`, `list_turns()`, `delete_turn()`.
+  - Episodic search: `search_episodic_memory()` across all sessions and `search_episodic_memory_in_conversation()` scoped to single session with inverted BM25 scoring and `<mark>` snippet highlights.
+  - Query sanitization: `sanitize_fts5_query()` splitting input into safe quoted prefix expressions (`"term"*`), stripping SQL/FTS syntax control tokens and preventing syntax error crashes.
+  - Transparency & export: `export_conversation_json()` and `purge_all_conversations()` conforming to Requirement `FR-3.2`.
+- `core/crates/aissistant-storage/src/error.rs`:
+  - Added error variants: `ConversationNotFound`, `TurnNotFound`, `InvalidSearchQuery`.
+  - Mapped into canonical `CoreError` taxonomy (`NotFound`, `ConfigValidation`).
+- `core/crates/aissistant-storage/src/lib.rs`:
+  - Exported `ConversationStore`, `Conversation`, `ConversationTurn`, `TurnRole`, `EpisodicSearchResult`, `sanitize_fts5_query`.
+  - Added full conversation and episodic search flow to `test_storage_subsystem_end_to_end`.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 175 unit and integration tests (0 failures; 24 in `aissistant-storage`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.

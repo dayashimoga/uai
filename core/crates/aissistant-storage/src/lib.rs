@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod audit_store;
+pub mod conversation_store;
 pub mod error;
 pub mod keystore;
 pub mod migration;
@@ -11,6 +12,10 @@ pub mod secret_store;
 pub mod settings_store;
 
 pub use audit_store::AuditStore;
+pub use conversation_store::{
+    sanitize_fts5_query, Conversation, ConversationMetadata, ConversationStore, ConversationTurn,
+    EpisodicSearchResult, ExportedConversation, TurnMetadata, TurnRole,
+};
 pub use error::StorageError;
 pub use keystore::{
     derive_key_from_secret, FileBoundKeystore, InMemoryKeystore, KeystoreProvider, OsKeystore,
@@ -35,7 +40,7 @@ mod tests {
         let settings = SettingsStore::new(db.clone());
         let audit = AuditStore::new(db.clone());
         let master_key = AeadKey::generate();
-        let secrets = SecretStore::new(db, master_key);
+        let secrets = SecretStore::new(db.clone(), master_key);
 
         // Store and retrieve a setting
         settings
@@ -64,5 +69,28 @@ mod tests {
         );
         audit.append(&entry).unwrap();
         assert_eq!(audit.verify_integrity().unwrap(), entry.entry_hash);
+
+        // Store conversation, add turn, and search episodic memory
+        let conversations = ConversationStore::new(db);
+        let conv = conversations
+            .create_conversation("Integration Test", None)
+            .unwrap();
+        conversations
+            .add_turn(&ConversationTurn {
+                id: aissistant_core::TurnId::from_sequence(1),
+                conversation_id: conv.id.clone(),
+                turn_index: 0,
+                role: TurnRole::User,
+                content: "Remember to buy milk and eggs tomorrow".to_string(),
+                timestamp_ms: 123456,
+                token_count: 8,
+                tool_calls: None,
+                metadata: TurnMetadata::default(),
+            })
+            .unwrap();
+
+        let search = conversations.search_episodic_memory("milk", 5).unwrap();
+        assert_eq!(search.len(), 1);
+        assert!(search[0].snippet.contains("<mark>milk</mark>"));
     }
 }

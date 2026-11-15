@@ -53,6 +53,60 @@ const MIGRATIONS: &[Migration] = &[
             );
         ",
     },
+    Migration {
+        version: 3,
+        description: "Multi-session conversation persistence, turn history, and SQLite FTS5 episodic search",
+        sql: "
+            CREATE TABLE IF NOT EXISTS conversations (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL,
+                updated_at_ms INTEGER NOT NULL,
+                metadata_json TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS conversation_turns (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+                turn_index INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                timestamp_ms INTEGER NOT NULL,
+                token_count INTEGER NOT NULL,
+                tool_calls_json TEXT,
+                metadata_json TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_turns_conversation ON conversation_turns(conversation_id, turn_index);
+            CREATE INDEX IF NOT EXISTS idx_turns_timestamp ON conversation_turns(timestamp_ms);
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS conversation_turns_fts USING fts5(
+                turn_id UNINDEXED,
+                conversation_id UNINDEXED,
+                role UNINDEXED,
+                content,
+                tokenize = 'unicode61'
+            );
+
+            CREATE TRIGGER IF NOT EXISTS trg_turns_ai AFTER INSERT ON conversation_turns
+            BEGIN
+                INSERT INTO conversation_turns_fts(rowid, turn_id, conversation_id, role, content)
+                VALUES (new.rowid, new.id, new.conversation_id, new.role, new.content);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_turns_ad AFTER DELETE ON conversation_turns
+            BEGIN
+                DELETE FROM conversation_turns_fts WHERE rowid = old.rowid;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_turns_au AFTER UPDATE ON conversation_turns
+            BEGIN
+                DELETE FROM conversation_turns_fts WHERE rowid = old.rowid;
+                INSERT INTO conversation_turns_fts(rowid, turn_id, conversation_id, role, content)
+                VALUES (new.rowid, new.id, new.conversation_id, new.role, new.content);
+            END;
+        ",
+    },
 ];
 
 /// Migration runner applying incremental DDL changes within ACID transactions.
@@ -125,21 +179,21 @@ mod tests {
 
         // Initial run
         let version = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version, 2);
-        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 2);
+        assert_eq!(version, 3);
+        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 3);
 
         // Verify tables exist
         let tables_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations');",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts');",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(tables_count, 4);
+        assert_eq!(tables_count, 7);
 
         // Second run must be a no-op
         let version_again = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version_again, 2);
+        assert_eq!(version_again, 3);
     }
 }
