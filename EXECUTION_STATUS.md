@@ -474,7 +474,7 @@ Status Legend:
   - `tests::test_gguf_inspector_corrupt_files_rejection`: Verified rejection of invalid magic bytes, truncated files (< 4 bytes), unsupported versions, and oversized string lengths without panic.
   - `tests::test_local_model_downloader_atomic_ingestion_and_resumability`: Verified chunked streaming ingestion into `<model_id>.part`, progress telemetry callbacks, SHA-256 verification, atomic rename to `<model_id>.gguf`, automatic deletion of corrupted partial files, and byte resume offset calculations.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** `Pending`
+- **Commit Reference:** `64d4f3d`
 
 
 
