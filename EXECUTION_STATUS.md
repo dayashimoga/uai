@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 1 — Repository, Flutter/Rust Foundation & Five-Platform Application Shells  
-**Active Subphase:** None (S1.P2.2 completed; S1.P3.1 awaiting user confirmation)
+**Active Subphase:** `S1.P3.1` (In Progress)
 
 ---
 
@@ -15,7 +15,7 @@
 | **CMake** | `VERIFIED` | `cmake version 4.4.1` (WinLibs MinGW64) | Ready for native C/C++ builds (`llama.cpp` / `sherpa-onnx`). |
 | **Python 3** | `VERIFIED` | `Python 3.11.9` | Available for build/verification scripts. |
 | **GitHub CLI (`gh`)** | `NOT_INSTALLED` | Not found in `PATH` or `Program Files` | Remote GitHub creation/push requires either `gh` CLI + auth or a remote repository URL from user. |
-| **Flutter / Dart SDK** | `NOT_INSTALLED_LOCALLY` | Not found in `PATH` | Required starting at `S1.P3.1` (can be installed via `winget` / official SDK prior to `S1.P3.1`). |
+| **Flutter / Dart SDK** | `VERIFIED` | Flutter 3.44.6 • Dart 3.12.2 (`C:\flutter\bin\flutter.bat`) | Ready for Stage 1 Flutter UI and application integration. |
 | **Android SDK / Xcode / Linux Runners** | `CI_OR_TARGET_HOST` | Configured in `.github/workflows/` | Cross-platform native compilation configured via GitHub Actions matrix runners. |
 
 ---
@@ -39,7 +39,7 @@ Status Legend:
 | **Stage 1** | `S1.P1.2` | OS Keystore Integration & Encrypted Secret Store | `S1.P1.1` | `COMPLETED` | Verified: 69 workspace unit tests passing, clippy zero warnings, encrypted secret store verified. |
 | **Stage 1** | `S1.P2.1` | `aissistant-ffi` Crate & Async Stream Bridge | `S1.P1.2` | `COMPLETED` | Verified: 83 workspace unit tests passing (14 in `aissistant-ffi`), clippy zero warnings, fmt check passed, event broadcast stream and safe C-ABI round trips verified. |
 | **Stage 1** | `S1.P2.2` | Core Lifecycle Supervisor & Graceful Shutdown | `S1.P2.1` | `COMPLETED` | Verified: 88 workspace unit tests passing (19 in `aissistant-ffi`), clippy zero warnings, fmt check passed, two-phase graceful shutdown, memory pressure checkpointing, and C-ABI verified. |
-| **Stage 1** | `S1.P3.1` | Shared Flutter App Shell, Adaptive Navigation & Live Core Diagnostics | `S1.P2.2` | `PENDING` | Requires Flutter SDK on host or installation approval. |
+| **Stage 1** | `S1.P3.1` | Shared Flutter App Shell, Adaptive Navigation & Live Core Diagnostics | `S1.P2.2` | `COMPLETED` | Verified: 20 Flutter tests passing (100%), 88 Rust workspace tests passing, `flutter analyze` zero issues, responsive navigation (desktop NavigationRail vs mobile NavigationBar), live diagnostics, capability permission toggling, and hash-chain audit log inspection verified. |
 | **Stage 1** | `S1.P3.2` | Five-Platform Native Runner Configuration & Capability Badges | `S1.P3.1` | `PENDING` | — |
 | **Stage 2** | `S2.P1.1` | Real-Time Safe Audio Ring Buffer & Resampler (`aissistant-audio`) | `S1.P3.2` | `PENDING` | — |
 | **Stage 2** | `S2.P1.2` | Cross-Platform Audio Capture & Playback Engine | `S2.P1.1` | `PENDING` | — |
@@ -245,3 +245,31 @@ Status Legend:
   - `tests::test_c_abi_lifecycle_round_trip`: Verified C-ABI lifecycle functions (`bridge_c_get_lifecycle_state`, `bridge_c_notify_memory_pressure`, `bridge_c_request_shutdown`).
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `32c1546`
+
+### Verification Evidence — S1.P3.1 (Shared Flutter App Shell, Adaptive Navigation & Live Core Diagnostics)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `Flutter 3.44.6`, `Dart 3.12.2`, `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cd app; C:\flutter\bin\flutter.bat pub get` -> Exit 0 (Resolved 27 packages)
+  2. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found! 0 warnings/hints)
+  3. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (20 passed, 0 failed)
+  4. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (88 passed across 4 Rust crates)
+- **Test Summary:**
+  - `assistant_controller_test.dart`:
+    - Verified initial state loading from Rust bridge (`HealthReport`, 9 capabilities, audit log, theme mode).
+    - Verified live capability permission toggling and state propagation (`file_system` disable/enable).
+    - Verified hash-chained audit log integrity verification through the controller.
+    - Verified appearance/theme settings persistence via `assistant.theme_mode`.
+    - Verified memory pressure simulation and diagnostic card updates.
+    - Verified graceful shutdown trigger and lifecycle state progression.
+  - `models_test.dart`:
+    - Verified `HealthReport` JSON deserialization with full subsystem status, active tasks, and error details.
+    - Verified degraded health handling and empty detail lists.
+    - Verified `CapabilityItem` JSON deserialization, display naming, and serialization.
+    - Verified `AuditItem` and `AuditIntegrityReport` JSON parsing, timestamp formatting, and hash string representations.
+    - Verified `BridgeEvent` polymorphism for `HealthStatusChanged`, `CapabilityChanged`, `AuditLogAppended`, `LifecycleStateChanged`, and `MemoryPressure` events.
+  - `widget_test.dart`:
+    - Verified responsive adaptive shell rendering: `NavigationRail` rendered on wide displays (>=640dp) and `NavigationBar` on narrow displays (<640dp).
+    - Verified seamless tab switching across Diagnostics, Capabilities, Audit Log, and Settings screens.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows Flutter/Dart); CI matrix pipeline covers Linux, macOS, Android, iOS, and Windows.
+- **Commit Reference:** Pending commit

@@ -51,7 +51,7 @@ unlinked*.dsym
 **/linux/flutter/ephemeral/
 
 # Local AI Models & Voice Assets (Never commit large binaries)
-models/
+/models/
 *.gguf
 *.onnx
 *.bin

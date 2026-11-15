@@ -20,7 +20,7 @@
 
 ## Environment & Remote Repository Tasks
 - [ ] `[ENV-01]` Connect local Git repository (`g:\aissistant`) to remote GitHub repository (requires user remote URL or `gh` CLI installation & auth).
-- [ ] `[ENV-02]` Install or add Flutter SDK (`flutter` / `dart`) to `PATH` prior to Stage 1 Subphase `S1.P3.1`.
+- [x] `[ENV-02]` Verify Flutter SDK (`flutter` / `dart`) on host: verified at `C:\flutter\bin\flutter.bat` (Flutter 3.44.6, Dart 3.12.2).
 
 ---
 
@@ -37,5 +37,5 @@
 - [x] `[S1.P1.2]` Integrate OS-native keystore adapters (Windows DPAPI, macOS/iOS Keychain, Linux SecretService, Android Keystore fallback abstraction) to seal the master AEAD key. *(Completed 2026-11-15)*
 - [x] `[S1.P2.1]` Create `aissistant-ffi` crate exposing system health, capability matrix, audit log inspection, and event streams. *(Completed 2026-11-15)*
 - [x] `[S1.P2.2]` Implement `CoreRuntime` lifecycle manager handling initialization, background task supervision, and clean shutdown across FFI. *(Completed 2026-11-15)*
-- [ ] `[S1.P3.1]` Create `app/` Flutter project with adaptive navigation, accessibility semantics, and live binding to `aissistant-ffi`.
+- [x] `[S1.P3.1]` Create `app/` Flutter project with adaptive navigation, accessibility semantics, and live binding to `aissistant-ffi`. *(Completed 2026-11-15)*
 - [ ] `[S1.P3.2]` Configure Windows, Linux, macOS, Android, and iOS native runner manifests, permissions declarations, and capability status views.

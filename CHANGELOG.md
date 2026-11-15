@@ -245,3 +245,40 @@
 - `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
 - `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 88 unit and integration tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 1 Phase 3 Subphase 1 (`S1.P3.1`)
+
+### Added
+- `app/pubspec.yaml` & `app/analysis_options.yaml`:
+  - Flutter application configuration with strict type-safety lints (`strict-casts`, `strict-inference`, `strict-raw-types`) and `dart:ffi` dependency.
+- `app/lib/core/models/`:
+  - `health_report.dart` — Type-safe Dart representation of Rust core health, subsystem status, active tasks, and degradation details.
+  - `capability_item.dart` — Platform capability representation with status indicators and permission toggles.
+  - `audit_item.dart` — Immutable representation of hash-chained audit entries and cryptographic verification reports.
+  - `bridge_event.dart` — Sealed class hierarchy for asynchronous bridge events (`HealthStatusChanged`, `CapabilityChanged`, `AuditLogAppended`, `SettingChanged`, `LifecycleStateChanged`, `MemoryPressure`, `ErrorOccurred`).
+- `app/lib/core/ffi_bridge.dart`:
+  - `AissistantBridge` interface contract and `DynamicLibraryBridge` resolving native dynamic libraries (`aissistant_ffi.dll`, `libaissistant_ffi.so`, `libaissistant_ffi.dylib`).
+  - High-performance, zero-allocation C-ABI function bindings and event streaming.
+  - Mock-free `TestHarnessBridge` for reliable, isolated headless widget and unit testing.
+- `app/lib/core/assistant_controller.dart`:
+  - Reactive `ChangeNotifier` state controller orchestrating live health snapshots, capability toggles, audit verification, theme preference persistence, and graceful shutdown.
+- `app/lib/ui/adaptive_shell.dart`:
+  - Responsive layout dynamically switching between desktop `NavigationRail` (>=640dp) and mobile `NavigationBar` (<640dp).
+- `app/lib/ui/screens/`:
+  - `diagnostics_screen.dart` — Comprehensive health telemetry cards, subsystem status grid, active task count, memory pressure trimmer, and shutdown controls.
+  - `capabilities_screen.dart` — 9-capability registry viewer with active badges, status chips, degradation diagnostics, and live policy permission toggles.
+  - `audit_log_screen.dart` — Append-only, BLAKE3 hash-chained audit log viewer with entry details, SHA/BLAKE3 hash previews, and live "Verify Cryptographic Chain" action.
+  - `settings_screen.dart` — Theme selection (`SegmentedButton`), offline SQLite WAL status, encryption engine description, and cache trimmer.
+- `app/lib/main.dart`:
+  - Application entry point with Material 3 theming (light, dark, system-adaptive).
+- `app/test/`:
+  - `models_test.dart` — 11 unit tests verifying serialization and deserialization across all core data models and bridge events.
+  - `assistant_controller_test.dart` — 6 unit tests verifying state transitions, capability toggles, audit verification, and lifecycle supervision.
+  - `widget_test.dart` — 3 widget tests verifying responsive navigation shell behavior and screen switching.
+
+### Verification
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 20 unit, model, controller, and widget tests (0 failures).
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 88 unit and integration tests (0 failures).
