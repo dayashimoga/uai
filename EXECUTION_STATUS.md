@@ -784,7 +784,7 @@ Status Legend:
   - `device_registry::tests::test_peer_permissions_and_cascade_on_delete`: Verified granular capability permission grants, default-deny evaluation for unconfigured/blocked peers, and foreign key cascading deletion of grants on device removal.
   - `device_registry::tests::test_device_registry_audit_log_continuity`: Verified that device registrations, trust updates, permission modifications, and deletions append cryptographically sealed, hash-chained entries to the security audit log (`verify_integrity` passes).
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `c704073`
 
 
 
