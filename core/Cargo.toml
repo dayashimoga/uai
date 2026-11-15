@@ -6,6 +6,7 @@ members = [
     "crates/aissistant-storage",
     "crates/aissistant-ffi",
     "crates/aissistant-audio",
+    "crates/aissistant-speech",
 ]
 
 [workspace.package]

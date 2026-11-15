@@ -45,7 +45,7 @@
 ## Stage 2 Queue (Offline Voice, Wake Word, STT & TTS)
 - [x] `[S2.P1.1]` Real-Time Safe Audio Ring Buffer & Resampler (`aissistant-audio`) *(Completed 2026-11-15)*
 - [x] `[S2.P1.2]` Cross-Platform Audio Capture & Playback Engine *(Completed 2026-11-15)*
-- [ ] `[S2.P2.1]` Offline VAD & Barge-In Detector (`sherpa-onnx` / Silero VAD)
+- [x] `[S2.P2.1]` Offline VAD & Barge-In Detector (`sherpa-onnx` / Silero VAD) *(Completed 2026-11-15)*
 - [ ] `[S2.P2.2]` Customizable Offline Wake-Word Engine (`sherpa-onnx` KWS)
 - [ ] `[S2.P3.1]` Offline Multilingual Streaming Speech-to-Text
 - [ ] `[S2.P3.2]` Offline Neural Text-to-Speech & Sentence Streaming

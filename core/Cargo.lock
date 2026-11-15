@@ -83,6 +83,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "aissistant-speech"
+version = "0.1.0"
+dependencies = [
+ "aissistant-audio",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "aissistant-storage"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,21 @@
+[package]
+name = "aissistant-speech"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Offline Voice Activity Detection (VAD), barge-in detection, and speech segmentation for Universal AI Assistant"
+
+[lints]
+workspace = true
+
+[dependencies]
+aissistant-audio = { path = "../aissistant-audio" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

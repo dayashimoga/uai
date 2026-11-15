@@ -43,7 +43,7 @@ Status Legend:
 | **Stage 1** | `S1.P3.2` | Five-Platform Native Runner Configuration & Capability Badges | `S1.P3.1` | `COMPLETED` | Verified: 28 Flutter tests passing (100%), 88 Rust workspace tests passing, `flutter analyze` zero issues, 5-platform runners (Windows, Linux, macOS, Android, iOS) configured with offline privacy manifests, CMake library bundling, and capability status views. |
 | **Stage 2** | `S2.P1.1` | Real-Time Safe Audio Ring Buffer & Resampler (`aissistant-audio`) | `S1.P3.2` | `COMPLETED` | Verified: 105 Rust workspace unit tests passing (17 in `aissistant-audio`), clippy zero warnings, fmt check passed, lock-free SPSC circular ring buffer (Strict & Overwrite modes), multi-channel downmixing, continuous 16 kHz resampler, and dBFS level meter verified. |
 | **Stage 2** | `S2.P1.2` | Cross-Platform Audio Capture & Playback Engine | `S2.P1.1` | `COMPLETED` | Verified: 111 Rust workspace unit tests passing (23 in `aissistant-audio`), clippy zero warnings, fmt check passed, native device discovery, real-time capture stream, software mute enforcement, playback stream with instant barge-in flush, and headless virtual driver verified. |
-| **Stage 2** | `S2.P2.1` | Offline VAD & Barge-In Detector (`sherpa-onnx` / Silero VAD) | `S2.P1.2` | `PENDING` | — |
+| **Stage 2** | `S2.P2.1` | Offline VAD & Barge-In Detector (`sherpa-onnx` / Silero VAD) | `S2.P1.2` | `COMPLETED` | Verified: 119 Rust workspace unit tests passing (8 in `aissistant-speech`), clippy zero warnings, fmt check passed, offline VAD engine, pre-speech padding, silence timeout tuning, and instant barge-in interruption verified. |
 | **Stage 2** | `S2.P2.2` | Customizable Offline Wake-Word Engine (`sherpa-onnx` KWS) | `S2.P2.1` | `PENDING` | — |
 | **Stage 2** | `S2.P3.1` | Offline Multilingual Streaming Speech-to-Text | `S2.P2.2` | `PENDING` | — |
 | **Stage 2** | `S2.P3.2` | Offline Neural Text-to-Speech & Sentence Streaming | `S2.P3.1` | `PENDING` | — |
@@ -342,3 +342,23 @@ Status Legend:
   - `tests::test_audio_playback_stream_virtual_lifecycle_and_volume`: Verified playback stream start, pause, linear volume scaling ($0.0 \dots 1.0$), queueing, and flush.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `33b5dbc910ddd406e077aa9c4469ea7b895bea97`
+
+### Verification Evidence — S2.P2.1 (Offline VAD & Barge-In Detector)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 6 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (119 passed across 6 crates; 8 in `aissistant-speech`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (28 passed across 5 Flutter test suites)
+- **Test Summary:**
+  - `tests::test_energy_vad_silence_detection`: Verified that background silence produces speech probability $< 0.1$ with adaptive noise floor calibration.
+  - `tests::test_energy_vad_active_speech_detection`: Verified that synthetic harmonic speech tones (human fundamental and overtones) produce speech probability $> 0.5$.
+  - `tests::test_silero_vad_window_size_validation`: Verified 512-sample (32 ms) and 256-sample (16 ms) window size validation and invalid window length rejection (`SpeechError::InvalidAudioFormat`).
+  - `tests::test_utterance_segmenter_silence_maintains_silence_state`: Verified that continuous silence does not trigger false onset events and maintains the `Silence` state.
+  - `tests::test_utterance_segmenter_speech_onset_and_trailing_silence`: Verified full speech lifecycle: pre-speech padding accumulation, voice onset detection (`SpeechStarted`), speech continuation, and utterance completion (`SpeechFinished`) upon trailing silence timeout.
+  - `tests::test_barge_in_detection_when_playback_active`: Verified that voice onset detected during active playback immediately triggers barge-in ($< 50\text{ ms}$), emits `BargeInEvent`, and executes `flush` on the playback stream.
+  - `tests::test_barge_in_ignored_when_playback_inactive`: Verified that user speech does not trigger barge-in interruptions when the assistant is not actively speaking.
+  - `tests::test_barge_in_speech_drop_resets_counter`: Verified that transient noise spikes or brief speech drops reset the consecutive speech frame accumulator before reaching threshold.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit

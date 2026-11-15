@@ -378,3 +378,34 @@
 - `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 111 unit and integration tests (0 failures; 23 in `aissistant-audio`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit and widget tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 2 Phase 2 Subphase 1 (`S2.P2.1`)
+
+### Added
+- `core/crates/aissistant-speech/`:
+  - New Rust workspace crate providing Voice Activity Detection (VAD), utterance segmentation, and real-time barge-in interruption.
+- `core/crates/aissistant-speech/src/error.rs`:
+  - `SpeechError` taxonomy (`InvalidAudioFormat`, `VadError`, `ModelError`, `BufferError`, `ParameterError`).
+- `core/crates/aissistant-speech/src/vad.rs`:
+  - `VadConfig` — Configuration parameters for sample rate (16 kHz), analysis window (512 samples = 32 ms), speech threshold (0.5), onset confirmation duration, trailing silence timeout, and pre-speech padding.
+  - `VadEngine` trait — Abstract interface for frame-based speech probability scoring.
+  - `VadState` & `VadEvent` — State machine and event model (`SpeechStarted`, `SpeechContinuing`, `SpeechFinished`, `Silence`).
+  - `UtteranceSegmenter` — Streaming utterance boundary aggregator with pre-speech lead-in buffer preserving initial speech sounds and trailing silence timeout detection.
+- `core/crates/aissistant-speech/src/energy_vad.rs`:
+  - `EnergyVadEngine` — Fast, self-contained offline VAD engine computing adaptive ambient noise floor, frame energy, zero-crossing rate, and calibrated sigmoid speech probabilities without external model dependencies.
+- `core/crates/aissistant-speech/src/silero_vad.rs`:
+  - `SileroVadEngine` — Silero VAD frame interface managing chunk length validation (512/256 samples), recurrent network hidden state vectors (h, c), and multi-band harmonic feature extraction.
+- `core/crates/aissistant-speech/src/barge_in.rs`:
+  - `BargeInDetector` & `BargeInEvent` — Real-time barge-in interruption detector monitoring playback stream state and voice onset to trigger immediate audio flush ($< 50\text{ ms}$) when the user speaks over assistant audio.
+- `core/crates/aissistant-speech/src/lib.rs`:
+  - 8 comprehensive unit and integration tests verifying background silence handling, active speech probability scoring, Silero chunk validation, utterance lifecycle with pre-speech padding, trailing silence timeout tuning, and playback barge-in interruption.
+- `core/Cargo.toml`:
+  - Added `"crates/aissistant-speech"` to `workspace.members`.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 119 unit and integration tests (0 failures; 8 in `aissistant-speech`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit and widget tests (0 failures).
