@@ -272,4 +272,4 @@ Status Legend:
     - Verified responsive adaptive shell rendering: `NavigationRail` rendered on wide displays (>=640dp) and `NavigationBar` on narrow displays (<640dp).
     - Verified seamless tab switching across Diagnostics, Capabilities, Audit Log, and Settings screens.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows Flutter/Dart); CI matrix pipeline covers Linux, macOS, Android, iOS, and Windows.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `8ccc9b51f15ba762de11a82bde5ed4881ef5bf7a`
