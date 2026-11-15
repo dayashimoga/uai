@@ -323,4 +323,4 @@ Status Legend:
   - `tests::test_meter_ballistics_attack_and_decay`: Verified instantaneous attack and smooth exponential decay release.
   - `tests::test_batch_resample_convenience`: Verified one-shot batch resampling utility.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `8b93745b6c9af9e0f8a250bbfc7361d2411c98de`
