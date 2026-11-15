@@ -65,3 +65,23 @@
 - `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed cleanly.
 - `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 23 unit and integration tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 0 Phase 1 Subphase 2 (`S0.P1.2`)
+
+### Added
+- `core/crates/aissistant-core/src/capability.rs`:
+  - `PlatformTarget` enum (`Windows`, `Linux`, `MacOS`, `Android`, `Ios`) with host detection (`PlatformTarget::current()`).
+  - `Capability` enum covering all 9 core system/AI capabilities.
+  - `CapabilityStatus` enum (`Supported`, `Degraded`, `Unsupported`, `RequiresPermission`).
+  - `CapabilityMatrix` mapping capabilities across the 5 target platforms per `REQUIREMENTS.md`.
+  - `CapabilityRegistry` dynamic runtime state tracker with live permission grants/revocations and status overrides.
+  - `HostProbeResult` safe host architecture, OS, and capability detector.
+- `core/crates/aissistant-core/src/lib.rs`:
+  - Exported `capability` module and re-exported key types at crate root.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 31 unit and integration tests (0 failures).

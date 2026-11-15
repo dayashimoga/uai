@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 0 — Requirements, Architecture & Engineering Foundation  
-**Active Subphase:** None (Stopped at S0.P1.1 Completion Gate — Awaiting Approval for S0.P1.2)
+**Active Subphase:** None (Stopped at S0.P1.2 Completion Gate — Awaiting Approval for S0.P2.1)
 
 ---
 
@@ -32,8 +32,8 @@ Status Legend:
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Bootstrap** | `BOOTSTRAP` | Repository, Governance, Architecture, Skills, Workflows & CI Bootstrap | None | `COMPLETED` | All 16 bootstrap deliverables created and committed on `main` (2026-11-15). |
 | **Stage 0** | `S0.P1.1` | Core Domain Types & Error Taxonomy (`aissistant-core`) | `BOOTSTRAP` | `COMPLETED` | Verified: 23 unit tests passing, clippy zero warnings, fmt check passed. |
-| **Stage 0** | `S0.P1.2` | Five-Platform Capability Matrix & Runtime Probe Contract | `S0.P1.1` | `PENDING` | **Next Pending Subphase — Awaiting User Approval** |
-| **Stage 0** | `S0.P2.1` | Risk Tiers, Policy Engine & Taint Tracking Core (`aissistant-security`) | `S0.P1.2` | `PENDING` | — |
+| **Stage 0** | `S0.P1.2` | Five-Platform Capability Matrix & Runtime Probe Contract | `S0.P1.1` | `COMPLETED` | Verified: 31 workspace unit tests passing, clippy zero warnings, host probe verified. |
+| **Stage 0** | `S0.P2.1` | Risk Tiers, Policy Engine & Taint Tracking Core (`aissistant-security`) | `S0.P1.2` | `PENDING` | **Next Pending Subphase — Awaiting User Approval** |
 | **Stage 0** | `S0.P2.2` | Cryptographic Primitives & Hash-Chained Audit Log Contract | `S0.P2.1` | `PENDING` | — |
 | **Stage 1** | `S1.P1.1` | SQLite WAL Engine & Schema Migration Runner (`aissistant-storage`) | `S0.P2.2` | `PENDING` | — |
 | **Stage 1** | `S1.P1.2` | OS Keystore Integration & Encrypted Secret Store | `S1.P1.1` | `PENDING` | — |
@@ -107,3 +107,22 @@ Status Legend:
   - `tests::test_end_to_end_core_contracts`: Validated end-to-end integration across domain types.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `13d7fba027a9cd85d3e4eb1cb6fb067993bc524f`
+
+### Verification Evidence — S0.P1.2 (Five-Platform Capability Matrix & Runtime Probe Contract)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (31 passed, 0 failed)
+- **Test Summary:**
+  - `capability::tests::test_platform_target_roundtrips`: Validated parsing, display, and serialization across all 5 platforms.
+  - `capability::tests::test_capability_identifiers_roundtrips`: Validated all 9 capability enum variants and string conversions.
+  - `capability::tests::test_ios_capability_degradation_matrix`: Verified exact degradation and unsupported state rules for iOS sandbox (background mic degradation, remote input injection unsupported).
+  - `capability::tests::test_desktop_capabilities`: Verified Windows, Linux, and macOS capability and permission mapping.
+  - `capability::tests::test_android_capabilities`: Verified Android runtime permission requirements (Record Audio, Manage Storage, MediaProjection, Accessibility).
+  - `capability::tests::test_dynamic_permission_updating`: Verified live permission grant/revocation transitions and explicit status overrides in `CapabilityRegistry`.
+  - `capability::tests::test_host_probe_execution`: Safely probed host OS architecture, platform target, and capability registry.
+  - `capability::tests::test_capability_serde_roundtrip`: Verified complete JSON serialization/deserialization of live capability registry state.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit.

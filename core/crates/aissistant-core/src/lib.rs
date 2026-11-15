@@ -1,12 +1,17 @@
 //! Foundational domain types, strongly typed identifiers, configuration schemas,
-//! and error taxonomy for the Universal AI Assistant.
+//! error taxonomy, and five-platform capability matrix for the Universal AI Assistant.
 
 #![forbid(unsafe_code)]
 
+pub mod capability;
 pub mod config;
 pub mod error;
 pub mod ids;
 
+pub use capability::{
+    Capability, CapabilityMatrix, CapabilityRegistry, CapabilityStatus, HostProbeResult,
+    PlatformTarget,
+};
 pub use config::{AppConfig, ModelConfig, NetworkConfig, SecurityConfig, VoiceConfig};
 pub use error::{CoreError, ErrorCategory, ErrorCode, ErrorDescriptor};
 pub use ids::{AuditEntryId, ConversationId, DeviceId, ModelId, SkillId, TurnId};
@@ -40,5 +45,8 @@ mod tests {
         assert_eq!(conv_id.as_str().len(), 36);
         assert_eq!(turn_id.as_str(), "turn_000001");
         assert_eq!(skill_id.as_str(), "device.telemetry");
+
+        let registry = CapabilityRegistry::for_current_host();
+        assert!(registry.is_supported(Capability::LocalLlm));
     }
 }
