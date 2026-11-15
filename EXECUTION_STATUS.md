@@ -1,8 +1,8 @@
 # EXECUTION_STATUS.md — Authoritative Live Completion Tracker
 
 **Last Updated:** 2026-11-15  
-**Current Project Phase:** Stage 0 Completed — Ready for Stage 1 (Awaiting Approval for S1.P1.1)  
-**Active Subphase:** None (Stopped at S0.P2.2 Completion Gate — Awaiting Approval for S1.P1.1)
+**Current Project Phase:** Stage 1 — Repository, Flutter/Rust Foundation & Five-Platform Application Shells  
+**Active Subphase:** None (Stopped at S1.P1.1 Completion Gate — Awaiting Approval for S1.P1.2)
 
 ---
 
@@ -35,8 +35,8 @@ Status Legend:
 | **Stage 0** | `S0.P1.2` | Five-Platform Capability Matrix & Runtime Probe Contract | `S0.P1.1` | `COMPLETED` | Verified: 31 workspace unit tests passing, clippy zero warnings, host probe verified. |
 | **Stage 0** | `S0.P2.1` | Risk Tiers, Policy Engine & Taint Tracking Core (`aissistant-security`) | `S0.P1.2` | `COMPLETED` | Verified: 43 workspace unit tests passing, clippy zero warnings, taint escalation verified. |
 | **Stage 0** | `S0.P2.2` | Cryptographic Primitives & Hash-Chained Audit Log Contract | `S0.P2.1` | `COMPLETED` | Verified: 53 workspace unit tests passing, clippy zero warnings, audit tamper detection verified. |
-| **Stage 1** | `S1.P1.1` | SQLite WAL Engine & Schema Migration Runner (`aissistant-storage`) | `S0.P2.2` | `PENDING` | **Next Pending Subphase — Awaiting User Approval** |
-| **Stage 1** | `S1.P1.2` | OS Keystore Integration & Encrypted Secret Store | `S1.P1.1` | `PENDING` | — |
+| **Stage 1** | `S1.P1.1` | SQLite WAL Engine & Schema Migration Runner (`aissistant-storage`) | `S0.P2.2` | `COMPLETED` | Verified: 63 workspace unit tests passing, clippy zero warnings, persistent audit tampering detected. |
+| **Stage 1** | `S1.P1.2` | OS Keystore Integration & Encrypted Secret Store | `S1.P1.1` | `PENDING` | **Next Pending Subphase — Awaiting User Approval** |
 | **Stage 1** | `S1.P2.1` | `aissistant-ffi` Crate & Async Stream Bridge | `S1.P1.2` | `PENDING` | — |
 | **Stage 1** | `S1.P2.2` | Core Lifecycle Supervisor & Graceful Shutdown | `S1.P2.1` | `PENDING` | — |
 | **Stage 1** | `S1.P3.1` | Shared Flutter App Shell, Adaptive Navigation & Live Core Diagnostics | `S1.P2.2` | `PENDING` | Requires Flutter SDK on host or installation approval. |
@@ -166,3 +166,23 @@ Status Legend:
   - `audit::tests::test_deleted_entry_breaks_chain`: Verified deletion of an intermediate audit entry breaks `prev_hash` linkage and triggers tamper detection.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `d519acbb23d25ad1a48b77ce288e0f683ded708b`
+
+### Verification Evidence — S1.P1.1 (SQLite WAL Engine & Schema Migration Runner)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (63 passed, 0 failed)
+- **Test Summary:**
+  - `pool::tests::test_in_memory_db_creation`: Verified in-memory database creation, pragma execution, and automatic migration.
+  - `pool::tests::test_file_backed_db_creation`: Verified file-backed SQLite database creates directories and operates in `WAL` journal mode.
+  - `pool::tests::test_transaction_rollback_on_error`: Verified ACID transaction rollback on mid-operation failure.
+  - `migration::tests::test_migration_runner_applies_v1_and_is_idempotent`: Verified schema version 1 creation (`settings`, `security_audit_log`, `schema_migrations`) and idempotent no-op re-runs.
+  - `settings_store::tests::test_settings_store_lifecycle`: Verified typed JSON get, set, update, delete, and alphabetical key listing.
+  - `audit_store::tests::test_audit_store_append_and_verify_chain`: Verified sequential hash-chained audit record persistence and full database chain verification from genesis.
+  - `audit_store::tests::test_audit_store_rejects_broken_link`: Verified appending an entry with an invalid `prev_hash` is rejected.
+  - `audit_store::tests::test_adversarial_sql_tampering_detected`: Verified simulated direct SQL tampering (`UPDATE security_audit_log SET arguments_redacted_json = ...`) is caught by `verify_integrity()`.
+  - `tests::test_storage_subsystem_end_to_end`: Verified complete cross-crate integration between `aissistant-core`, `aissistant-security`, and `aissistant-storage`.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit.

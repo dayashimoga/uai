@@ -1,0 +1,23 @@
+[package]
+name = "aissistant-storage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Universal AI Assistant local SQLite WAL engine, migrations, settings, and audit store"
+
+[lints]
+workspace = true
+
+[dependencies]
+aissistant-core = { path = "../aissistant-core" }
+aissistant-security = { path = "../aissistant-security" }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

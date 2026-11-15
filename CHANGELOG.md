@@ -129,3 +129,29 @@
 - `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
 - `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 53 unit and integration tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 1 Phase 1 Subphase 1 (`S1.P1.1`)
+
+### Added
+- `core/crates/aissistant-storage/Cargo.toml` — New workspace crate for local SQLite WAL persistence and schema migrations.
+- `core/crates/aissistant-storage/src/lib.rs` — Storage crate root enforcing `#![forbid(unsafe_code)]` with cross-subsystem integration test.
+- `core/crates/aissistant-storage/src/error.rs` — `StorageError` taxonomy mapping SQLite, migration, serialization, and audit errors into `CoreError`.
+- `core/crates/aissistant-storage/src/pool.rs`:
+  - `SqliteDb` thread-safe handle configuring `WAL` journal mode, `NORMAL` synchronous mode, foreign keys, and 5000ms busy timeout.
+  - Safe transaction execution with automatic rollback on error.
+- `core/crates/aissistant-storage/src/migration.rs`:
+  - Versioned migration runner applying incremental SQL DDL in transactions.
+  - Migration 1: `settings` table, `security_audit_log` table, and timestamp index.
+- `core/crates/aissistant-storage/src/settings_store.rs`:
+  - Typed JSON key-value settings repository (`get`, `set`, `delete`, `list_keys`).
+- `core/crates/aissistant-storage/src/audit_store.rs`:
+  - Persistent store for cryptographically hash-chained `AuditEntry` records with chain tip validation.
+  - `verify_integrity()` scanning historical database rows and detecting direct SQL data tampering or deleted links.
+- `core/Cargo.toml` — Added `crates/aissistant-storage` to workspace members, and `rusqlite` + `tempfile` dependencies.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 63 unit and integration tests (0 failures).
