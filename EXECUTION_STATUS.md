@@ -125,4 +125,4 @@ Status Legend:
   - `capability::tests::test_host_probe_execution`: Safely probed host OS architecture, platform target, and capability registry.
   - `capability::tests::test_capability_serde_roundtrip`: Verified complete JSON serialization/deserialization of live capability registry state.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit.
+- **Commit Reference:** `8af3cb39d600b71b79b2dab1eec78e4c9260398a`
