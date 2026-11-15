@@ -203,4 +203,4 @@ Status Legend:
   - `secret_store::tests::test_key_rotation`: Verified atomic re-encryption of all stored secrets under a new master AEAD key.
   - `migration::tests`: Verified Migration 2 (`encrypted_secrets` table creation) applies cleanly and idempotently.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit.
+- **Commit Reference:** `514ac9e6f8108eaccc2c294c9157d42845bf1728`
