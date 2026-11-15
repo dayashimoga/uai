@@ -74,8 +74,10 @@ name = "aissistant-llm"
 version = "0.1.0"
 dependencies = [
  "aissistant-core",
+ "byteorder",
  "serde",
  "serde_json",
+ "sha2",
  "sysinfo",
  "tempfile",
  "thiserror 2.0.21",
@@ -221,6 +223,12 @@ name = "bumpalo"
 version = "3.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "87a0cf66fd1eb2fb7b822cb78370d82303750809bc6ba855f3f58e517d3238db"
+
+[[package]]
+name = "byteorder"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"

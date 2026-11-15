@@ -582,3 +582,36 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 148 unit and integration tests (0 failures; 7 in `aissistant-llm`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 37 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+---
+
+## [2026-11-15] — Stage 3 Phase 1 Subphase 2 (`S3.P1.2`)
+
+### Added
+- `core/crates/aissistant-llm/src/models/catalog.rs`:
+  - `ModelCatalog` — Curated open-source model registry spanning all `ModelTier`s (Qwen 2.5 0.5B/1.5B/14B, SmolLM2 360M, Llama 3.2 3B, Llama 3.1 8B, Mistral 7B Instruct v0.3).
+  - `ModelDescriptor` & `QuantizationType` (`Q4_K_M`, `Q5_K_M`, `Q8_0`, `F16`) with licenses, parameter counts, file sizes, SHA-256 digests, and download endpoints.
+- `core/crates/aissistant-llm/src/models/verifier.rs`:
+  - `Sha256Verifier` — Streaming buffered SHA-256 hasher and file verification engine reading in 64 KB chunks to protect memory budgets on multi-GB weights, returning typed `LlmError::ChecksumMismatch` on tampering.
+- `core/crates/aissistant-llm/src/models/gguf_parser.rs`:
+  - `GgufInspector` — Binary parser for GGUF v2 and v3 containers validating magic bytes (`GGUF`), format version, tensor counts, and key-value properties.
+  - `GgufMetadata` — Structural extractor for architecture (`general.architecture`), model name, context window length, embedding dimension, block count, and attention heads.
+  - Strict security bounds rejecting corrupted files, truncated headers, and oversized string payloads (>64 KB).
+- `core/crates/aissistant-llm/src/models/downloader.rs`:
+  - `ModelDownloader` trait & `LocalModelDownloader` — Streaming model downloader with `.part` staging, chunked ingestion, resume offset querying, live progress reporting (`DownloadProgress`, `DownloadStatus`), and atomic rename on verification.
+- `core/crates/aissistant-llm/src/models/mod.rs`:
+  - Public re-exports for catalog, downloader, inspector, and verifier.
+- `core/crates/aissistant-llm/src/lib.rs`:
+  - Added 5 new integration tests (bringing `aissistant-llm` total to 12, and workspace total to 153):
+    - Catalog tier filtering, exact ID lookup, and recommended default model selection.
+    - Streaming and file-based SHA-256 verification against standard test vectors and tamper rejection.
+    - Synthetic binary GGUF v3 header generation and metadata field extraction.
+    - Corrupt GGUF rejection (invalid magic, truncated file, unsupported version).
+    - Atomic model ingestion into `.part`, checksum verification, `.gguf` promotion, and resume offset calculation.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 153 unit and integration tests (0 failures; 12 in `aissistant-llm`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 37 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.

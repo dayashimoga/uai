@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 3 — Local LLM Runtime & Model Management  
-**Next Subphase in Queue:** `S3.P1.2` (Resumable Model Downloader, SHA-256 Verifier & GGUF Inspector)
+**Next Subphase in Queue:** `S3.P2.1` (`llama.cpp` Rust Bindings, Session Management & Token Streaming)
 
 ---
 
@@ -49,7 +49,7 @@ Status Legend:
 | **Stage 2** | `S2.P3.2` | Offline Neural Text-to-Speech & Sentence Streaming | `S2.P3.1` | `COMPLETED` | Verified: 139 Rust workspace unit tests passing (28 in `aissistant-speech`), clippy zero warnings, fmt check passed, sentence boundary chunking, abbreviation handling, speech synthesis, speaking rate / pitch modulation, barge-in cancellation, and sherpa-onnx VITS/Piper interface verified. |
 | **Stage 2** | `S2.P3.3` | Voice UI Integration, Waveform Feedback & Push-to-Talk/Wake Mode | `S2.P3.2` | `COMPLETED` | Verified: 141 Rust workspace unit tests passing (21 in `aissistant-ffi`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, `VoicePipelineSupervisor` FFI bridge, C-ABI functions, `VoiceScreen` adaptive UI, animated dynamic `WaveformVisualizer`, Push-to-Talk gesture control, wake-word mode switcher, customizable keyword chips, streaming live transcript card, and 100% offline privacy indicator verified. |
 | **Stage 3** | `S3.P1.1` | CPU/RAM/GPU Hardware Profiler (`aissistant-llm`) | `S2.P3.3` | `COMPLETED` | Verified: 148 Rust workspace unit tests passing (7 in `aissistant-llm`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, `CpuFeatures` vector instruction detection (AVX, AVX2, AVX-512, NEON), `MemoryProfile` OS headroom reservation, `GpuProfile` backend probe (Metal, CUDA, Vulkan, CPU-only), and `HardwareRecommendation` tier determination verified. |
-| **Stage 3** | `S3.P1.2` | Resumable Model Downloader, SHA-256 Verifier & GGUF Inspector | `S3.P1.1` | `PENDING` | — |
+| **Stage 3** | `S3.P1.2` | Resumable Model Downloader, SHA-256 Verifier & GGUF Inspector | `S3.P1.1` | `COMPLETED` | Verified: 153 Rust workspace unit tests passing (12 in `aissistant-llm`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, curated model catalog (Nano to Large), streaming buffered SHA-256 verifier with tamper rejection, binary GGUF v2/v3 header & KV metadata inspector, and resumable atomic model ingestion verified. |
 | **Stage 3** | `S3.P2.1` | `llama.cpp` Rust Bindings, Session Management & Token Streaming | `S3.P1.2` | `PENDING` | — |
 | **Stage 3** | `S3.P2.2` | GBNF Grammar Compiler for Structured JSON Tool Calling | `S3.P2.1` | `PENDING` | — |
 | **Stage 3** | `S3.P2.3` | Flutter Model Manager UI & Live Benchmark Diagnostics | `S3.P2.2` | `PENDING` | — |
@@ -457,5 +457,24 @@ Status Legend:
   - `tests::test_hardware_profile_serde_roundtrip`: Verified complete JSON serialization and deserialization of live hardware profiles.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `6452bbb`
+
+### Verification Evidence — S3.P1.2 (Resumable Model Downloader, SHA-256 Verifier & GGUF Inspector)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 7 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (153 passed across 7 crates; 12 in `aissistant-llm`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (37 passed across 6 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `tests::test_catalog_lookup_and_tier_filtering`: Verified curated model catalog covering all `ModelTier`s (Qwen 2.5 0.5B/1.5B/14B, SmolLM2 360M, Llama 3.2 3B, Llama 3.1 8B, Mistral 7B) with quantization formats, licenses, download URLs, and tier filtering.
+  - `tests::test_sha256_verifier_streaming_and_file`: Verified streaming SHA-256 computation against standard test vectors (empty string, "hello world"), file-level buffered hash computation, and immediate rejection of tampered files via `LlmError::ChecksumMismatch`.
+  - `tests::test_gguf_inspector_valid_v3_synthetic_header`: Verified binary GGUF v3 parser extracting magic `GGUF`, version 3, tensor count, KV metadata count, architecture string (`qwen2`), model name, context length (`4096`), embedding length (`896`), and block count (`24`).
+  - `tests::test_gguf_inspector_corrupt_files_rejection`: Verified rejection of invalid magic bytes, truncated files (< 4 bytes), unsupported versions, and oversized string lengths without panic.
+  - `tests::test_local_model_downloader_atomic_ingestion_and_resumability`: Verified chunked streaming ingestion into `<model_id>.part`, progress telemetry callbacks, SHA-256 verification, atomic rename to `<model_id>.gguf`, automatic deletion of corrupted partial files, and byte resume offset calculations.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** `Pending`
+
 
 
