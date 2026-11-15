@@ -106,4 +106,4 @@ Status Legend:
   - `config::tests`: Validated default offline-first invariant, `AppConfig`, `VoiceConfig`, `ModelConfig`, `SecurityConfig`, `NetworkConfig`, boundary condition enforcement, and serde JSON serialization.
   - `tests::test_end_to_end_core_contracts`: Validated end-to-end integration across domain types.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit.
+- **Commit Reference:** `13d7fba027a9cd85d3e4eb1cb6fb067993bc524f`
