@@ -1,0 +1,21 @@
+[package]
+name = "aissistant-security"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Universal AI Assistant security policy engine, risk classification, and taint tracking"
+
+[lints]
+workspace = true
+
+[dependencies]
+aissistant-core = { path = "../aissistant-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

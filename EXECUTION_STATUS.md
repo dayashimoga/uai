@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 0 — Requirements, Architecture & Engineering Foundation  
-**Active Subphase:** None (Stopped at S0.P1.2 Completion Gate — Awaiting Approval for S0.P2.1)
+**Active Subphase:** None (Stopped at S0.P2.1 Completion Gate — Awaiting Approval for S0.P2.2)
 
 ---
 
@@ -33,8 +33,8 @@ Status Legend:
 | **Bootstrap** | `BOOTSTRAP` | Repository, Governance, Architecture, Skills, Workflows & CI Bootstrap | None | `COMPLETED` | All 16 bootstrap deliverables created and committed on `main` (2026-11-15). |
 | **Stage 0** | `S0.P1.1` | Core Domain Types & Error Taxonomy (`aissistant-core`) | `BOOTSTRAP` | `COMPLETED` | Verified: 23 unit tests passing, clippy zero warnings, fmt check passed. |
 | **Stage 0** | `S0.P1.2` | Five-Platform Capability Matrix & Runtime Probe Contract | `S0.P1.1` | `COMPLETED` | Verified: 31 workspace unit tests passing, clippy zero warnings, host probe verified. |
-| **Stage 0** | `S0.P2.1` | Risk Tiers, Policy Engine & Taint Tracking Core (`aissistant-security`) | `S0.P1.2` | `PENDING` | **Next Pending Subphase — Awaiting User Approval** |
-| **Stage 0** | `S0.P2.2` | Cryptographic Primitives & Hash-Chained Audit Log Contract | `S0.P2.1` | `PENDING` | — |
+| **Stage 0** | `S0.P2.1` | Risk Tiers, Policy Engine & Taint Tracking Core (`aissistant-security`) | `S0.P1.2` | `COMPLETED` | Verified: 43 workspace unit tests passing, clippy zero warnings, taint escalation verified. |
+| **Stage 0** | `S0.P2.2` | Cryptographic Primitives & Hash-Chained Audit Log Contract | `S0.P2.1` | `PENDING` | **Next Pending Subphase — Awaiting User Approval** |
 | **Stage 1** | `S1.P1.1` | SQLite WAL Engine & Schema Migration Runner (`aissistant-storage`) | `S0.P2.2` | `PENDING` | — |
 | **Stage 1** | `S1.P1.2` | OS Keystore Integration & Encrypted Secret Store | `S1.P1.1` | `PENDING` | — |
 | **Stage 1** | `S1.P2.1` | `aissistant-ffi` Crate & Async Stream Bridge | `S1.P1.2` | `PENDING` | — |
@@ -126,3 +126,22 @@ Status Legend:
   - `capability::tests::test_capability_serde_roundtrip`: Verified complete JSON serialization/deserialization of live capability registry state.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `8af3cb39d600b71b79b2dab1eec78e4c9260398a`
+
+### Verification Evidence — S0.P2.1 (Risk Tiers, Policy Engine & Taint Tracking Core)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (43 passed, 0 failed)
+- **Test Summary:**
+  - `policy::tests::test_risk_tier_ordering_and_parsing`: Validated ordinal rankings (0 to 4) and string roundtrips.
+  - `policy::tests::test_local_user_always_allowed`: Verified physical user commands allow all tiers without artificial confirmation prompts.
+  - `policy::tests::test_llm_orchestrator_baseline_tiers`: Verified default gates: `ReadOnly`/`StateModifying` allowed, while `FileAndApp`, `PrivilegedSystem`, and `Destructive` require explicit confirmation.
+  - `policy::tests::test_remote_peer_baseline_tiers`: Verified default remote peer gates: `ReadOnly` allowed, `StateModifying`/`FileAndApp`/`PrivilegedSystem` require confirmation, and `Destructive` strictly denied.
+  - `policy::tests::test_prompt_injection_taint_escalation`: Verified indirect prompt injection mitigation: untrusted data in context escalates all `StateModifying` and higher actions to `RequireConfirmation`.
+  - `policy::tests::test_policy_overrides`: Verified administrator and custom skill overrides.
+  - `policy::tests::test_peer_specific_permission_grant`: Verified per-peer capability grants.
+  - `taint::tests`: Verified clean initial state, taint record accumulation across local file, clipboard, screen OCR, and remote peer sources, clean reset, and serde roundtrips.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit.

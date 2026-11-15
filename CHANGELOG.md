@@ -85,3 +85,27 @@
 - `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
 - `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 31 unit and integration tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 0 Phase 2 Subphase 1 (`S0.P2.1`)
+
+### Added
+- `core/crates/aissistant-security/Cargo.toml` — New workspace crate for authorization and prompt injection defenses.
+- `core/crates/aissistant-security/src/lib.rs` — Security crate root enforcing `#![forbid(unsafe_code)]` with subsystem integration tests.
+- `core/crates/aissistant-security/src/policy.rs`:
+  - `RiskTier` ordinal rankings (`ReadOnly`, `StateModifying`, `FileAndApp`, `PrivilegedSystem`, `Destructive`).
+  - `PolicyDecision` (`Allow`, `RequireConfirmation`, `Deny`).
+  - `Actor` (`LocalUser`, `LlmOrchestrator`, `RemotePeer`).
+  - `PolicyContext` with actor and taint state.
+  - `PolicyEngine` enforcing baseline 5-tier policies, per-peer permissions, and taint escalation.
+- `core/crates/aissistant-security/src/taint.rs`:
+  - `TaintSource` (local files, clipboard, screen OCR, remote peer messages, external data).
+  - `TaintRecord` and `TaintState` (`Clean`, `Tainted`).
+  - `TaintTracker` maintaining context taint state.
+- `core/Cargo.toml` — Registered `crates/aissistant-security` workspace member.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 43 unit and integration tests (0 failures).
