@@ -765,7 +765,7 @@ Status Legend:
     - `AudioSessionManager.swift`: Implemented `AVAudioSession.setCategory(.playAndRecord, mode: .spokenAudio, options: [.duckOthers, .defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])`, `interruptionNotification` observer (began, ended, shouldResume), and `routeChangeNotification` observer.
     - `AppDelegate.swift`: Implemented MethodChannel `com.aissistant/ios_bridge`, URL scheme parsing (`application(_:open:options:)`), and Siri Shortcuts / UserActivity restoration (`application(_:continue:restorationHandler:)`).
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `c3e49c7`
 
 
 
