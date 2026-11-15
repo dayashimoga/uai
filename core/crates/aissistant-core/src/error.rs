@@ -126,7 +126,7 @@ impl ErrorDescriptor {
 }
 
 /// Core domain error taxonomy for the Universal AI Assistant.
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum CoreError {
     /// An identifier was malformed or violated structural rules.
     #[error("Invalid {entity} ID '{value}': {reason}")]

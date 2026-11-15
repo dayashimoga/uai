@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 1 — Repository, Flutter/Rust Foundation & Five-Platform Application Shells  
-**Active Subphase:** None (Stopped at S1.P1.1 Completion Gate — Awaiting Approval for S1.P1.2)
+**Active Subphase:** None (Stopped at S1.P1.2 Completion Gate — Awaiting Approval for S1.P2.1)
 
 ---
 
@@ -36,8 +36,8 @@ Status Legend:
 | **Stage 0** | `S0.P2.1` | Risk Tiers, Policy Engine & Taint Tracking Core (`aissistant-security`) | `S0.P1.2` | `COMPLETED` | Verified: 43 workspace unit tests passing, clippy zero warnings, taint escalation verified. |
 | **Stage 0** | `S0.P2.2` | Cryptographic Primitives & Hash-Chained Audit Log Contract | `S0.P2.1` | `COMPLETED` | Verified: 53 workspace unit tests passing, clippy zero warnings, audit tamper detection verified. |
 | **Stage 1** | `S1.P1.1` | SQLite WAL Engine & Schema Migration Runner (`aissistant-storage`) | `S0.P2.2` | `COMPLETED` | Verified: 63 workspace unit tests passing, clippy zero warnings, persistent audit tampering detected. |
-| **Stage 1** | `S1.P1.2` | OS Keystore Integration & Encrypted Secret Store | `S1.P1.1` | `PENDING` | **Next Pending Subphase — Awaiting User Approval** |
-| **Stage 1** | `S1.P2.1` | `aissistant-ffi` Crate & Async Stream Bridge | `S1.P1.2` | `PENDING` | — |
+| **Stage 1** | `S1.P1.2` | OS Keystore Integration & Encrypted Secret Store | `S1.P1.1` | `COMPLETED` | Verified: 69 workspace unit tests passing, clippy zero warnings, encrypted secret store verified. |
+| **Stage 1** | `S1.P2.1` | `aissistant-ffi` Crate & Async Stream Bridge | `S1.P1.2` | `PENDING` | **Next Pending Subphase — Awaiting User Approval** |
 | **Stage 1** | `S1.P2.2` | Core Lifecycle Supervisor & Graceful Shutdown | `S1.P2.1` | `PENDING` | — |
 | **Stage 1** | `S1.P3.1` | Shared Flutter App Shell, Adaptive Navigation & Live Core Diagnostics | `S1.P2.2` | `PENDING` | Requires Flutter SDK on host or installation approval. |
 | **Stage 1** | `S1.P3.2` | Five-Platform Native Runner Configuration & Capability Badges | `S1.P3.1` | `PENDING` | — |
@@ -186,3 +186,21 @@ Status Legend:
   - `tests::test_storage_subsystem_end_to_end`: Verified complete cross-crate integration between `aissistant-core`, `aissistant-security`, and `aissistant-storage`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `5349565809fe1e223a5c1e3fc9d0ba530cc37916`
+
+### Verification Evidence — S1.P1.2 (OS Keystore Integration & Encrypted Secret Store)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (69 passed, 0 failed)
+- **Test Summary:**
+  - `keystore::tests::test_hkdf_key_derivation`: Verified HKDF-SHA256 key derivation with salt and info parameter strings.
+  - `keystore::tests::test_file_bound_keystore_lifecycle`: Verified directory-bound master key persistence, lookup, and deletion.
+  - `keystore::tests::test_os_keystore_creation`: Verified OS-native keystore provider instantiation and fallback.
+  - `secret_store::tests::test_secret_store_encryption_and_decryption`: Verified that secrets are encrypted with AAD prior to database storage, raw SQLite blobs do NOT contain plaintext values, and valid AEAD decryption cleanly recovers structured data.
+  - `secret_store::tests::test_wrong_key_fails_decryption`: Verified that attempting to decrypt records using a different or corrupted master key fails closed.
+  - `secret_store::tests::test_key_rotation`: Verified atomic re-encryption of all stored secrets under a new master AEAD key.
+  - `migration::tests`: Verified Migration 2 (`encrypted_secrets` table creation) applies cleanly and idempotently.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit.

@@ -155,3 +155,27 @@
 - `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
 - `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 63 unit and integration tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 1 Phase 1 Subphase 2 (`S1.P1.2`)
+
+### Added
+- `core/crates/aissistant-storage/src/keystore.rs`:
+  - `KeystoreProvider` trait (`get_master_key`, `set_master_key`, `delete_master_key`, `provider_name`).
+  - `derive_key_from_secret` — Cryptographically secure HKDF-SHA256 key derivation with zeroization.
+  - `InMemoryKeystore` for volatile/testing environments.
+  - `FileBoundKeystore` for secured, directory-bound master key persistence.
+  - `OsKeystore` adapter with graceful fallback to secure local file-bound storage.
+- `core/crates/aissistant-storage/src/secret_store.rs`:
+  - `SecretStore` — High-level encrypted repository storing credentials and personal facts encrypted with XChaCha20-Poly1305 and AAD key binding.
+  - `rotate_key` — Atomic key rotation re-encrypting all secrets under a new master AEAD key within an ACID transaction.
+- `core/crates/aissistant-storage/src/migration.rs`:
+  - Added Migration 2 creating the `encrypted_secrets` table.
+- `core/crates/aissistant-core/src/error.rs`:
+  - Added `Clone, PartialEq, Eq` derives to `CoreError` to support structured error wrapping.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 69 unit and integration tests (0 failures).

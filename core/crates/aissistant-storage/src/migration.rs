@@ -16,31 +16,44 @@ pub struct Migration {
     pub sql: &'static str,
 }
 
-const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    description: "Initial schema: settings key-value store and security audit log table",
-    sql: "
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value_json TEXT NOT NULL,
-            updated_at_ms INTEGER NOT NULL
-        );
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        description: "Initial schema: settings key-value store and security audit log table",
+        sql: "
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value_json TEXT NOT NULL,
+                updated_at_ms INTEGER NOT NULL
+            );
 
-        CREATE TABLE IF NOT EXISTS security_audit_log (
-            id TEXT PRIMARY KEY,
-            timestamp_ms INTEGER NOT NULL,
-            actor_json TEXT NOT NULL,
-            skill_id TEXT NOT NULL,
-            arguments_redacted_json TEXT NOT NULL,
-            policy_decision_json TEXT NOT NULL,
-            execution_status_json TEXT NOT NULL,
-            prev_hash BLOB NOT NULL,
-            entry_hash BLOB NOT NULL
-        );
+            CREATE TABLE IF NOT EXISTS security_audit_log (
+                id TEXT PRIMARY KEY,
+                timestamp_ms INTEGER NOT NULL,
+                actor_json TEXT NOT NULL,
+                skill_id TEXT NOT NULL,
+                arguments_redacted_json TEXT NOT NULL,
+                policy_decision_json TEXT NOT NULL,
+                execution_status_json TEXT NOT NULL,
+                prev_hash BLOB NOT NULL,
+                entry_hash BLOB NOT NULL
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON security_audit_log(timestamp_ms);
-    ",
-}];
+            CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON security_audit_log(timestamp_ms);
+        ",
+    },
+    Migration {
+        version: 2,
+        description: "Encrypted secrets store for credentials and private personal memory",
+        sql: "
+            CREATE TABLE IF NOT EXISTS encrypted_secrets (
+                key TEXT PRIMARY KEY,
+                ciphertext_blob BLOB NOT NULL,
+                updated_at_ms INTEGER NOT NULL
+            );
+        ",
+    },
+];
 
 /// Migration runner applying incremental DDL changes within ACID transactions.
 #[derive(Debug, Clone, Copy, Default)]
@@ -112,21 +125,21 @@ mod tests {
 
         // Initial run
         let version = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version, 1);
-        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 1);
+        assert_eq!(version, 2);
+        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 2);
 
         // Verify tables exist
         let tables_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'schema_migrations');",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations');",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(tables_count, 3);
+        assert_eq!(tables_count, 4);
 
         // Second run must be a no-op
         let version_again = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version_again, 1);
+        assert_eq!(version_again, 2);
     }
 }

@@ -43,6 +43,10 @@ pub enum StorageError {
     /// Filesystem I/O error during database creation or WAL handling.
     #[error("Storage I/O error: {0}")]
     Io(#[from] std::io::Error),
+
+    /// Core domain or cryptographic error.
+    #[error("Storage core error: {0}")]
+    Core(#[from] CoreError),
 }
 
 impl StorageError {
@@ -50,6 +54,7 @@ impl StorageError {
     #[must_use]
     pub fn to_core_error(&self) -> CoreError {
         match self {
+            Self::Core(err) => err.clone(),
             Self::NotFound { key } => CoreError::NotFound {
                 entity: "StorageRecord",
                 id: key.clone(),
