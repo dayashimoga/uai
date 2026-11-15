@@ -295,4 +295,4 @@ Status Legend:
     - Verified tier badges (`Tier: Standard`, `Tier 0: Read-Only`, `Tier 3: System`, etc.) on capability tiles.
     - Verified interactive capability switch triggers live permission toggling in `AssistantController`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows Flutter/Dart); CI matrix pipeline covers Linux, macOS, Android, iOS, and Windows.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `920e0c6a1a78f2f2e834c9244d78405773eb3967`
