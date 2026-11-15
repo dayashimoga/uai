@@ -109,3 +109,23 @@
 - `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
 - `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 43 unit and integration tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 0 Phase 2 Subphase 2 (`S0.P2.2`)
+
+### Added
+- `core/crates/aissistant-security/src/crypto.rs`:
+  - `DeviceIdentity` — Ed25519 signing and verification keypair generation using `OsRng`, deterministic seed reconstruction, message signing, signature verification, and deterministic `DeviceId` derivation.
+  - `AeadKey` — Symmetrically authenticated 256-bit encryption key wrapped in `Zeroizing`, implementing XChaCha20-Poly1305 AEAD with random 24-byte nonces and associated authenticated data (AAD).
+- `core/crates/aissistant-security/src/audit.rs`:
+  - `AuditEntry` and `NewAuditEntry` — Cryptographically sealed audit log records.
+  - `compute_hash` — BLAKE3 canonical digest computation over previous hash, ID, timestamp, actor, skill, redacted arguments, policy decision, and execution status.
+  - `AuditChainVerifier` — Single-entry and full-chain cryptographic integrity verifiers with tamper and truncation detection.
+- `core/Cargo.toml` and `core/crates/aissistant-security/Cargo.toml`:
+  - Added audited crypto workspace dependencies: `blake3`, `chacha20poly1305`, `ed25519-dalek`, `rand`, `zeroize`.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 53 unit and integration tests (0 failures).

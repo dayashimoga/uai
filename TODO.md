@@ -24,9 +24,19 @@
 
 ---
 
-## Stage 0 Queue
+## Stage 0 Queue (Completed)
 - [x] `[S0.P1.1]` Initialize `core/` Cargo workspace and implement `aissistant-core` domain IDs, error taxonomy (`CoreError`), and configuration schemas with >=90% test coverage. *(Completed 2026-11-15)*
 - [x] `[S0.P1.2]` Implement `CapabilityRegistry`, 5-platform capability matrix, and host runtime probe in `aissistant-core`. *(Completed 2026-11-15)*
 - [x] `[S0.P2.1]` Implement `aissistant-security` `PolicyEngine`, risk tiers, and untrusted input taint tracking. *(Completed 2026-11-15)*
-- [ ] `[S0.P2.2]` Implement Ed25519 device identity keys, XChaCha20-Poly1305 AEAD helpers, and BLAKE3 hash-chained `AuditLogEntry` verification.
+- [x] `[S0.P2.2]` Implement Ed25519 device identity keys, XChaCha20-Poly1305 AEAD helpers, and BLAKE3 hash-chained `AuditLogEntry` verification. *(Completed 2026-11-15)*
+
+---
+
+## Stage 1 Queue
+- [ ] `[S1.P1.1]` Create `aissistant-storage` crate with SQLite WAL connection pool, deterministic migration runner, settings store, and persistent hash-chained audit log table.
+- [ ] `[S1.P1.2]` Integrate OS-native keystore adapters (Windows DPAPI, macOS/iOS Keychain, Linux SecretService, Android Keystore fallback abstraction) to seal the master AEAD key.
+- [ ] `[S1.P2.1]` Create `aissistant-ffi` crate exposing system health, capability matrix, audit log inspection, and event streams.
+- [ ] `[S1.P2.2]` Implement `CoreRuntime` lifecycle manager handling initialization, background task supervision, and clean shutdown across FFI.
+- [ ] `[S1.P3.1]` Create `app/` Flutter project with adaptive navigation, accessibility semantics, and live binding to `aissistant-ffi`.
+- [ ] `[S1.P3.2]` Configure Windows, Linux, macOS, Android, and iOS native runner manifests, permissions declarations, and capability status views.
 - [ ] `[S0.P2.2]` Implement Ed25519 device identity keys, XChaCha20-Poly1305 AEAD helpers, and BLAKE3 hash-chained `AuditLogEntry` verification.

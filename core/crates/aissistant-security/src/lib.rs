@@ -1,10 +1,14 @@
-//! Security policy engine, risk classification, and taint tracking for the Universal AI Assistant.
+//! Security policy engine, risk classification, cryptographic identity, and tamper-evident audit logging.
 
 #![forbid(unsafe_code)]
 
+pub mod audit;
+pub mod crypto;
 pub mod policy;
 pub mod taint;
 
+pub use audit::{AuditChainVerifier, AuditEntry, AuditExecutionStatus, GENESIS_PREV_HASH};
+pub use crypto::{AeadKey, DeviceIdentity, MIN_AEAD_PAYLOAD_LEN, XCHACHA20_NONCE_LEN};
 pub use policy::{Actor, PolicyContext, PolicyDecision, PolicyEngine, RiskTier};
 pub use taint::{TaintRecord, TaintSource, TaintState, TaintTracker};
 
