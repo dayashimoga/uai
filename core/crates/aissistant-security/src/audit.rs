@@ -23,6 +23,18 @@ pub enum AuditExecutionStatus {
     Cancelled,
 }
 
+impl AuditExecutionStatus {
+    /// Returns static string representation.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::Failed { .. } => "failed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+}
+
 /// A tamper-evident, cryptographically hash-chained audit log entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuditEntry {

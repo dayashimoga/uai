@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 1 — Repository, Flutter/Rust Foundation & Five-Platform Application Shells  
-**Active Subphase:** None (Stopped at S1.P1.2 Completion Gate — Awaiting Approval for S1.P2.1)
+**Active Subphase:** None (S1.P2.1 completed; S1.P2.2 awaiting user confirmation)
 
 ---
 
@@ -37,7 +37,7 @@ Status Legend:
 | **Stage 0** | `S0.P2.2` | Cryptographic Primitives & Hash-Chained Audit Log Contract | `S0.P2.1` | `COMPLETED` | Verified: 53 workspace unit tests passing, clippy zero warnings, audit tamper detection verified. |
 | **Stage 1** | `S1.P1.1` | SQLite WAL Engine & Schema Migration Runner (`aissistant-storage`) | `S0.P2.2` | `COMPLETED` | Verified: 63 workspace unit tests passing, clippy zero warnings, persistent audit tampering detected. |
 | **Stage 1** | `S1.P1.2` | OS Keystore Integration & Encrypted Secret Store | `S1.P1.1` | `COMPLETED` | Verified: 69 workspace unit tests passing, clippy zero warnings, encrypted secret store verified. |
-| **Stage 1** | `S1.P2.1` | `aissistant-ffi` Crate & Async Stream Bridge | `S1.P1.2` | `PENDING` | **Next Pending Subphase — Awaiting User Approval** |
+| **Stage 1** | `S1.P2.1` | `aissistant-ffi` Crate & Async Stream Bridge | `S1.P1.2` | `COMPLETED` | Verified: 83 workspace unit tests passing (14 in `aissistant-ffi`), clippy zero warnings, fmt check passed, event broadcast stream and safe C-ABI round trips verified. |
 | **Stage 1** | `S1.P2.2` | Core Lifecycle Supervisor & Graceful Shutdown | `S1.P2.1` | `PENDING` | — |
 | **Stage 1** | `S1.P3.1` | Shared Flutter App Shell, Adaptive Navigation & Live Core Diagnostics | `S1.P2.2` | `PENDING` | Requires Flutter SDK on host or installation approval. |
 | **Stage 1** | `S1.P3.2` | Five-Platform Native Runner Configuration & Capability Badges | `S1.P3.1` | `PENDING` | — |
@@ -204,3 +204,28 @@ Status Legend:
   - `migration::tests`: Verified Migration 2 (`encrypted_secrets` table creation) applies cleanly and idempotently.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `514ac9e6f8108eaccc2c294c9157d42845bf1728`
+
+### Verification Evidence — S1.P2.1 (aissistant-ffi Crate & Async Stream Bridge)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across workspace)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (83 passed, 0 failed across all 4 crates)
+- **Test Summary:**
+  - `tests::test_in_memory_bridge_health_and_capabilities`: Verified bridge diagnostics, SQLite engine status, capability query, and health reporting.
+  - `tests::test_persistent_bridge_keystore_and_secrets`: Verified directory-persisted file-bound keystore, secret encryption and decryption through the bridge.
+  - `tests::test_capability_permission_update_and_event_broadcast`: Verified runtime permission state modification and corresponding asynchronous `BridgeEvent::CapabilityChanged` broadcast.
+  - `tests::test_audit_log_append_query_and_integrity_verification`: Verified audit entry creation, pagination querying, hash-chain integrity verification, and `BridgeEvent::AuditLogAppended` broadcast.
+  - `tests::test_audit_chain_tamper_detection_via_bridge`: Verified that adversarial direct SQL modifications to the audit log are detected by `verify_audit_integrity` and transition system health to `Critical`.
+  - `tests::test_settings_store_roundtrip_and_events`: Verified setting storage, retrieval, and `BridgeEvent::SettingChanged` broadcast.
+  - `tests::test_event_stream_sink_concurrent_subscribers_and_callbacks`: Verified concurrent multi-subscriber event dispatch across channels and callback closures.
+  - `tests::test_event_stream_sink_purges_disconnected_receivers`: Verified automatic cleanup of dropped channel receivers without memory leaks.
+  - `tests::test_event_stream_sink_callback_panic_isolation`: Verified callback panics are caught with `catch_unwind` and cannot crash the runtime or disrupt sibling listeners.
+  - `tests::test_c_abi_round_trip`: Verified full C-ABI round trips (`bridge_c_init`, `bridge_c_get_health`, `bridge_c_get_capabilities`, `bridge_c_set_setting`, `bridge_c_get_setting`, `bridge_c_update_permission`, `bridge_c_verify_audit`, `bridge_c_free_string`, `bridge_c_shutdown`).
+  - `tests::test_c_abi_null_pointer_safety`: Verified null pointer handling across C-ABI entry points fails gracefully without panicking or leaking memory.
+  - `tests::test_error_descriptor_conversion`: Verified mapping from domain and bridge errors to structured FFI `ErrorDescriptor`s.
+  - `tests::test_global_bridge_lifecycle_and_shutdown`: Verified thread-safe singleton initialization, idempotency, retrieval, and shutdown.
+  - `tests::test_evaluate_policy_via_bridge`: Verified security policy evaluation through the bridge for read-only vs destructive actions.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit

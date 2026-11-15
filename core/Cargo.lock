@@ -35,6 +35,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "aissistant-ffi"
+version = "0.1.0"
+dependencies = [
+ "aissistant-core",
+ "aissistant-security",
+ "aissistant-storage",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "aissistant-security"
 version = "0.1.0"
 dependencies = [

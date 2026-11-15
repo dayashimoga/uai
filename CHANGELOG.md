@@ -179,3 +179,38 @@
 - `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
 - `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 69 unit and integration tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 1 Phase 2 Subphase 1 (`S1.P2.1`)
+
+### Added
+- `core/crates/aissistant-ffi/Cargo.toml`:
+  - Crate manifest configuring `["cdylib", "staticlib", "lib"]` targets with dependencies on `aissistant-core`, `aissistant-security`, `aissistant-storage`, `serde`, `serde_json`, `thiserror`.
+- `core/crates/aissistant-ffi/src/error.rs`:
+  - `FfiError` error taxonomy covering core, storage, security, serialization, invalid parameters, initialization state, poisoned locks, and caught panics.
+  - Automatic `From<FfiError>` conversion to structured `ErrorDescriptor` for safe FFI/UI consumption.
+- `core/crates/aissistant-ffi/src/events.rs`:
+  - `BridgeEvent` enum (`HealthStatusChanged`, `CapabilityChanged`, `AuditLogAppended`, `SettingChanged`, `ErrorOccurred`).
+  - `EventStreamSink` thread-safe broadcaster supporting bounded channel subscribers and callback listeners with automatic dead subscriber cleanup and panic isolation.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Safe FFI bridge data types: `HealthStatus`, `HealthReport`, `CapabilityItem`, `AuditItem`, `AuditIntegrityReport`.
+  - `CoreBridge` coordinating SQLite persistence, audit store, secret store, capability registry, policy engine, and event broadcasting.
+  - Global bridge lifecycle management: `init_bridge`, `get_bridge`, `shutdown_bridge`, and top-level diagnostic functions.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - C-ABI exports with panic shields and null pointer checks: `bridge_c_init`, `bridge_c_shutdown`, `bridge_c_get_health`, `bridge_c_get_capabilities`, `bridge_c_update_permission`, `bridge_c_query_audit`, `bridge_c_verify_audit`, `bridge_c_get_setting`, `bridge_c_set_setting`, `bridge_c_free_string`.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Module exports, re-exports, and 14 comprehensive integration and unit tests covering bridge initialization, diagnostics, capability updates, audit append/tamper detection, settings, secret storage, event broadcasting, and C-ABI round trips.
+- `core/crates/aissistant-security/src/policy.rs`:
+  - Added `as_str()` for `PolicyDecision` and `Display` implementation for `Actor`.
+- `core/crates/aissistant-security/src/audit.rs`:
+  - Added `as_str()` for `AuditExecutionStatus`.
+- `core/crates/aissistant-storage/src/audit_store.rs`:
+  - Added `count()` query method to `AuditStore`.
+- `core/Cargo.toml`:
+  - Added `"crates/aissistant-ffi"` to `workspace.members`.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 83 unit and integration tests (0 failures).

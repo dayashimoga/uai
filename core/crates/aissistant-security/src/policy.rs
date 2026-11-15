@@ -90,6 +90,16 @@ pub enum PolicyDecision {
 }
 
 impl PolicyDecision {
+    /// Returns static string representation.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Allow => "allow",
+            Self::RequireConfirmation { .. } => "require_confirmation",
+            Self::Deny { .. } => "deny",
+        }
+    }
+
     /// Returns true if the policy allows immediate execution.
     #[must_use]
     pub const fn is_allowed(&self) -> bool {
@@ -122,6 +132,16 @@ pub enum Actor {
         /// Authenticated device identifier of the peer.
         device_id: DeviceId,
     },
+}
+
+impl fmt::Display for Actor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::LocalUser => write!(f, "local_user"),
+            Self::LlmOrchestrator => write!(f, "llm_orchestrator"),
+            Self::RemotePeer { device_id } => write!(f, "remote_peer:{device_id}"),
+        }
+    }
 }
 
 /// Context passed to the policy engine for evaluating a skill request.

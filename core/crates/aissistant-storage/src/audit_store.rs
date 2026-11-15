@@ -201,6 +201,17 @@ impl AuditStore {
             }
         })
     }
+
+    /// Returns the total number of committed audit entries.
+    pub fn count(&self) -> Result<u64, StorageError> {
+        self.db.with_conn(|conn| {
+            let count: i64 =
+                conn.query_row("SELECT COUNT(*) FROM security_audit_log;", [], |row| {
+                    row.get(0)
+                })?;
+            Ok(count as u64)
+        })
+    }
 }
 
 #[cfg(test)]

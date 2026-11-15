@@ -1,0 +1,187 @@
+//! Asynchronous event broadcasting and reactive stream sink across the FFI boundary.
+
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TrySendError};
+use std::sync::{Arc, Mutex};
+
+/// Events emitted by the core engine across the FFI bridge to Flutter or native runners.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "payload", rename_all = "snake_case")]
+pub enum BridgeEvent {
+    /// System health status updated (e.g. database error, storage restored).
+    HealthStatusChanged {
+        /// Health state indicator ("healthy", "degraded", "critical").
+        status: String,
+        /// Diagnostic detail messages.
+        details: Vec<String>,
+    },
+
+    /// Runtime capability state or permission grant changed.
+    CapabilityChanged {
+        /// Canonical capability identifier (e.g. "local_llm", "offline_speech").
+        capability: String,
+        /// Current availability status ("supported", "unsupported", "requires_permission", "degraded").
+        status: String,
+        /// Optional human-readable reason or required permission name.
+        reason: Option<String>,
+    },
+
+    /// New security audit entry committed to the hash-chained log.
+    AuditLogAppended {
+        /// Monotonically increasing sequence number.
+        sequence: u64,
+        /// Actor that initiated the action.
+        actor: String,
+        /// Skill or subsystem invoked.
+        skill_id: String,
+        /// Policy decision applied ("allow", "require_confirmation", "deny").
+        decision: String,
+        /// Execution status outcome.
+        execution_status: String,
+        /// BLAKE3 entry hash in lowercase hexadecimal.
+        entry_hash: String,
+    },
+
+    /// Persistent setting was modified or removed.
+    SettingChanged {
+        /// Setting key identifier.
+        key: String,
+        /// Sanitized preview of the updated value, if available.
+        value_preview: Option<String>,
+    },
+
+    /// Structured error encountered by a background task.
+    ErrorOccurred {
+        /// Stable error code string.
+        code: String,
+        /// Human-readable description.
+        message: String,
+        /// Whether the operation is safe to retry.
+        recoverable: bool,
+    },
+}
+
+type CallbackFn = Box<dyn Fn(&BridgeEvent) + Send + Sync + 'static>;
+
+/// Thread-safe event broadcaster supporting concurrent channel receivers and callbacks.
+#[derive(Default)]
+pub struct EventStreamSink {
+    next_id: AtomicU64,
+    channels: Mutex<HashMap<u64, SyncSender<BridgeEvent>>>,
+    callbacks: Mutex<HashMap<u64, Arc<CallbackFn>>>,
+}
+
+impl std::fmt::Debug for EventStreamSink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EventStreamSink")
+            .field("next_id", &self.next_id.load(Ordering::Relaxed))
+            .finish()
+    }
+}
+
+impl EventStreamSink {
+    /// Creates a new empty event stream sink.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            next_id: AtomicU64::new(1),
+            channels: Mutex::new(HashMap::new()),
+            callbacks: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Subscribes to the event stream using a bounded FIFO channel.
+    /// Returns the subscription ID and the corresponding `Receiver`.
+    #[must_use]
+    pub fn subscribe(&self, buffer_size: usize) -> (u64, Receiver<BridgeEvent>) {
+        let capacity = buffer_size.clamp(16, 2048);
+        let (tx, rx) = sync_channel(capacity);
+        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+
+        if let Ok(mut channels) = self.channels.lock() {
+            channels.insert(id, tx);
+        }
+
+        (id, rx)
+    }
+
+    /// Cancels a channel subscription by ID.
+    pub fn unsubscribe(&self, subscription_id: u64) {
+        if let Ok(mut channels) = self.channels.lock() {
+            channels.remove(&subscription_id);
+        }
+    }
+
+    /// Registers a listener callback invoked synchronously on every broadcast.
+    /// Returns a listener ID for unregistration.
+    pub fn add_callback<F>(&self, callback: F) -> u64
+    where
+        F: Fn(&BridgeEvent) + Send + Sync + 'static,
+    {
+        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        let boxed: CallbackFn = Box::new(callback);
+
+        if let Ok(mut callbacks) = self.callbacks.lock() {
+            callbacks.insert(id, Arc::new(boxed));
+        }
+
+        id
+    }
+
+    /// Unregisters a listener callback by ID.
+    pub fn remove_callback(&self, callback_id: u64) {
+        if let Ok(mut callbacks) = self.callbacks.lock() {
+            callbacks.remove(&callback_id);
+        }
+    }
+
+    /// Broadcasts an event to all active channel subscribers and registered callbacks.
+    /// Automatically purges disconnected channels.
+    pub fn broadcast(&self, event: BridgeEvent) {
+        // 1. Dispatch to channel subscribers (purging disconnected ones)
+        if let Ok(mut channels) = self.channels.lock() {
+            let mut dead_ids = Vec::new();
+            for (&id, tx) in channels.iter() {
+                match tx.try_send(event.clone()) {
+                    Ok(()) | Err(TrySendError::Full(_)) => {
+                        // Channel buffer accepted or full; keep subscription alive
+                    }
+                    Err(TrySendError::Disconnected(_)) => {
+                        dead_ids.push(id);
+                    }
+                }
+            }
+
+            for id in dead_ids {
+                channels.remove(&id);
+            }
+        }
+
+        // 2. Dispatch to registered callbacks under panic shield
+        let callbacks_snapshot = {
+            if let Ok(callbacks) = self.callbacks.lock() {
+                callbacks.values().cloned().collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            }
+        };
+
+        for cb in callbacks_snapshot {
+            let event_ref = &event;
+            let _ = catch_unwind(AssertUnwindSafe(|| {
+                cb(event_ref);
+            }));
+        }
+    }
+
+    /// Returns the total count of active subscribers (channels + callbacks).
+    #[must_use]
+    pub fn total_subscribers(&self) -> usize {
+        let ch_count = self.channels.lock().map(|c| c.len()).unwrap_or(0);
+        let cb_count = self.callbacks.lock().map(|c| c.len()).unwrap_or(0);
+        ch_count + cb_count
+    }
+}
