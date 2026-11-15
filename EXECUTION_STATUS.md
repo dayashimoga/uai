@@ -41,7 +41,7 @@ Status Legend:
 | **Stage 1** | `S1.P2.2` | Core Lifecycle Supervisor & Graceful Shutdown | `S1.P2.1` | `COMPLETED` | Verified: 88 workspace unit tests passing (19 in `aissistant-ffi`), clippy zero warnings, fmt check passed, two-phase graceful shutdown, memory pressure checkpointing, and C-ABI verified. |
 | **Stage 1** | `S1.P3.1` | Shared Flutter App Shell, Adaptive Navigation & Live Core Diagnostics | `S1.P2.2` | `COMPLETED` | Verified: 20 Flutter tests passing (100%), 88 Rust workspace tests passing, `flutter analyze` zero issues, responsive navigation (desktop NavigationRail vs mobile NavigationBar), live diagnostics, capability permission toggling, and hash-chain audit log inspection verified. |
 | **Stage 1** | `S1.P3.2` | Five-Platform Native Runner Configuration & Capability Badges | `S1.P3.1` | `COMPLETED` | Verified: 28 Flutter tests passing (100%), 88 Rust workspace tests passing, `flutter analyze` zero issues, 5-platform runners (Windows, Linux, macOS, Android, iOS) configured with offline privacy manifests, CMake library bundling, and capability status views. |
-| **Stage 2** | `S2.P1.1` | Real-Time Safe Audio Ring Buffer & Resampler (`aissistant-audio`) | `S1.P3.2` | `PENDING` | — |
+| **Stage 2** | `S2.P1.1` | Real-Time Safe Audio Ring Buffer & Resampler (`aissistant-audio`) | `S1.P3.2` | `COMPLETED` | Verified: 105 Rust workspace unit tests passing (17 in `aissistant-audio`), clippy zero warnings, fmt check passed, lock-free SPSC circular ring buffer (Strict & Overwrite modes), multi-channel downmixing, continuous 16 kHz resampler, and dBFS level meter verified. |
 | **Stage 2** | `S2.P1.2` | Cross-Platform Audio Capture & Playback Engine | `S2.P1.1` | `PENDING` | — |
 | **Stage 2** | `S2.P2.1` | Offline VAD & Barge-In Detector (`sherpa-onnx` / Silero VAD) | `S2.P1.2` | `PENDING` | — |
 | **Stage 2** | `S2.P2.2` | Customizable Offline Wake-Word Engine (`sherpa-onnx` KWS) | `S2.P2.1` | `PENDING` | — |
@@ -296,3 +296,31 @@ Status Legend:
     - Verified interactive capability switch triggers live permission toggling in `AssistantController`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows Flutter/Dart); CI matrix pipeline covers Linux, macOS, Android, iOS, and Windows.
 - **Commit Reference:** `920e0c6a1a78f2f2e834c9244d78405773eb3967`
+
+### Verification Evidence — S2.P1.1 (Real-Time Safe Audio Ring Buffer & Resampler)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 5 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (105 passed across 5 crates; 17 in `aissistant-audio`)
+- **Test Summary:**
+  - `tests::test_ring_buffer_strict_mode_basic_push_pop`: Verified zero-allocation SPSC push, pop, and pop_slice operations and underrun tracking.
+  - `tests::test_ring_buffer_strict_overflow_rejection`: Verified that full buffer returns `AudioError::BufferOverflow` in strict mode and increments overrun counter.
+  - `tests::test_ring_buffer_overwrite_mode_wake_word_buffer`: Verified continuous wake-word spotting circular buffer behavior where new incoming audio overwrites the oldest unread frames while maintaining maximum history capacity.
+  - `tests::test_ring_buffer_peek_slice`: Verified non-destructive peeking without advancing the read pointer.
+  - `tests::test_ring_buffer_clear`: Verified atomic clearing of pending samples.
+  - `tests::test_ring_buffer_spsc_concurrent_threads`: Verified concurrent producer thread pushing 20,000 samples while consumer thread on separate OS thread verifies in-order sample delivery without data race or corruptions.
+  - `tests::test_resampler_identity_pass_through`: Verified bit-exact 1:1 pass-through when source and target rates match.
+  - `tests::test_resampler_stereo_downmix_to_mono`: Verified multi-channel downmixing (averaging interleaved channels to mono).
+  - `tests::test_resampler_48k_to_16k_frequency_and_ratio`: Verified exact 3:1 decimation and high-fidelity frequency preservation of a 1,000 Hz sine wave tone over 48,000 input samples ($< 1\%$ amplitude error).
+  - `tests::test_resampler_44k1_to_16k_non_integer_ratio`: Verified fractional linear interpolation across non-integer sample rate boundaries ($44,100 \rightarrow 16,000$).
+  - `tests::test_resampler_chunked_streaming_continuity`: Verified phase and sample boundary continuity across consecutive streaming chunks without clicks or drift.
+  - `tests::test_resampler_invalid_parameters`: Verified rejection of out-of-range sample rates and mismatched channel buffer sizes.
+  - `tests::test_meter_silence_detection`: Verified silence detection and $-96\text{ dBFS}$ noise floor.
+  - `tests::test_meter_full_scale_sine_and_clipping`: Verified peak at $0\text{ dBFS}$, theoretical RMS at $\approx -3.01\text{ dBFS}$, and clipping flag.
+  - `tests::test_meter_full_scale_square_wave`: Verified $0\text{ dBFS}$ RMS and peak for full-scale square wave.
+  - `tests::test_meter_ballistics_attack_and_decay`: Verified instantaneous attack and smooth exponential decay release.
+  - `tests::test_batch_resample_convenience`: Verified one-shot batch resampling utility.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit

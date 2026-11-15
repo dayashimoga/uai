@@ -312,3 +312,38 @@
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit, model, controller, widget, and platform configuration tests (0 failures).
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 88 unit and integration tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 2 Phase 1 Subphase 1 (`S2.P1.1`)
+
+### Added
+- `core/crates/aissistant-audio/`:
+  - New Rust workspace crate providing real-time safe audio buffering, sample rate conversion, and level metering.
+- `core/crates/aissistant-audio/src/error.rs`:
+  - `AudioError` taxonomy (`BufferOverflow`, `BufferUnderflow`, `InvalidSampleRate`, `InvalidChannelCount`, `ResamplingError`, `ParameterError`).
+- `core/crates/aissistant-audio/src/ring_buffer.rs`:
+  - `AudioRingBuffer` — Lock-free single-producer single-consumer (SPSC) circular buffer using atomic pointer synchronization (`Acquire`/`Release`) and power-of-two bitwise masking.
+  - Zero memory allocations and zero locks on real-time producer and consumer paths.
+  - `RingBufferMode::Strict` (overflow rejection) and `RingBufferMode::Overwrite` (continuous circular wake-word buffer retaining the most recent audio).
+  - `RingBufferProducer` and `RingBufferConsumer` thread-safe handles with atomic overrun, underrun, push, and pop telemetry.
+  - Support for `push`, `push_slice`, `pop`, `pop_slice`, `peek_slice`, and `clear`.
+- `core/crates/aissistant-audio/src/resampler.rs`:
+  - `AudioResampler` — Continuous stream resampler converting multi-channel audio (1 to 8 channels) at arbitrary input rates (4 kHz to 192 kHz) to standardized 16,000 Hz mono PCM.
+  - Linear/polynomial fractional phase interpolation maintaining continuity across buffer chunks without clicks or phase jumps.
+  - High-performance multi-channel downmixing ($M = \frac{1}{C}\sum C_i$).
+  - One-shot `resample_batch` utility.
+- `core/crates/aissistant-audio/src/meter.rs`:
+  - `AudioLevelMeter` & `AudioLevelSnapshot` — Real-time allocation-free RMS energy and peak amplitude calculations in dBFS ($-96.0\text{ dBFS}$ floor).
+  - Instantaneous attack and exponential decay release smoothing for stable, jitter-free UI waveform rendering.
+  - Full-scale clipping detection and silence thresholds.
+- `core/crates/aissistant-audio/src/lib.rs`:
+  - 17 comprehensive unit and integration tests covering lock-free SPSC concurrency, strict/overwrite buffer modes, frequency preservation (1,000 Hz tone at 48 kHz $\rightarrow$ 16 kHz), non-integer ratios (44.1 kHz $\rightarrow$ 16 kHz), stereo downmixing, dBFS level accuracy, and ballistics smoothing.
+- `core/Cargo.toml`:
+  - Added `"crates/aissistant-audio"` to `workspace.members`.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 105 unit and integration tests (0 failures; 17 in `aissistant-audio`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit and widget tests (0 failures).
