@@ -228,4 +228,4 @@ Status Legend:
   - `tests::test_global_bridge_lifecycle_and_shutdown`: Verified thread-safe singleton initialization, idempotency, retrieval, and shutdown.
   - `tests::test_evaluate_policy_via_bridge`: Verified security policy evaluation through the bridge for read-only vs destructive actions.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `264839f`
