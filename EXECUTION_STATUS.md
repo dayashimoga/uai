@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 5 — Skill Framework & Native Application/System Control  
-**Next Subphase in Queue:** `S5.P1.1` (Skill Registry, Sandbox Validator & Built-In Utility Skills)
+**Next Subphase in Queue:** `S5.P1.2` (Safe File Management Skills: Search, Read, Write, Move, Archive, Checksum)
 
 ---
 
@@ -57,7 +57,7 @@ Status Legend:
 | **Stage 4** | `S4.P1.2` | Local Embedding Generation & Hybrid Vector Memory Retrieval | `S4.P1.1` | `COMPLETED` | Verified [Commit `4b067bb`]: 185 Rust workspace unit tests passing (29 in `aissistant-storage`, 28 in `aissistant-llm`), 45 Flutter tests passing (100%), `flutter analyze` zero issues, `Migration 4` vector store, `LocalEmbeddingEngine` normalized 384-d semantic hash projections, `VectorMemoryStore` binary IEEE 754 float blob storage, cosine similarity k-NN retrieval, and `HybridSearchEngine` Reciprocal Rank Fusion (RRF) verified. |
 | **Stage 4** | `S4.P2.1` | Deterministic Orchestrator Turn State Machine (`aissistant-orchestrator`) | `S4.P1.2` | `COMPLETED` | Verified [Commit `0a424d9`]: 196 Rust workspace unit tests passing (11 in `aissistant-orchestrator`), 45 Flutter tests passing (100%), `flutter analyze` zero issues, `TurnState` finite state transitions, `TurnStateMachine` cooperative cancellation handle (<20ms latency), `Orchestrator` full turn loop (STT/text -> hybrid memory RRF -> ChatML prompt -> LLM streaming -> TTS speech chunks -> SQLite persistence), and real-time barge-in interruption verified. |
 | **Stage 4** | `S4.P2.2` | Policy-Enforced Tool Dispatcher & User Confirmation Flow | `S4.P2.1` | `COMPLETED` | Verified [Commit `18c183a`]: 206 Rust workspace unit tests passing (21 in `aissistant-orchestrator`), 45 Flutter tests passing (100%), `flutter analyze` zero issues, `ToolDispatcher` registry, `ToolHandler` trait, parameter sanitization & sensitive field redaction, `ConfirmationManager` thread-safe pending requests, non-blocking turn suspension on risk tiers 2-4, taint escalation enforcement, interactive approval/rejection resolution, and 100% cryptographic continuity in BLAKE3 hash-chained `security_audit_log` verified. |
-| **Stage 5** | `S5.P1.1` | Skill Registry, Sandbox Validator & Built-In Utility Skills | `S4.P2.2` | `PENDING` | — |
+| **Stage 5** | `S5.P1.1` | Skill Registry, Sandbox Validator & Built-In Utility Skills | `S4.P2.2` | `COMPLETED` | Verified: 226 Rust workspace unit tests passing (20 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, sandboxed worker thread isolation, timeout enforcement, and 5 built-in safe utility skills (`system.time`, `system.timer`, `system.calc`, `system.convert`, `system.telemetry`) verified. |
 | **Stage 5** | `S5.P1.2` | Safe File Management Skills (Search, Read, Write, Move, Archive, Checksum) | `S5.P1.1` | `PENDING` | — |
 | **Stage 5** | `S5.P2.1` | Desktop Application Launch, Process Inspection & Window Management | `S5.P1.2` | `PENDING` | — |
 | **Stage 5** | `S5.P2.2` | Desktop System Settings, Clipboard, Audio Volume & Media Transport Control | `S5.P2.1` | `PENDING` | — |
@@ -618,6 +618,32 @@ Status Legend:
   - `orchestrator::tests::test_audit_chain_cryptographic_integrity_after_tool_loop`: Verified that all audit records across multiple tool turns maintain 100% cryptographic continuity passing `AuditChainVerifier::verify_chain()` from genesis to tip.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `18c183a`
+
+### Verification Evidence — S5.P1.1 (Skill Registry, Sandbox Validator & Built-In Utility Skills)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 9 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (226 passed across 9 crates; 20 in `aissistant-skills`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (45 passed across 7 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `error::tests::test_skill_error_conversions`: Verified domain `SkillError` taxonomy, display formatting, and mapping into canonical `CoreError` and `OrchestratorError`.
+  - `sandbox::tests::test_sandboxed_skill_fast_completion`: Verified transparent pass-through of successful tool execution and JSON payload return.
+  - `sandbox::tests::test_sandboxed_skill_timeout_enforcement`: Verified strict execution deadline enforcement, thread panic trapping, and cancellation timeout mapping (`SkillError::ExecutionTimeout`).
+  - `utility::time_skill::tests::test_civil_from_days`: Verified civil calendar algorithm (Howard Hinnant) for zero-dependency leap year and day calculation across Unix epoch.
+  - `utility::time_skill::tests::test_time_skill_execution`: Verified `system.time` queries across all supported formats (`full`, `date_only`, `time_only`, `epoch_ms`).
+  - `utility::timer_skill::tests::test_timer_lifecycle`: Verified thread-safe `system.timer` operations (`set`, `status`, `cancel`, `list`) with active countdown calculations.
+  - `utility::calc_skill::tests::test_basic_arithmetic` & `test_complex_expression` & `test_constants_and_functions`: Verified recursive-descent math parser supporting operator precedence, exponents, parentheses, trigonometry (`sin`, `cos`, `tan`), roots (`sqrt`), logarithms (`ln`, `log10`), and constants (`pi`, `e`).
+  - `utility::calc_skill::tests::test_division_by_zero_rejection`: Verified deterministic rejection of division/modulo by zero without panics.
+  - `utility::convert_skill::tests`: Verified cross-dimensional unit conversions across Temperature (C, F, K), Length (m, km, cm, mm, mi, yd, ft, in), Mass (g, kg, mg, lb, oz), Digital Data (b, B, KB, MB, GB, TB, PB), and Time (s, ms, min, hr, d, wk) with rejection of incompatible dimensional conversions.
+  - `utility::telemetry_skill::tests::test_telemetry_skill_live_probe`: Verified real-time hardware inspection via `sysinfo::System` reporting CPU cores, RAM usage, and host metadata with refresh throttling.
+  - `registry::tests::test_builtin_skills_registration`: Verified that `SkillRegistry` automatically wraps all 5 built-in tools in `SandboxedSkill` and registers them into `ToolDispatcher`.
+  - `tests::test_skill_registry_all_builtins_registration_and_execution`: Verified end-to-end dispatch and schema validation of all 5 built-in tools through `ToolDispatcher`.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit
+
 
 
 

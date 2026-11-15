@@ -859,3 +859,40 @@
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 
+---
+
+## [2026-11-15] — Stage 5 Phase 1 Subphase 1 (`S5.P1.1`)
+
+### Added
+- `core/Cargo.toml`:
+  - Added `"crates/aissistant-skills"` to workspace `members`.
+- `core/crates/aissistant-skills/Cargo.toml`:
+  - Defined crate metadata and dependencies on `aissistant-core`, `aissistant-orchestrator`, `aissistant-security`, `serde`, `serde_json`, `sysinfo`, `thiserror`, and `tracing`.
+- `core/crates/aissistant-skills/src/error.rs`:
+  - Defined domain `SkillError` taxonomy: `ExecutionTimeout`, `InvalidArguments`, `EvaluationError`, `IncompatibleUnits`, `UnknownUnit`, `Core`, `Orchestrator`, `Serialization`, and `Internal`.
+  - Implemented bidirectional conversions to `CoreError` and `OrchestratorError`.
+- `core/crates/aissistant-skills/src/sandbox.rs`:
+  - Implemented `SandboxedSkill` wrapper providing thread isolation, panic trapping, and execution timeout enforcement (default 5,000ms).
+- `core/crates/aissistant-skills/src/utility/time_skill.rs`:
+  - Implemented `TimeSkill` (`system.time`) using Howard Hinnant's civil calendar algorithm for zero-dependency date/time queries across `full`, `date_only`, `time_only`, and `epoch_ms` formats (`RiskTier::ReadOnly`).
+- `core/crates/aissistant-skills/src/utility/timer_skill.rs`:
+  - Implemented thread-safe `TimerSkill` (`system.timer`) managing countdown timers (`set`, `status`, `cancel`, `list`) with label metadata (`RiskTier::StateModifying`).
+- `core/crates/aissistant-skills/src/utility/calc_skill.rs`:
+  - Implemented safe recursive-descent math parser `CalcSkill` (`system.calc`) supporting arithmetic operators (`+`, `-`, `*`, `/`, `%`), exponentiation (`^`), parentheses, functions (`sqrt`, `abs`, `round`, `floor`, `ceil`, `sin`, `cos`, `tan`, `ln`, `log10`), constants (`pi`, `e`), and strict division-by-zero checks without arbitrary code execution (`RiskTier::ReadOnly`).
+- `core/crates/aissistant-skills/src/utility/convert_skill.rs`:
+  - Implemented `ConvertSkill` (`system.convert`) supporting Temperature, Length, Mass, Digital Data, and Time unit conversions with dimensional validation and rejection of incompatible conversions (`RiskTier::ReadOnly`).
+- `core/crates/aissistant-skills/src/utility/telemetry_skill.rs`:
+  - Implemented `TelemetrySkill` (`system.telemetry`) querying live OS metrics, RAM headroom, and CPU utilization via `sysinfo::System` with 200ms refresh throttling (`RiskTier::ReadOnly`).
+- `core/crates/aissistant-skills/src/registry.rs`:
+  - Implemented `SkillRegistry` creating and registering all built-in utility skills wrapped in `SandboxedSkill` into `ToolDispatcher`.
+- `core/crates/aissistant-skills/src/lib.rs`:
+  - Clean crate re-exports and integration tests verifying registration and dispatch of all 5 built-in utility skills through `ToolDispatcher`.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 9 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 226 unit and integration tests (0 failures; 20 in `aissistant-skills`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+

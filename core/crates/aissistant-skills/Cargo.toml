@@ -1,0 +1,25 @@
+[package]
+name = "aissistant-skills"
+description = "Extensible skill framework, sandboxed executor, and built-in safe utility skills"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+aissistant-core = { path = "../aissistant-core" }
+aissistant-orchestrator = { path = "../aissistant-orchestrator" }
+aissistant-security = { path = "../aissistant-security" }
+serde.workspace = true
+serde_json.workspace = true
+sysinfo.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

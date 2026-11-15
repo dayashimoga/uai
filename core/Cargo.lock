@@ -119,6 +119,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "aissistant-skills"
+version = "0.1.0"
+dependencies = [
+ "aissistant-core",
+ "aissistant-orchestrator",
+ "aissistant-security",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tracing",
+]
+
+[[package]]
 name = "aissistant-speech"
 version = "0.1.0"
 dependencies = [
