@@ -473,3 +473,33 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 132 unit and integration tests (0 failures; 21 in `aissistant-speech`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+---
+
+## [2026-11-15] — Stage 2 Phase 3 Subphase 2 (`S2.P3.2`)
+
+### Added
+- `core/crates/aissistant-speech/src/tts.rs`:
+  - `TtsConfig` — Configuration for speech synthesis, including sample rates (16 kHz and 22.05 kHz), speaking speed multiplier (`0.5 .. 2.0`), volume scaling (`0.0 .. 1.0`), speaker ID, and inter-sentence pause duration.
+  - `TtsAudioChunk` — Audio buffer segment containing mono f32 samples, sample rate, sentence index, and turn finality flag.
+  - `SentenceChunker` — Streaming boundary tokenizer yielding sentence units at punctuation marks ('.', '!', '?', '\n') with abbreviation guards ("Dr.", "Mr.", "e.g.", "vs.") and decimal number preservation ("3.14").
+  - `TtsEngine` trait — Abstract interface for sentence synthesis, cancellation, speaking speed control, and speaker ID selection.
+- `core/crates/aissistant-speech/src/acoustic_tts.rs`:
+  - `AcousticTtsEngine` — Fast, self-contained offline acoustic-phonetic speech synthesizer translating text into pitch contours, formant-shaped vowels, consonant noise bursts, and smooth Hann onset/decay envelopes.
+  - Linear speed scaling (2.0x generates half the duration of 1.0x).
+  - Speaker ID pitch modulation and instant cancellation handle support for real-time barge-in.
+- `core/crates/aissistant-speech/src/sherpa_tts.rs`:
+  - `SherpaTtsConfig` & `SherpaTtsEngine` — Model and configuration bridge for `sherpa-onnx` neural TTS models (VITS, Piper, Matcha).
+  - Validates `model.onnx`, `tokens.txt`, and `espeak-ng-data` file paths, and falls back to acoustic synthesis in offline/test environments.
+- `core/crates/aissistant-speech/src/error.rs`:
+  - Added `SpeechError::TtsError`.
+- `core/crates/aissistant-speech/src/lib.rs`:
+  - 7 new unit and integration tests (bringing `aissistant-speech` total to 28, and workspace total to 139).
+  - Verified sentence chunking with abbreviations and numbers, configuration validation, audio waveform bounds, speaking speed scaling, speaker ID modulation, immediate barge-in cancellation, and `sherpa-onnx` neural TTS configuration.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 139 unit and integration tests (0 failures; 28 in `aissistant-speech`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.

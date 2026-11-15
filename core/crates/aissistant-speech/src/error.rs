@@ -24,4 +24,7 @@ pub enum SpeechError {
 
     #[error("STT transcription error: {0}")]
     SttError(String),
+
+    #[error("TTS synthesis error: {0}")]
+    TtsError(String),
 }

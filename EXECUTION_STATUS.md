@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 1 — Repository, Flutter/Rust Foundation & Five-Platform Application Shells  
-**Active Subphase:** None (`S2.P3.1` Complete, `S2.P3.2` Pending Confirmation)
+**Active Subphase:** None (`S2.P3.2` Complete, `S2.P3.3` Pending Confirmation)
 
 ---
 
@@ -46,7 +46,7 @@ Status Legend:
 | **Stage 2** | `S2.P2.1` | Offline VAD & Barge-In Detector (`sherpa-onnx` / Silero VAD) | `S2.P1.2` | `COMPLETED` | Verified: 119 Rust workspace unit tests passing (8 in `aissistant-speech`), clippy zero warnings, fmt check passed, offline VAD engine, pre-speech padding, silence timeout tuning, and instant barge-in interruption verified. |
 | **Stage 2** | `S2.P2.2` | Customizable Offline Wake-Word Engine (`sherpa-onnx` KWS) | `S2.P2.1` | `COMPLETED` | Verified: 127 Rust workspace unit tests passing (16 in `aissistant-speech`), clippy zero warnings, fmt check passed, acoustic keyword spotter, Pearson subband trajectory correlation, multi-keyword discrimination, debounce cooldown, and sherpa-onnx KWS interface verified. |
 | **Stage 2** | `S2.P3.1` | Offline Multilingual Streaming Speech-to-Text | `S2.P2.2` | `COMPLETED` | Verified: 132 Rust workspace unit tests passing (21 in `aissistant-speech`), clippy zero warnings, fmt check passed, streaming partial transcripts, endpoint detection, multilingual language switching, dynamic vocabulary addition, and sherpa-onnx Zipformer/Whisper STT interface verified. |
-| **Stage 2** | `S2.P3.2` | Offline Neural Text-to-Speech & Sentence Streaming | `S2.P3.1` | `PENDING` | — |
+| **Stage 2** | `S2.P3.2` | Offline Neural Text-to-Speech & Sentence Streaming | `S2.P3.1` | `COMPLETED` | Verified: 139 Rust workspace unit tests passing (28 in `aissistant-speech`), clippy zero warnings, fmt check passed, sentence boundary chunking, abbreviation handling, speech synthesis, speaking rate / pitch modulation, barge-in cancellation, and sherpa-onnx VITS/Piper interface verified. |
 | **Stage 2** | `S2.P3.3` | Voice UI Integration, Waveform Feedback & Push-to-Talk/Wake Mode | `S2.P3.2` | `PENDING` | — |
 | **Stage 3** | `S3.P1.1` | CPU/RAM/GPU Hardware Profiler (`aissistant-llm`) | `S2.P3.3` | `PENDING` | — |
 | **Stage 3** | `S3.P1.2` | Resumable Model Downloader, SHA-256 Verifier & GGUF Inspector | `S3.P1.1` | `PENDING` | — |
@@ -400,3 +400,23 @@ Status Legend:
   - `tests::test_sherpa_stt_engine_transducer_and_whisper_configs`: Verified configuration of `sherpa-onnx` streaming Transducer (Zipformer) and offline Whisper architectures, model path checks, and transparent fallback to acoustic decoding in test environments.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `c76ce0a`
+
+### Verification Evidence — S2.P3.2 (Offline Neural Text-to-Speech & Sentence Streaming)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 6 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (139 passed across 6 crates; 28 in `aissistant-speech`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (28 passed across 5 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `tests::test_sentence_chunker_basic_and_abbreviations`: Verified sentence boundary splitting across periods, exclamation marks, question marks, and newlines without false-positive splits on abbreviations ("Dr.", "Mr.", "e.g.", "vs.") or decimal numbers ("3.14").
+  - `tests::test_sentence_chunker_flush_trailing_fragment`: Verified flushing of trailing incomplete sentence fragments upon synthesis conclusion.
+  - `tests::test_tts_config_validation`: Verified validation of supported sample rates (16 kHz and 22.05 kHz), speaking speed range `[0.5, 2.0]`, and volume range `[0.0, 1.0]`.
+  - `tests::test_acoustic_tts_synthesis_properties`: Verified speech waveform synthesis producing bounded, valid non-empty float PCM audio with zero NaN/inf values.
+  - `tests::test_acoustic_tts_speed_and_speaker_id_modulation`: Verified speaking speed scaling (2.0x generates approximately half the sample count of 1.0x) and speaker ID pitch modulation.
+  - `tests::test_acoustic_tts_cancellation_barge_in`: Verified instant synthesis cancellation via cancellation handle, immediately halting generation and returning an empty/cancelled chunk upon user barge-in.
+  - `tests::test_sherpa_tts_engine_config_and_lifecycle`: Verified `sherpa-onnx` VITS/Piper/Matcha configuration, model path checking, and transparent acoustic synthesis fallback.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit

@@ -1,24 +1,30 @@
 pub mod acoustic_kws;
 pub mod acoustic_stt;
+pub mod acoustic_tts;
 pub mod barge_in;
 pub mod energy_vad;
 pub mod error;
 pub mod sherpa_kws;
 pub mod sherpa_stt;
+pub mod sherpa_tts;
 pub mod silero_vad;
 pub mod stt;
+pub mod tts;
 pub mod vad;
 pub mod wake_word;
 
 pub use acoustic_kws::{AcousticFeature, AcousticKwsSpotter, KeywordTemplate};
 pub use acoustic_stt::{AcousticSttEngine, LexiconEntry};
+pub use acoustic_tts::AcousticTtsEngine;
 pub use barge_in::{BargeInDetector, BargeInEvent};
 pub use energy_vad::EnergyVadEngine;
 pub use error::SpeechError;
 pub use sherpa_kws::{SherpaKwsConfig, SherpaKwsEngine};
 pub use sherpa_stt::{SherpaSttConfig, SherpaSttEngine, SherpaSttModelType};
+pub use sherpa_tts::{SherpaTtsConfig, SherpaTtsEngine, SherpaTtsModelType};
 pub use silero_vad::{SileroVadConfig, SileroVadEngine};
 pub use stt::{DecodingMethod, StreamingTranscriptEvent, SttConfig, SttEngine, TranscriptSegment};
+pub use tts::{SentenceChunker, TtsAudioChunk, TtsConfig, TtsEngine};
 pub use vad::{UtteranceSegmenter, VadConfig, VadEngine, VadEvent, VadState};
 pub use wake_word::{WakeWordConfig, WakeWordEvent, WakeWordSpotter};
 
@@ -796,5 +802,185 @@ mod tests {
             ..Default::default()
         };
         assert!(whisper_config.validate().is_ok());
+    }
+
+    // =========================================================================
+    // Text-to-Speech (TTS) Tests (S2.P3.2)
+    // =========================================================================
+
+    #[test]
+    fn test_sentence_chunker_basic_and_abbreviations() {
+        let mut chunker = SentenceChunker::new();
+        chunker.push_text(
+            "Hello world! This is Dr. Smith from the lab. It is 3.14 degrees outside? Yes, indeed.",
+        );
+
+        let s1 = chunker.next_sentence();
+        assert_eq!(s1.as_deref(), Some("Hello world!"));
+
+        let s2 = chunker.next_sentence();
+        assert_eq!(s2.as_deref(), Some("This is Dr. Smith from the lab."));
+
+        let s3 = chunker.next_sentence();
+        assert_eq!(s3.as_deref(), Some("It is 3.14 degrees outside?"));
+
+        let s4 = chunker.next_sentence();
+        assert_eq!(s4.as_deref(), Some("Yes, indeed."));
+
+        assert_eq!(chunker.next_sentence(), None);
+        assert_eq!(chunker.sentence_count(), 4);
+    }
+
+    #[test]
+    fn test_sentence_chunker_flush_trailing_fragment() {
+        let mut chunker = SentenceChunker::new();
+        chunker.push_text("Complete sentence. Trailing thought without dot");
+
+        let s1 = chunker.next_sentence();
+        assert_eq!(s1.as_deref(), Some("Complete sentence."));
+
+        assert_eq!(chunker.next_sentence(), None);
+
+        let flushed = chunker.flush();
+        assert_eq!(flushed.as_deref(), Some("Trailing thought without dot"));
+        assert_eq!(chunker.flush(), None);
+    }
+
+    #[test]
+    fn test_tts_config_validation() {
+        let valid_16k = TtsConfig::default();
+        assert!(valid_16k.validate().is_ok());
+
+        let valid_22k = TtsConfig {
+            sample_rate: 22_050,
+            ..Default::default()
+        };
+        assert!(valid_22k.validate().is_ok());
+
+        let invalid_sr = TtsConfig {
+            sample_rate: 44_100,
+            ..Default::default()
+        };
+        assert!(invalid_sr.validate().is_err());
+
+        let invalid_speed = TtsConfig {
+            speed: 0.1,
+            ..Default::default()
+        };
+        assert!(invalid_speed.validate().is_err());
+
+        let invalid_vol = TtsConfig {
+            volume: 1.5,
+            ..Default::default()
+        };
+        assert!(invalid_vol.validate().is_err());
+    }
+
+    #[test]
+    fn test_acoustic_tts_synthesis_properties() {
+        let config = TtsConfig {
+            sample_rate: 16_000,
+            speed: 1.0,
+            volume: 0.8,
+            ..Default::default()
+        };
+        let mut tts = AcousticTtsEngine::new(config).expect("Init AcousticTtsEngine failed");
+
+        let chunk = tts
+            .synthesize_sentence("Turn on the lights.")
+            .expect("Synthesize sentence failed");
+
+        assert!(!chunk.samples.is_empty(), "Samples should not be empty");
+        assert_eq!(chunk.sample_rate, 16_000);
+        assert_eq!(chunk.sentence_index, 0);
+
+        // Verify valid floating-point values
+        for &s in &chunk.samples {
+            assert!(!s.is_nan(), "Sample is NaN");
+            assert!(!s.is_infinite(), "Sample is infinite");
+            assert!(
+                (-1.0..=1.0).contains(&s),
+                "Sample {s} out of range [-1.0, 1.0]"
+            );
+        }
+
+        // Empty sentence handling
+        let empty_chunk = tts.synthesize_sentence("   ").expect("Empty sentence");
+        assert!(empty_chunk.samples.is_empty());
+        assert!(empty_chunk.is_final);
+    }
+
+    #[test]
+    fn test_acoustic_tts_speed_and_speaker_id_modulation() {
+        let mut tts = AcousticTtsEngine::new(TtsConfig::default()).expect("Init failed");
+
+        tts.set_speed(1.0).expect("Set speed failed");
+        let chunk_normal = tts
+            .synthesize_sentence("Testing speech speaking rate.")
+            .expect("Synthesize failed");
+
+        tts.set_speed(2.0).expect("Set speed failed");
+        let chunk_fast = tts
+            .synthesize_sentence("Testing speech speaking rate.")
+            .expect("Synthesize failed");
+
+        // Fast rate (2.0x) should produce significantly fewer samples than normal (1.0x)
+        assert!(
+            chunk_fast.samples.len() < chunk_normal.samples.len(),
+            "Fast chunk len {} should be less than normal chunk len {}",
+            chunk_fast.samples.len(),
+            chunk_normal.samples.len()
+        );
+
+        // Speaker ID modulation
+        assert_eq!(tts.speaker_id(), 0);
+        tts.set_speaker_id(3).expect("Set speaker id failed");
+        assert_eq!(tts.speaker_id(), 3);
+    }
+
+    #[test]
+    fn test_acoustic_tts_cancellation_barge_in() {
+        let mut tts = AcousticTtsEngine::new(TtsConfig::default()).expect("Init failed");
+        let handle = tts.cancellation_handle();
+
+        // Signal cancellation immediately
+        handle.store(true, Ordering::Release);
+        assert!(tts.is_cancelled());
+
+        let chunk = tts
+            .synthesize_sentence(
+                "This long sentence should be cancelled immediately upon barge in.",
+            )
+            .expect("Synthesize failed");
+
+        // Cancelled chunk returns immediately with empty/truncated samples and is_final: true
+        assert!(chunk.is_final);
+        assert!(chunk.samples.is_empty());
+    }
+
+    #[test]
+    fn test_sherpa_tts_engine_config_and_lifecycle() {
+        let config = SherpaTtsConfig {
+            model_type: SherpaTtsModelType::Vits,
+            sample_rate: 16_000,
+            speed: 1.1,
+            ..Default::default()
+        };
+        assert!(config.validate().is_ok());
+
+        let mut engine = SherpaTtsEngine::new(config).expect("Init SherpaTtsEngine failed");
+        assert_eq!(engine.sample_rate(), 16_000);
+        assert!(!engine.is_using_onnx_models()); // Falls back to acoustic engine
+
+        let chunk = engine
+            .synthesize_sentence("Hello from Universal AI Assistant!")
+            .expect("Synthesize failed");
+
+        assert!(!chunk.samples.is_empty());
+        assert_eq!(chunk.sample_rate, 16_000);
+
+        // Test cancel
+        engine.cancel();
+        assert!(engine.is_cancelled());
     }
 }
