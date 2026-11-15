@@ -214,3 +214,34 @@
 - `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
 - `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 83 unit and integration tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 1 Phase 2 Subphase 2 (`S1.P2.2`)
+
+### Added
+- `core/crates/aissistant-ffi/src/lifecycle.rs`:
+  - `LifecycleState` enum (`Uninitialized`, `Starting`, `Running`, `Degraded`, `ShuttingDown`, `Terminated`) with strict transition rules.
+  - `ShutdownReason` enum (`UserRequested`, `OsSignal`, `MemoryPressure`, `FatalError`, `Testing`).
+  - `MemoryPressureLevel` enum (`Moderate`, `Critical`).
+  - `CancellationToken` — thread-safe cooperative cancellation token for background tasks.
+  - `CoreRuntime` — lifecycle supervisor managing background worker tasks, state transitions, cooperative cancellations, and two-phase graceful shutdown draining.
+  - SQLite cache eviction and checkpointing under critical memory pressure (`PRAGMA shrink_memory; PRAGMA wal_checkpoint(PASSIVE)`).
+  - WAL checkpointing on shutdown (`PRAGMA wal_checkpoint(TRUNCATE)`).
+- `core/crates/aissistant-ffi/src/events.rs`:
+  - Added `LifecycleStateChanged` and `MemoryPressure` events to `BridgeEvent`.
+- `core/crates/aissistant-ffi/src/error.rs`:
+  - Added `InvalidStateTransition` and `ShuttingDown` errors to `FfiError` with structured descriptor mappings.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Integrated `CoreRuntime` into `CoreBridge` with `lifecycle_state()`, `spawn_task()`, `finish_task()`, `request_shutdown()`, and `notify_memory_pressure()`.
+  - Added `lifecycle_state` and `active_tasks` to `HealthReport`.
+  - Added global bridge entry points: `bridge_get_lifecycle_state()`, `bridge_request_shutdown()`, and `bridge_notify_memory_pressure()`.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - C-ABI exports: `bridge_c_get_lifecycle_state`, `bridge_c_request_shutdown`, and `bridge_c_notify_memory_pressure`.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Added 5 new integration tests verifying lifecycle transitions, background worker tracking, task rejection during shutdown, memory pressure handling, and C-ABI round trips. Total tests in crate increased from 14 to 19.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 88 unit and integration tests (0 failures).

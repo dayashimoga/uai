@@ -42,6 +42,19 @@ pub enum FfiError {
     /// Caught an unexpected panic during FFI execution.
     #[error("Unexpected panic caught across FFI: {0}")]
     PanicCaught(String),
+
+    /// Invalid lifecycle state transition attempted.
+    #[error("Invalid lifecycle state transition from {from} to {to}")]
+    InvalidStateTransition {
+        /// Current state.
+        from: String,
+        /// Target state.
+        to: String,
+    },
+
+    /// Operation rejected because runtime is shutting down or terminated.
+    #[error("Operation rejected: runtime is shutting down or terminated")]
+    ShuttingDown,
 }
 
 impl From<serde_json::Error> for FfiError {
@@ -105,7 +118,10 @@ impl From<FfiError> for ErrorDescriptor {
                 msg,
                 false,
             ),
-            FfiError::NotInitialized | FfiError::AlreadyInitialized => ErrorDescriptor::new(
+            FfiError::NotInitialized
+            | FfiError::AlreadyInitialized
+            | FfiError::InvalidStateTransition { .. }
+            | FfiError::ShuttingDown => ErrorDescriptor::new(
                 ErrorCode::CoreConfigInvalid,
                 ErrorCategory::Configuration,
                 err.to_string(),

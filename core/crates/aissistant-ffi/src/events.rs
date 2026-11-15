@@ -62,6 +62,22 @@ pub enum BridgeEvent {
         /// Whether the operation is safe to retry.
         recoverable: bool,
     },
+
+    /// Runtime lifecycle state changed (e.g. running -> shutting_down).
+    LifecycleStateChanged {
+        /// Previous lifecycle state string.
+        previous: String,
+        /// New lifecycle state string.
+        current: String,
+        /// Optional reason for transition.
+        reason: Option<String>,
+    },
+
+    /// Host OS memory pressure warning received.
+    MemoryPressure {
+        /// Severity level ("moderate", "critical").
+        level: String,
+    },
 }
 
 type CallbackFn = Box<dyn Fn(&BridgeEvent) + Send + Sync + 'static>;

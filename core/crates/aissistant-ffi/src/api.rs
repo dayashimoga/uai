@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock, RwLock};
+use std::time::Duration;
 
 use aissistant_core::{AuditEntryId, Capability, CapabilityRegistry, CapabilityStatus, SkillId};
 use aissistant_security::{
@@ -16,6 +17,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{FfiError, FfiResult};
 use crate::events::{BridgeEvent, EventStreamSink};
+use crate::lifecycle::{
+    CancellationToken, CoreRuntime, LifecycleState, MemoryPressureLevel, ShutdownReason,
+};
 
 /// Overall health tier of the runtime engine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,6 +50,10 @@ impl HealthStatus {
 pub struct HealthReport {
     /// Current health tier.
     pub status: HealthStatus,
+    /// Current lifecycle state.
+    pub lifecycle_state: LifecycleState,
+    /// Count of currently active background tasks.
+    pub active_tasks: usize,
     /// SQLite engine operational.
     pub database_ok: bool,
     /// Security audit log integrity verified.
@@ -126,6 +134,7 @@ pub struct CoreBridge {
     capability_registry: RwLock<CapabilityRegistry>,
     policy_engine: RwLock<PolicyEngine>,
     event_sink: Arc<EventStreamSink>,
+    runtime: Arc<CoreRuntime>,
     identity: DeviceIdentity,
     data_dir: Option<PathBuf>,
 }
@@ -139,6 +148,7 @@ impl std::fmt::Debug for CoreBridge {
             .unwrap_or_else(|_| "unknown_device".to_string());
         f.debug_struct("CoreBridge")
             .field("device_id", &dev_id)
+            .field("lifecycle_state", &self.runtime.state())
             .field("data_dir", &self.data_dir)
             .finish()
     }
@@ -147,6 +157,10 @@ impl std::fmt::Debug for CoreBridge {
 impl CoreBridge {
     /// Creates an in-memory bridge instance for testing or ephemeral runs.
     pub fn new_in_memory() -> FfiResult<Self> {
+        let event_sink = Arc::new(EventStreamSink::new());
+        let runtime = Arc::new(CoreRuntime::new(event_sink.clone()));
+        runtime.transition_to(LifecycleState::Starting, Some("in_memory_init"))?;
+
         let db = SqliteDb::open_in_memory()?;
         let audit_store = AuditStore::new(db.clone());
         let settings_store = SettingsStore::new(db.clone());
@@ -154,8 +168,9 @@ impl CoreBridge {
         let secret_store = SecretStore::new(db.clone(), master_key);
         let capability_registry = RwLock::new(CapabilityRegistry::for_current_host());
         let policy_engine = RwLock::new(PolicyEngine::new());
-        let event_sink = Arc::new(EventStreamSink::new());
         let identity = DeviceIdentity::generate();
+
+        runtime.transition_to(LifecycleState::Running, Some("ready"))?;
 
         Ok(Self {
             db,
@@ -165,6 +180,7 @@ impl CoreBridge {
             capability_registry,
             policy_engine,
             event_sink,
+            runtime,
             identity,
             data_dir: None,
         })
@@ -176,6 +192,10 @@ impl CoreBridge {
         if !path.exists() {
             std::fs::create_dir_all(path).map_err(|e| FfiError::Storage(e.into()))?;
         }
+
+        let event_sink = Arc::new(EventStreamSink::new());
+        let runtime = Arc::new(CoreRuntime::new(event_sink.clone()));
+        runtime.transition_to(LifecycleState::Starting, Some("disk_init"))?;
 
         let db_path = path.join("aissistant.db");
         let db = SqliteDb::open(&db_path)?;
@@ -196,8 +216,9 @@ impl CoreBridge {
 
         let capability_registry = RwLock::new(CapabilityRegistry::for_current_host());
         let policy_engine = RwLock::new(PolicyEngine::new());
-        let event_sink = Arc::new(EventStreamSink::new());
         let identity = DeviceIdentity::generate();
+
+        runtime.transition_to(LifecycleState::Running, Some("ready"))?;
 
         Ok(Self {
             db,
@@ -207,6 +228,7 @@ impl CoreBridge {
             capability_registry,
             policy_engine,
             event_sink,
+            runtime,
             identity,
             data_dir: Some(path.to_path_buf()),
         })
@@ -268,8 +290,13 @@ impl CoreBridge {
             HealthStatus::Healthy
         };
 
+        let lifecycle_state = self.runtime.state();
+        let active_tasks = self.runtime.active_task_count();
+
         HealthReport {
             status,
+            lifecycle_state,
+            active_tasks,
             database_ok,
             audit_ok,
             keystore_ok,
@@ -583,6 +610,39 @@ impl CoreBridge {
         &self.db
     }
 
+    /// Returns a reference to the core lifecycle runtime supervisor.
+    #[must_use]
+    pub fn runtime(&self) -> &Arc<CoreRuntime> {
+        &self.runtime
+    }
+
+    /// Returns the active lifecycle state of the core runtime.
+    #[must_use]
+    pub fn lifecycle_state(&self) -> LifecycleState {
+        self.runtime.state()
+    }
+
+    /// Spawns a background task tracked by the lifecycle supervisor.
+    pub fn spawn_task(&self, name: &str) -> FfiResult<(u64, CancellationToken)> {
+        self.runtime.spawn_task(name)
+    }
+
+    /// Marks a tracked background task as finished.
+    pub fn finish_task(&self, task_id: u64) {
+        self.runtime.finish_task(task_id);
+    }
+
+    /// Signals the core runtime to execute a graceful two-phase shutdown.
+    pub fn request_shutdown(&self, reason: ShutdownReason, timeout: Duration) -> FfiResult<()> {
+        self.runtime
+            .request_shutdown(reason, timeout, Some(&self.db))
+    }
+
+    /// Delivers an operating system memory pressure notification.
+    pub fn notify_memory_pressure(&self, level: MemoryPressureLevel) -> FfiResult<()> {
+        self.runtime.notify_memory_pressure(level, Some(&self.db))
+    }
+
     /// Returns the device ID of this core instance.
     #[must_use]
     pub fn device_id(&self) -> String {
@@ -634,12 +694,17 @@ pub fn get_bridge() -> FfiResult<Arc<CoreBridge>> {
     }
 }
 
-/// Shuts down and drops the global core bridge singleton.
+/// Shuts down and drops the global core bridge singleton with graceful two-phase draining.
 pub fn shutdown_bridge() -> FfiResult<()> {
     let slot = get_bridge_slot();
     let mut guard = slot
         .write()
         .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+
+    if let Some(ref bridge) = *guard {
+        let _ = bridge.request_shutdown(ShutdownReason::UserRequested, Duration::from_millis(1500));
+    }
+
     *guard = None;
     Ok(())
 }
@@ -684,6 +749,24 @@ pub fn bridge_get_setting(key: &str) -> FfiResult<Option<String>> {
 pub fn bridge_set_setting(key: &str, value_json: &str) -> FfiResult<()> {
     let bridge = get_bridge()?;
     bridge.set_setting(key, value_json)
+}
+
+/// Convenience entry point: queries active lifecycle state on the global bridge.
+pub fn bridge_get_lifecycle_state() -> FfiResult<LifecycleState> {
+    let bridge = get_bridge()?;
+    Ok(bridge.lifecycle_state())
+}
+
+/// Convenience entry point: requests graceful shutdown on the global bridge.
+pub fn bridge_request_shutdown(reason: ShutdownReason) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.request_shutdown(reason, Duration::from_millis(2000))
+}
+
+/// Convenience entry point: delivers memory pressure notification to the global bridge.
+pub fn bridge_notify_memory_pressure(level: MemoryPressureLevel) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.notify_memory_pressure(level)
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

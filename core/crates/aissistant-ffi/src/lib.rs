@@ -4,15 +4,19 @@ pub mod api;
 pub mod c_abi;
 pub mod error;
 pub mod events;
+pub mod lifecycle;
 
 pub use api::{
-    bridge_get_capabilities, bridge_get_health, bridge_get_setting, bridge_query_audit,
-    bridge_set_setting, bridge_update_permission, bridge_verify_audit, get_bridge, init_bridge,
-    shutdown_bridge, AuditIntegrityReport, AuditItem, CapabilityItem, CoreBridge, HealthReport,
-    HealthStatus,
+    bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state, bridge_get_setting,
+    bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
+    bridge_update_permission, bridge_verify_audit, get_bridge, init_bridge, shutdown_bridge,
+    AuditIntegrityReport, AuditItem, CapabilityItem, CoreBridge, HealthReport, HealthStatus,
 };
 pub use error::{FfiError, FfiResult};
 pub use events::{BridgeEvent, EventStreamSink};
+pub use lifecycle::{
+    CancellationToken, CoreRuntime, LifecycleState, MemoryPressureLevel, ShutdownReason,
+};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
@@ -405,5 +409,189 @@ mod tests {
         let health = bridge.health();
         assert!(!health.audit_ok);
         assert_eq!(health.status, HealthStatus::Critical);
+    }
+
+    #[test]
+    fn test_lifecycle_state_transitions_and_validation() {
+        let sink = Arc::new(EventStreamSink::new());
+        let (_sub, rx) = sink.subscribe(10);
+        let runtime = CoreRuntime::new(sink);
+
+        assert_eq!(runtime.state(), LifecycleState::Uninitialized);
+
+        // Invalid jump Uninitialized -> Running must fail
+        let invalid = runtime.transition_to(LifecycleState::Running, None);
+        assert!(matches!(
+            invalid,
+            Err(FfiError::InvalidStateTransition { .. })
+        ));
+
+        // Valid transition Uninitialized -> Starting
+        runtime
+            .transition_to(LifecycleState::Starting, Some("boot"))
+            .unwrap();
+        assert_eq!(runtime.state(), LifecycleState::Starting);
+
+        let evt1 = rx.recv().unwrap();
+        match evt1 {
+            BridgeEvent::LifecycleStateChanged {
+                previous,
+                current,
+                reason,
+            } => {
+                assert_eq!(previous, "uninitialized");
+                assert_eq!(current, "starting");
+                assert_eq!(reason, Some("boot".to_string()));
+            }
+            other => panic!("Unexpected event: {:?}", other),
+        }
+
+        // Starting -> Running
+        runtime
+            .transition_to(LifecycleState::Running, Some("ready"))
+            .unwrap();
+        assert!(runtime.state().is_operational());
+
+        // Running -> Degraded
+        runtime
+            .transition_to(LifecycleState::Degraded, Some("ram_low"))
+            .unwrap();
+        assert!(runtime.state().is_operational());
+
+        // Degraded -> ShuttingDown
+        runtime
+            .transition_to(LifecycleState::ShuttingDown, Some("user_exit"))
+            .unwrap();
+        assert!(!runtime.state().is_operational());
+
+        // ShuttingDown -> Terminated
+        runtime
+            .transition_to(LifecycleState::Terminated, Some("clean_exit"))
+            .unwrap();
+        assert!(runtime.state().is_terminal());
+    }
+
+    #[test]
+    fn test_background_task_tracking_and_graceful_shutdown() {
+        let bridge = CoreBridge::new_in_memory().unwrap();
+        assert_eq!(bridge.lifecycle_state(), LifecycleState::Running);
+
+        // Spawn two cooperative background tasks
+        let (task1, cancel1) = bridge.spawn_task("sync_worker_1").unwrap();
+        let (task2, cancel2) = bridge.spawn_task("sync_worker_2").unwrap();
+
+        assert_eq!(bridge.runtime().active_task_count(), 2);
+        assert!(!cancel1.is_cancelled());
+        assert!(!cancel2.is_cancelled());
+
+        // Finish task 1
+        bridge.finish_task(task1);
+        assert_eq!(bridge.runtime().active_task_count(), 1);
+
+        // In background thread, finish task 2 after a small delay
+        let bridge_clone = bridge.runtime().clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            bridge_clone.finish_task(task2);
+        });
+
+        // Request shutdown with timeout
+        bridge
+            .request_shutdown(
+                ShutdownReason::UserRequested,
+                std::time::Duration::from_millis(1000),
+            )
+            .unwrap();
+
+        assert_eq!(bridge.lifecycle_state(), LifecycleState::Terminated);
+        assert!(cancel1.is_cancelled());
+        assert!(cancel2.is_cancelled());
+        assert_eq!(bridge.runtime().active_task_count(), 0);
+    }
+
+    #[test]
+    fn test_rejection_of_tasks_during_shutdown() {
+        let bridge = CoreBridge::new_in_memory().unwrap();
+        bridge
+            .request_shutdown(
+                ShutdownReason::Testing,
+                std::time::Duration::from_millis(100),
+            )
+            .unwrap();
+
+        assert_eq!(bridge.lifecycle_state(), LifecycleState::Terminated);
+
+        // Spawning new tasks after shutdown must be rejected
+        let res = bridge.spawn_task("late_worker");
+        assert!(matches!(res, Err(FfiError::ShuttingDown)));
+    }
+
+    #[test]
+    fn test_memory_pressure_handling_and_sqlite_checkpoint() {
+        let bridge = CoreBridge::new_in_memory().unwrap();
+        let sink = bridge.event_sink();
+        let (_sub, rx) = sink.subscribe(10);
+
+        // Moderate memory pressure
+        bridge
+            .notify_memory_pressure(MemoryPressureLevel::Moderate)
+            .unwrap();
+
+        let evt1 = rx.recv().unwrap();
+        match evt1 {
+            BridgeEvent::MemoryPressure { level } => {
+                assert_eq!(level, "moderate");
+            }
+            other => panic!("Unexpected event: {:?}", other),
+        }
+
+        // Critical memory pressure
+        bridge
+            .notify_memory_pressure(MemoryPressureLevel::Critical)
+            .unwrap();
+
+        let evt2 = rx.recv().unwrap();
+        match evt2 {
+            BridgeEvent::MemoryPressure { level } => {
+                assert_eq!(level, "critical");
+            }
+            other => panic!("Unexpected event: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_c_abi_lifecycle_round_trip() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap();
+
+        // Initialize bridge via C-ABI
+        let init_res = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
+        assert_eq!(init_res, 0);
+
+        // Query lifecycle state
+        let state_ptr = c_abi::bridge_c_get_lifecycle_state();
+        assert!(!state_ptr.is_null());
+        let state_str = unsafe { CStr::from_ptr(state_ptr).to_str().unwrap() };
+        assert!(state_str.contains("running"));
+        unsafe { c_abi::bridge_c_free_string(state_ptr) };
+
+        // Notify memory pressure via C-ABI
+        let mem_res = c_abi::bridge_c_notify_memory_pressure(1); // 1 = Critical
+        assert_eq!(mem_res, 0);
+
+        // Request shutdown via C-ABI
+        let reason_c = CString::new("user_requested").unwrap();
+        let shut_res = unsafe { c_abi::bridge_c_request_shutdown(reason_c.as_ptr()) };
+        assert_eq!(shut_res, 0);
+
+        // Query state again -> must be terminated
+        let post_state_ptr = c_abi::bridge_c_get_lifecycle_state();
+        assert!(!post_state_ptr.is_null());
+        let post_state_str = unsafe { CStr::from_ptr(post_state_ptr).to_str().unwrap() };
+        assert!(post_state_str.contains("terminated"));
+        unsafe { c_abi::bridge_c_free_string(post_state_ptr) };
+
+        // Clean up global singleton
+        let cleanup = c_abi::bridge_c_shutdown();
+        assert_eq!(cleanup, 0);
     }
 }

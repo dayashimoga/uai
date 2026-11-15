@@ -12,11 +12,12 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use aissistant_core::ErrorDescriptor;
 
 use crate::api::{
-    bridge_get_capabilities, bridge_get_health, bridge_get_setting, bridge_query_audit,
-    bridge_set_setting, bridge_update_permission, bridge_verify_audit, init_bridge,
-    shutdown_bridge,
+    bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state, bridge_get_setting,
+    bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
+    bridge_update_permission, bridge_verify_audit, init_bridge, shutdown_bridge,
 };
 use crate::error::FfiError;
+use crate::lifecycle::{MemoryPressureLevel, ShutdownReason};
 
 /// Converts a Rust `String` into an owned heap-allocated C string.
 /// Caller is responsible for freeing via `bridge_c_free_string`.
@@ -229,6 +230,68 @@ pub unsafe extern "C" fn bridge_c_set_setting(
         let key_str = unsafe { c_char_to_str(key) }?;
         let val_str = unsafe { c_char_to_str(value_json) }?;
         bridge_set_setting(key_str, val_str)
+    }));
+
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Retrieves the current lifecycle state formatted as a JSON string.
+/// The returned string MUST be freed with `bridge_c_free_string`.
+#[no_mangle]
+pub extern "C" fn bridge_c_get_lifecycle_state() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_get_lifecycle_state));
+    match result {
+        Ok(res) => serialize_to_c_json(res),
+        Err(_) => serialize_to_c_json::<()>(Err(FfiError::PanicCaught(
+            "Panic in get_lifecycle_state".into(),
+        ))),
+    }
+}
+
+/// Requests graceful shutdown with an optional reason string.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// If `reason` is non-null, it must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_request_shutdown(reason: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let shutdown_reason = if reason.is_null() {
+            ShutdownReason::UserRequested
+        } else {
+            let r_str = unsafe { c_char_to_str(reason) }?;
+            match r_str.to_ascii_lowercase().as_str() {
+                "os_signal" => ShutdownReason::OsSignal,
+                "memory_pressure" => ShutdownReason::MemoryPressure,
+                "fatal_error" => ShutdownReason::FatalError,
+                "testing" => ShutdownReason::Testing,
+                _ => ShutdownReason::UserRequested,
+            }
+        };
+
+        bridge_request_shutdown(shutdown_reason)
+    }));
+
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Delivers a memory pressure notification (level: 0 = moderate, 1 = critical).
+/// Returns 0 on success, negative on error.
+#[no_mangle]
+pub extern "C" fn bridge_c_notify_memory_pressure(level: i32) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let p_level = if level >= 1 {
+            MemoryPressureLevel::Critical
+        } else {
+            MemoryPressureLevel::Moderate
+        };
+        bridge_notify_memory_pressure(p_level)
     }));
 
     match result {

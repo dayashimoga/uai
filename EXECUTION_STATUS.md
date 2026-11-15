@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 1 — Repository, Flutter/Rust Foundation & Five-Platform Application Shells  
-**Active Subphase:** None (S1.P2.1 completed; S1.P2.2 awaiting user confirmation)
+**Active Subphase:** None (S1.P2.2 completed; S1.P3.1 awaiting user confirmation)
 
 ---
 
@@ -38,7 +38,7 @@ Status Legend:
 | **Stage 1** | `S1.P1.1` | SQLite WAL Engine & Schema Migration Runner (`aissistant-storage`) | `S0.P2.2` | `COMPLETED` | Verified: 63 workspace unit tests passing, clippy zero warnings, persistent audit tampering detected. |
 | **Stage 1** | `S1.P1.2` | OS Keystore Integration & Encrypted Secret Store | `S1.P1.1` | `COMPLETED` | Verified: 69 workspace unit tests passing, clippy zero warnings, encrypted secret store verified. |
 | **Stage 1** | `S1.P2.1` | `aissistant-ffi` Crate & Async Stream Bridge | `S1.P1.2` | `COMPLETED` | Verified: 83 workspace unit tests passing (14 in `aissistant-ffi`), clippy zero warnings, fmt check passed, event broadcast stream and safe C-ABI round trips verified. |
-| **Stage 1** | `S1.P2.2` | Core Lifecycle Supervisor & Graceful Shutdown | `S1.P2.1` | `PENDING` | — |
+| **Stage 1** | `S1.P2.2` | Core Lifecycle Supervisor & Graceful Shutdown | `S1.P2.1` | `COMPLETED` | Verified: 88 workspace unit tests passing (19 in `aissistant-ffi`), clippy zero warnings, fmt check passed, two-phase graceful shutdown, memory pressure checkpointing, and C-ABI verified. |
 | **Stage 1** | `S1.P3.1` | Shared Flutter App Shell, Adaptive Navigation & Live Core Diagnostics | `S1.P2.2` | `PENDING` | Requires Flutter SDK on host or installation approval. |
 | **Stage 1** | `S1.P3.2` | Five-Platform Native Runner Configuration & Capability Badges | `S1.P3.1` | `PENDING` | — |
 | **Stage 2** | `S2.P1.1` | Real-Time Safe Audio Ring Buffer & Resampler (`aissistant-audio`) | `S1.P3.2` | `PENDING` | — |
@@ -229,3 +229,19 @@ Status Legend:
   - `tests::test_evaluate_policy_via_bridge`: Verified security policy evaluation through the bridge for read-only vs destructive actions.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `264839f`
+
+### Verification Evidence — S1.P2.2 (Core Lifecycle Supervisor & Graceful Shutdown)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across workspace)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (88 passed, 0 failed across all 4 crates)
+- **Test Summary:**
+  - `tests::test_lifecycle_state_transitions_and_validation`: Verified state progression (`Uninitialized` -> `Starting` -> `Running` -> `Degraded` -> `ShuttingDown` -> `Terminated`), structural transition validation, and `BridgeEvent::LifecycleStateChanged` event broadcasting.
+  - `tests::test_background_task_tracking_and_graceful_shutdown`: Verified cooperative `CancellationToken` sharing across background workers, atomic task registration and unregistration, and two-phase graceful shutdown waiting for task completion.
+  - `tests::test_rejection_of_tasks_during_shutdown`: Verified that attempting to spawn new background tasks when runtime is shutting down or terminated fails closed with `FfiError::ShuttingDown`.
+  - `tests::test_memory_pressure_handling_and_sqlite_checkpoint`: Verified handling of moderate and critical OS memory pressure, event dispatch, and SQLite memory trimming and WAL checkpointing (`PRAGMA shrink_memory; PRAGMA wal_checkpoint(PASSIVE)`).
+  - `tests::test_c_abi_lifecycle_round_trip`: Verified C-ABI lifecycle functions (`bridge_c_get_lifecycle_state`, `bridge_c_notify_memory_pressure`, `bridge_c_request_shutdown`).
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit
