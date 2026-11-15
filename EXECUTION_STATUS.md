@@ -361,4 +361,4 @@ Status Legend:
   - `tests::test_barge_in_ignored_when_playback_inactive`: Verified that user speech does not trigger barge-in interruptions when the assistant is not actively speaking.
   - `tests::test_barge_in_speech_drop_resets_counter`: Verified that transient noise spikes or brief speech drops reset the consecutive speech frame accumulator before reaching threshold.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `bbc2218e16c3c27391eb8e56028a42411fba62e3`
