@@ -1,8 +1,8 @@
 # EXECUTION_STATUS.md — Authoritative Live Completion Tracker
 
 **Last Updated:** 2026-11-15  
-**Current Project Phase:** Stage 7 — Peer-to-Peer Agent Mesh & Cross-Device Synchronization  
-**Next Subphase in Queue:** `S7.P2.3` (Permission-Gated Remote Input Control & Session Overlay)
+**Current Project Phase:** Stage 8 — Vision, Knowledge, Translation & Advanced Intelligence  
+**Next Subphase in Queue:** `S8.P1.1` (Local Document Ingestion, Chunking & Indexing Pipeline)
 
 ---
 
@@ -71,7 +71,7 @@ Status Legend:
 | **Stage 7** | `S7.P1.2` | End-to-End Encrypted Clipboard Synchronization | `S7.P1.1` | `COMPLETED` | Verified: 306 Rust workspace unit tests passing (34 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, BLAKE3 content-hash integrity, size boundary enforcement (1MB text / 16MB image), loop suppression cache (LRU echo prevention), peer ACL check, desktop platform clipboard dispatch, and BLAKE3 hash-chained audit logging verified. |
 | **Stage 7** | `S7.P2.1` | Chunked, BLAKE3/SHA-256 Verified Resumable File Transfer | `S7.P1.2` | `COMPLETED` | Verified: 311 Rust workspace unit tests passing (39 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, 1 MB chunking, per-chunk and whole-file BLAKE3 digest verification, path traversal defenses (`sanitize_file_name`), `.part` + `.meta` crash consistency and interrupted resume, peer ACL checks, and BLAKE3 hash-chained audit logging verified. |
 | **Stage 7** | `S7.P2.2` | Low-Latency Cross-Device Screen Capture & Streaming | `S7.P2.1` | `COMPLETED` | Verified: 307 Rust workspace unit tests passing (43 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, length-delimited streaming framing, BLAKE3 per-frame integrity digests, caller TLS public key vs DeviceId binding, peer trust and `screen_streaming_host` ACL validation, active host streaming indicator, and BLAKE3 hash-chained audit logging verified. |
-| **Stage 7** | `S7.P2.3` | Permission-Gated Remote Input Control & Session Overlay | `S7.P2.2` | `PENDING` | — |
+| **Stage 7** | `S7.P2.3` | Permission-Gated Remote Input Control & Session Overlay | `S7.P2.2` | `COMPLETED` | Verified: 312 Rust workspace unit tests passing (48 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, normalized coordinate clamping, TLS caller public key vs DeviceId binding, peer trust and `remote_input_injection_host` ACL validation (`AlwaysAllow`), host emergency escape preemption (`terminate_session`), and BLAKE3 hash-chained audit logging verified. |
 | **Stage 8** | `S8.P1.1` | Local Document Ingestion, Chunking & Indexing Pipeline | `S7.P2.3` | `PENDING` | — |
 | **Stage 8** | `S8.P1.2` | Citation-Grounded Offline RAG & Knowledge Explorer UI | `S8.P1.1` | `PENDING` | — |
 | **Stage 8** | `S8.P2.1` | Offline OCR & Multimodal Vision Model Integration | `S8.P1.2` | `PENDING` | — |
@@ -902,6 +902,25 @@ Status Legend:
   - `screen::tests::test_screen_stream_over_quic_mtls_loopback`: Verified end-to-end screen streaming over bidirectional Quinn QUIC streams with mutual Ed25519 TLS authentication and frame integrity checking over loopback UDP sockets.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `b0cde7a`
+
+### Verification Evidence — S7.P2.3 (Permission-Gated Remote Input Control & Session Overlay)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 11 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (312 passed across 11 crates; 48 in `aissistant-network`)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (72 passed across 10 Flutter test suites)
+- **Test Summary:**
+  - `input::tests::test_coordinate_clamping_and_sanitization`: Verified normalized `x, y` coordinate clamping `[0.0, 1.0]` across `MouseMove`, `MouseDown`, `MouseUp`, and preservation of keyboard and text input events.
+  - `input::tests::test_remote_input_rejects_denied_peer`: Verified caller public key validation against `origin_device_id`, peer trust verification in `DeviceRegistry`, and enforcement of `remote_input_injection_host` capability ACL returning `ControlRejected(PermissionDenied)`.
+  - `input::tests::test_remote_input_session_lifecycle_and_virtual_injection`: Verified complete session lifecycle (`RequestControl` -> `ControlGranted` -> event batch delivery to `VirtualInputInjector` -> `ReleaseControl`), active host indicator state tracking (`is_control_active`), and BLAKE3 hash-chained audit logging.
+  - `input::tests::test_remote_input_host_emergency_escape`: Verified host emergency escape preemption (`terminate_session`), immediate revocation of active control, halting of further event injection, and audit trail termination recording.
+  - `input::tests::test_remote_input_over_quic_mtls_loopback`: Verified end-to-end remote input control over bidirectional Quinn QUIC streams with mutual Ed25519 TLS authentication and event delivery to `VirtualInputInjector` over loopback UDP sockets.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** `PENDING`
+
 
 
 

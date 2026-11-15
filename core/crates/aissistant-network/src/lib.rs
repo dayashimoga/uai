@@ -10,6 +10,7 @@ pub mod clipboard;
 pub mod discovery;
 pub mod dns;
 pub mod error;
+pub mod input;
 pub mod pairing;
 pub mod rpc;
 pub mod screen;
@@ -32,6 +33,11 @@ pub use discovery::{
 };
 pub use dns::{DnsPacket, DnsQuestion, DnsRecord, RData};
 pub use error::{NetworkError, Result};
+pub use input::{
+    ActiveInputSession, InputInjector, KeyModifiers, MouseButton, RemoteInputClient,
+    RemoteInputEvent, RemoteInputHost, RemoteInputSessionControl, RemoteInputWireMessage,
+    VirtualInputInjector,
+};
 pub use pairing::{
     derive_sas_code, PairingQrPayload, PairingRateLimiter, PairingSessionInfo,
     PairingSessionManager, MAX_FAILED_PAIRING_ATTEMPTS, PAIRING_LOCKOUT_DURATION_SECS,
@@ -75,6 +81,13 @@ mod tests {
         assert_eq!(config.port, DEFAULT_QUIC_PORT);
         assert_eq!(MDNS_PORT, 5353);
         assert_eq!(MDNS_SERVICE_TYPE, "_aissistant._udp.local");
+
+        let injector = VirtualInputInjector::new();
+        assert_eq!(injector.event_count(), 0);
+        let move_ev = RemoteInputEvent::MouseMove { x: 0.5, y: 0.5 };
+        injector.inject_event(&move_ev).unwrap();
+        assert_eq!(injector.event_count(), 1);
+        assert_eq!(MouseButton::Left, MouseButton::Left);
     }
 
     #[test]

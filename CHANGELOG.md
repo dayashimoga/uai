@@ -1485,3 +1485,41 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 307 unit and integration tests (0 failures; 43 in `aissistant-network`).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).
+
+
+---
+
+## [2026-11-15] — Stage 7 Phase 2 Subphase 3 (`S7.P2.3`)
+
+### Added
+- `core/crates/aissistant-network/src/input.rs`:
+  - Wire protocol types & serialization:
+    - `MouseButton` (`Left`, `Right`, `Middle`, `Other(u8)`).
+    - `KeyModifiers` (`shift`, `ctrl`, `alt`, `meta`).
+    - `RemoteInputEvent` (`MouseMove`, `MouseDown`, `MouseUp`, `MouseWheel`, `KeyDown`, `KeyUp`, `TextInput`) with normalized coordinate clamping `[0.0, 1.0]`.
+    - `RemoteInputSessionControl` (`RequestControl`, `ControlGranted`, `ControlRejected`, `ReleaseControl`, `ControlTerminated`).
+    - `RemoteInputWireMessage` envelope with length-delimited wire transport.
+  - Abstraction & synthetic providers:
+    - `InputInjector` trait for platform-native and synthetic input event dispatch.
+    - `VirtualInputInjector` for thread-safe event capture and hermetic testing.
+  - `RemoteInputHost`:
+    - Strict TLS 1.3 Ed25519 caller public key verification against `caller_device_id`.
+    - `DeviceRegistry` peer trust checking (`DeviceTrustState::Trusted`).
+    - Capability ACL enforcement for `remote_input_injection_host` (`AlwaysAllow` required; `Deny` / `AskEachTime` fails closed with `PermissionDenied`).
+    - Active remote control indicator state (`is_control_active`).
+    - Host emergency escape trigger (`terminate_session`) allowing host users (via physical Escape or UI overlay Stop button) to instantly preempt remote control.
+    - BLAKE3 hash-chained cryptographic audit trail appending for session grants, batch injections, and session terminations.
+  - `RemoteInputClient`:
+    - Remote control session negotiation.
+    - Batch input event transmission over QUIC streams.
+    - Clean session release protocol.
+
+### Modified
+- `core/crates/aissistant-network/src/lib.rs`: Exposed and re-exported `input` module and types.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 312 unit and integration tests (0 failures; 48 in `aissistant-network`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).
