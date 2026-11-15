@@ -12,6 +12,7 @@ pub mod dns;
 pub mod error;
 pub mod pairing;
 pub mod rpc;
+pub mod screen;
 pub mod transfer;
 pub mod transport;
 pub mod types;
@@ -39,6 +40,11 @@ pub use rpc::{
     read_framed_message, resolve_capability_for_skill, write_framed_message, RemoteRpcRequest,
     RemoteRpcResponse, RemoteRpcStatus, RemoteSkillRpcClient, RemoteSkillRpcServer,
     MAX_RPC_MESSAGE_BYTES,
+};
+pub use screen::{
+    ScreenCaptureProvider, ScreenFrame, ScreenFrameHeader, ScreenPixelFormat, ScreenStreamConfig,
+    ScreenStreamControl, ScreenStreamReceiver, ScreenStreamingHost, ScreenWireMessage,
+    VirtualScreenCaptureProvider,
 };
 pub use transfer::{
     sanitize_file_name, ChunkData, FileTransferReceiver, FileTransferSender, TransferManifest,

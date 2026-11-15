@@ -1446,3 +1446,42 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 311 unit and integration tests (0 failures; 39 in `aissistant-network`).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).
+
+
+---
+
+## [2026-11-15] — Stage 7 Phase 2 Subphase 2 (`S7.P2.2`)
+
+### Added
+- `core/crates/aissistant-network/src/screen.rs`:
+  - Wire protocol types & framing:
+    - `ScreenPixelFormat` (`Rgb8`, `Rgba8`, `Bgra8`, `Jpeg`, `H264Keyframe`).
+    - `ScreenStreamConfig` (target width/height, max framerate, quality, format).
+    - `ScreenFrameHeader` (sequence number, timestamp ms, dimensions, uncompressed/compressed byte size, keyframe flag, BLAKE3 256-bit hash).
+    - `ScreenFrame` with per-frame BLAKE3 cryptographic integrity digest computation and validation.
+    - `ScreenStreamControl` session negotiation messages (`StartSession`, `SessionStarted`, `RequestKeyframe`, `StopSession`, `SessionStopped`, `SessionRejected`).
+    - `ScreenWireMessage` enum envelope for length-delimited wire transport.
+  - Abstraction & synthetic providers:
+    - `ScreenCaptureProvider` trait for native OS display frame acquisition.
+    - `VirtualScreenCaptureProvider` synthetic test frame generator supporting animated color bars, timestamp stamping, and keyframe intervals.
+  - `ScreenStreamingHost`:
+    - Strict TLS 1.3 Ed25519 caller public key authentication against `origin_device_id`.
+    - `DeviceRegistry` peer trust validation (`DeviceTrustState::Trusted`).
+    - Capability ACL enforcement for `screen_streaming_host` capability (`AlwaysAllow` required; `Deny` / `AskEachTime` fails closed with `PermissionDenied`).
+    - Active host streaming indicator state (`is_streaming_active`) for system UI warning badges and overlays.
+    - BLAKE3 hash-chained cryptographic audit trail appending with session metadata.
+  - `ScreenStreamReceiver`:
+    - Session initiation negotiation with streaming host.
+    - Frame deserialization and per-frame BLAKE3 hash integrity validation.
+    - Frame continuity and inter-frame latency tracking.
+    - QUIC transport execution (`receive_quic_stream`) and Virtual Session execution (`receive_virtual_stream`).
+
+### Modified
+- `core/crates/aissistant-network/src/lib.rs`: Exposed and re-exported `screen` module types and constants.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 307 unit and integration tests (0 failures; 43 in `aissistant-network`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).
