@@ -711,7 +711,7 @@ Status Legend:
   - `linux::tests::test_linux_adapter_clipboard_roundtrip` & `test_linux_adapter_volume_and_media`: Verified Linux adapter fallbacks and `/sys/class/power_supply` probing.
   - `registry::tests::test_desktop_skills_registration`: Verified 12 desktop automation skills registered in `desktop_skills` and 24 total skills registered in `register_all`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `7bef361`
 
 
 
