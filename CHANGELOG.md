@@ -794,3 +794,32 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 185 unit and integration tests (0 failures; 29 in `aissistant-storage`, 28 in `aissistant-llm`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+---
+
+## [2026-11-15] — Stage 4 Phase 2 Subphase 1 (`S4.P2.1`)
+
+### Added
+- `core/crates/aissistant-orchestrator`:
+  - Created new workspace crate `aissistant-orchestrator` registered in `core/Cargo.toml`.
+  - `state.rs`: Defined `TurnState` enum (`Idle`, `Listening`, `Transcribing`, `UtteranceReceived`, `RetrievingMemory`, `PromptAssembly`, `Inferring`, `ToolInvocationDetected`, `AwaitingToolExecution`, `SynthesizingSpeech`, `TurnCompleted`, `Interrupted`, `Failed`) with valid transition matrix (`can_transition_to`), `TurnInput`, `InputMode`, and `OrchestratorEvent`.
+  - `turn_machine.rs`: Thread-safe `TurnStateMachine` with atomic transition validation, `TurnMetrics` diagnostic logging, and cooperative cancellation via `LlmCancellationHandle`.
+  - `orchestrator.rs`: Full `Orchestrator` coordinating text/voice turn processing:
+    1. Utterance ingestion and persistence in SQLite.
+    2. Hybrid RRF memory retrieval (FTS5 BM25 + dense vector cosine similarity).
+    3. Dynamic prompt assembly with memory injection and ChatML formatting.
+    4. Token-by-token streaming from `LlmEngine` with TTFT tracking.
+    5. Streaming sentence boundary chunking with `SentenceChunker` and synthesis via `TtsEngine`.
+    6. Assistant turn persistence in SQLite and vector embedding storage.
+    7. Reactive event listener subscription without deadlock via lock-free snapshot broadcasting.
+    8. Sub-20ms cooperative barge-in cancellation and partial turn recording.
+  - `error.rs`: Domain `OrchestratorError` mapped into canonical `CoreError` taxonomy.
+  - `lib.rs`: Public re-exports and integration tests.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 8 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 196 unit and integration tests (0 failures; 11 in `aissistant-orchestrator`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+

@@ -8,6 +8,7 @@ members = [
     "crates/aissistant-audio",
     "crates/aissistant-speech",
     "crates/aissistant-llm",
+    "crates/aissistant-orchestrator",
 ]
 
 [workspace.package]

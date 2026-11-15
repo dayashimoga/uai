@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 4 — Orchestration State Machine, Context Engine & Hybrid Vector Memory  
-**Next Subphase in Queue:** `S4.P2.1` (Deterministic Orchestrator Turn State Machine)
+**Next Subphase in Queue:** `S4.P2.2` (Policy-Enforced Tool Dispatcher & User Confirmation Flow)
 
 ---
 
@@ -55,7 +55,7 @@ Status Legend:
 | **Stage 3** | `S3.P2.3` | Flutter Model Manager UI & Live Benchmark Diagnostics | `S3.P2.2` | `COMPLETED` | Verified [Commit `fc57dde`]: 167 Rust workspace unit tests passing (24 in `aissistant-ffi`), 45 Flutter unit and widget tests passing (100%), `flutter analyze` zero issues, `ModelSupervisor` FFI bridge endpoints (`model_snapshot`, `model_load`, `model_unload`, `model_benchmark_run`), C-ABI functions, `ModelsScreen` responsive UI, hardware headroom & SIMD overview, active model card with unload control, live TTFT/throughput benchmark card, and segmented model catalog verified. |
 | **Stage 4** | `S4.P1.1` | Conversation Persistence & SQLite FTS5 Episodic Search | `S3.P2.3` | `COMPLETED` | Verified [Commit `da53efb`]: 175 Rust workspace unit tests passing (24 in `aissistant-storage`), 45 Flutter tests passing (100%), `flutter analyze` zero issues, `Migration 3` schema runner, `conversations` & `conversation_turns` relational tables, automatic `conversation_turns_fts` FTS5 index triggers, query sanitization, BM25 scoring, snippet excerpts, JSON export, and complete privacy purge verified. |
 | **Stage 4** | `S4.P1.2` | Local Embedding Generation & Hybrid Vector Memory Retrieval | `S4.P1.1` | `COMPLETED` | Verified [Commit `4b067bb`]: 185 Rust workspace unit tests passing (29 in `aissistant-storage`, 28 in `aissistant-llm`), 45 Flutter tests passing (100%), `flutter analyze` zero issues, `Migration 4` vector store, `LocalEmbeddingEngine` normalized 384-d semantic hash projections, `VectorMemoryStore` binary IEEE 754 float blob storage, cosine similarity k-NN retrieval, and `HybridSearchEngine` Reciprocal Rank Fusion (RRF) verified. |
-| **Stage 4** | `S4.P2.1` | Deterministic Orchestrator Turn State Machine (`aissistant-orchestrator`) | `S4.P1.2` | `PENDING` | — |
+| **Stage 4** | `S4.P2.1` | Deterministic Orchestrator Turn State Machine (`aissistant-orchestrator`) | `S4.P1.2` | `COMPLETED` | Verified: 196 Rust workspace unit tests passing (11 in `aissistant-orchestrator`), 45 Flutter tests passing (100%), `flutter analyze` zero issues, `TurnState` finite state transitions, `TurnStateMachine` cooperative cancellation handle (<20ms latency), `Orchestrator` full turn loop (STT/text -> hybrid memory RRF -> ChatML prompt -> LLM streaming -> TTS speech chunks -> SQLite persistence), and real-time barge-in interruption verified. |
 | **Stage 4** | `S4.P2.2` | Policy-Enforced Tool Dispatcher & User Confirmation Flow | `S4.P2.1` | `PENDING` | — |
 | **Stage 5** | `S5.P1.1` | Skill Registry, Sandbox Validator & Built-In Utility Skills | `S4.P2.2` | `PENDING` | — |
 | **Stage 5** | `S5.P1.2` | Safe File Management Skills (Search, Read, Write, Move, Archive, Checksum) | `S5.P1.1` | `PENDING` | — |
@@ -572,6 +572,29 @@ Status Legend:
   - `hybrid_search::tests::test_hybrid_search_rrf_dual_hit_boost`: Verified Reciprocal Rank Fusion ($RRF(d) = \sum \frac{w}{k + r}$) properly fusing FTS5 BM25 keyword rankings with dense vector cosine similarities, boosting dual-hit items above single-hit items.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `4b067bb`
+
+### Verification Evidence — S4.P2.1 (Deterministic Orchestrator Turn State Machine)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 8 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (196 passed across 8 crates; 11 in `aissistant-orchestrator`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (45 passed across 7 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `state::tests::test_valid_turn_state_transitions`: Verified finite state machine transition graph (`Idle` -> `UtteranceReceived` -> `RetrievingMemory` -> `PromptAssembly` -> `Inferring` -> `SynthesizingSpeech` -> `TurnCompleted` -> `Idle`).
+  - `state::tests::test_invalid_turn_state_transitions_rejected`: Verified rejection of illegal skips (e.g. `Idle` directly to `SynthesizingSpeech`, or `RetrievingMemory` directly to `TurnCompleted`).
+  - `turn_machine::tests::test_turn_state_machine_happy_path`: Verified sequential state machine progression and state inspection.
+  - `turn_machine::tests::test_turn_state_machine_invalid_transition`: Verified typed `OrchestratorError::InvalidStateTransition` on illegal transitions.
+  - `turn_machine::tests::test_cooperative_cancellation_barge_in`: Verified cooperative cancellation flag and metrics recording interruption.
+  - `orchestrator::tests::test_process_text_turn_end_to_end`: Verified complete multi-turn flow: persisting user turn in SQLite, hybrid RRF memory recall, ChatML prompt generation with memory injection, token streaming, persisting assistant response in SQLite, and storing dense vector in vector memory.
+  - `orchestrator::tests::test_orchestrator_event_telemetry`: Verified reactive subscriber event stream emitting `StateChanged`, `TokenStreamed`, and `TurnFinished` without deadlock.
+  - `orchestrator::tests::test_barge_in_cooperative_cancellation`: Verified sub-20ms barge-in interruption during streaming, persisting partial assistant turn with `finish_reason: "interrupted"`.
+  - `orchestrator::tests::test_orchestrator_error_handling`: Verified typed error handling for missing conversations and empty prompts.
+  - `orchestrator::tests::test_orchestrator_tts_synthesis_flow`: Verified streaming sentence boundary chunking with `SentenceChunker` and synthesis via `TtsEngine`.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+
 
 
 

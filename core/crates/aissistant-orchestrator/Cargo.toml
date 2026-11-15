@@ -1,0 +1,27 @@
+[package]
+name = "aissistant-orchestrator"
+description = "Deterministic conversation turn state machine, memory retrieval, and LLM/TTS tool loop"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+aissistant-audio = { path = "../aissistant-audio" }
+aissistant-core = { path = "../aissistant-core" }
+aissistant-llm = { path = "../aissistant-llm" }
+aissistant-security = { path = "../aissistant-security" }
+aissistant-speech = { path = "../aissistant-speech" }
+aissistant-storage = { path = "../aissistant-storage" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
