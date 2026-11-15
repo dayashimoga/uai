@@ -935,5 +935,45 @@
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 
+---
+
+## [2026-11-15] — Stage 5 Phase 2 Subphase 1 (`S5.P2.1`)
+
+### Added
+- `core/Cargo.toml`:
+  - Added `"crates/aissistant-platform"` to workspace `members`.
+- `core/crates/aissistant-platform/Cargo.toml`:
+  - Created crate with dependencies on `aissistant-core`, `serde`, `serde_json`, `sysinfo`, `thiserror`, and `tracing`.
+- `core/crates/aissistant-platform/src/error.rs`:
+  - Defined `PlatformError` taxonomy: `ProcessNotFound`, `CriticalProcessProtected`, `WindowNotFound`, `LaunchFailed`, `CommandInjectionRejected`, `UnsupportedPlatform`, `Io`, and `Internal`.
+- `core/crates/aissistant-platform/src/types.rs`:
+  - Defined domain structures: `AppInfo`, `ProcessInfo`, `WindowBounds`, and `WindowInfo`.
+- `core/crates/aissistant-platform/src/adapter.rs`:
+  - Defined `DesktopPlatformAdapter` trait.
+  - Implemented `VirtualDesktopAdapter` for hermetic testing and headless runner verification.
+- `core/crates/aissistant-platform/src/windows.rs`:
+  - Implemented `WindowsDesktopAdapter` utilizing Win32 FFI (`EnumWindows`, `GetWindowTextW`, `IsWindowVisible`, `ShowWindow`, `SetForegroundWindow`), `sysinfo::System`, and Start Menu scanning with critical process termination protection (`smss.exe`, `csrss.exe`, `wininit.exe`, `services.exe`, `lsass.exe`, `svchost.exe`, `explorer.exe`, `dwm.exe`).
+- `core/crates/aissistant-platform/src/linux.rs`:
+  - Implemented `LinuxDesktopAdapter` parsing XDG `.desktop` files, process management via `sysinfo`, and PID 1 protection.
+- `core/crates/aissistant-platform/src/lib.rs`:
+  - Re-exported platform types and provided `create_default_desktop_adapter()`.
+- `core/crates/aissistant-skills/src/desktop/`:
+  - `app_skills.rs`: Implemented `AppListSkill` (`app.list`, `RiskTier::ReadOnly`) and `AppLaunchSkill` (`app.launch`, `RiskTier::FileAndApp`).
+  - `process_skills.rs`: Implemented `ProcessListSkill` (`process.list`, `RiskTier::ReadOnly`) and `ProcessKillSkill` (`process.kill`, `RiskTier::Destructive`).
+  - `window_skills.rs`: Implemented `WindowListSkill` (`window.list`, `RiskTier::ReadOnly`) and `WindowFocusSkill` (`window.focus`, `RiskTier::StateModifying`).
+  - `mod.rs`: Module exports.
+- `core/crates/aissistant-skills/src/registry.rs`:
+  - Added `desktop_skills()`, `register_all_desktop_skills()`, and updated `register_all()` to register all 18 tools (5 built-in + 7 file + 6 desktop).
+- `core/crates/aissistant-skills/src/lib.rs`:
+  - Integration tests for all desktop automation tools through `ToolDispatcher`.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 10 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 248 unit and integration tests (0 failures; 7 in `aissistant-platform`, 35 in `aissistant-skills`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+
 
 

@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 5 — Skill Framework & Native Application/System Control  
-**Next Subphase in Queue:** `S5.P2.1` (Desktop Application Launch, Process Inspection & Window Management)
+**Next Subphase in Queue:** `S5.P2.2` (Desktop System Settings, Clipboard, Audio Volume & Media Transport Control)
 
 ---
 
@@ -59,7 +59,7 @@ Status Legend:
 | **Stage 4** | `S4.P2.2` | Policy-Enforced Tool Dispatcher & User Confirmation Flow | `S4.P2.1` | `COMPLETED` | Verified [Commit `18c183a`]: 206 Rust workspace unit tests passing (21 in `aissistant-orchestrator`), 45 Flutter tests passing (100%), `flutter analyze` zero issues, `ToolDispatcher` registry, `ToolHandler` trait, parameter sanitization & sensitive field redaction, `ConfirmationManager` thread-safe pending requests, non-blocking turn suspension on risk tiers 2-4, taint escalation enforcement, interactive approval/rejection resolution, and 100% cryptographic continuity in BLAKE3 hash-chained `security_audit_log` verified. |
 | **Stage 5** | `S5.P1.1` | Skill Registry, Sandbox Validator & Built-In Utility Skills | `S4.P2.2` | `COMPLETED` | Verified: 226 Rust workspace unit tests passing (20 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, sandboxed worker thread isolation, timeout enforcement, and 5 built-in safe utility skills (`system.time`, `system.timer`, `system.calc`, `system.convert`, `system.telemetry`) verified. |
 | **Stage 5** | `S5.P1.2` | Safe File Management Skills (Search, Read, Write, Move, Archive, Checksum) | `S5.P1.1` | `COMPLETED` | Verified: 239 Rust workspace unit tests passing (33 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, `PathJail` canonicalization & symlink-escape defense, zip-slip prevention, and 7 safe file skills (`file.search`, `file.read`, `file.write`, `file.move`, `file.delete`, `file.archive`, `file.checksum`) verified. |
-| **Stage 5** | `S5.P2.1` | Desktop Application Launch, Process Inspection & Window Management | `S5.P1.2` | `PENDING` | — |
+| **Stage 5** | `S5.P2.1` | Desktop Application Launch, Process Inspection & Window Management | `S5.P1.2` | `COMPLETED` | Verified: 248 Rust workspace unit tests passing (7 in `aissistant-platform`, 35 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, Win32/XDG desktop adapters, process inspection, unkillable critical PID protection, anti-command-injection direct executable execution, window focus, and 6 desktop skills (`app.list`, `app.launch`, `process.list`, `process.kill`, `window.list`, `window.focus`) verified. |
 | **Stage 5** | `S5.P2.2` | Desktop System Settings, Clipboard, Audio Volume & Media Transport Control | `S5.P2.1` | `PENDING` | — |
 | **Stage 5** | `S5.P3.1` | Android Native Bridge (Foreground Service, Intents, Media, Accessibility) | `S5.P2.2` | `PENDING` | — |
 | **Stage 5** | `S5.P3.2` | iOS Native Bridge (AVAudioSession, App Intents/Siri Shortcuts, Scoped Files) | `S5.P3.1` | `PENDING` | — |
@@ -668,6 +668,28 @@ Status Legend:
   - `tests::test_skill_registry_file_skills_execution_and_risk_tiers`: Verified end-to-end tool execution and risk tier verification for all file skills through `ToolDispatcher`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `1c08055`
+
+### Verification Evidence — S5.P2.1 (Desktop Application Launch, Process Inspection & Window Management)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 10 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (248 passed across 10 crates; 7 in `aissistant-platform`, 35 in `aissistant-skills`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (45 passed across 7 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `adapter::tests::test_virtual_adapter_lifecycle`: Verified hermetic virtual platform adapter behavior across app discovery, execution spawning, process listing, critical process kill rejection, and window focus management.
+  - `windows::tests::test_windows_adapter_command_injection_rejection`: Verified rejection of shell wrappers and metacharacters (`;`, `&`, `|`, `<`, `>`, `cmd.exe`, `powershell`).
+  - `windows::tests::test_windows_adapter_critical_kill_protection`: Verified unkillable protection for critical system processes (PID 0, PID 4, `csrss.exe`, `lsass.exe`, `explorer.exe`, `dwm.exe`).
+  - `windows::tests::test_windows_adapter_process_listing`: Verified live OS process enumeration returning accurate PIDs, executable names, CPU usage, and memory usage.
+  - `windows::tests::test_windows_adapter_window_enumeration`: Verified visible top-level desktop window enumeration and fallback for non-interactive / headless CI sessions.
+  - `linux::tests::test_linux_adapter_critical_pid_1_protection`: Verified rejection of terminating `init`/`systemd` (PID 1).
+  - `registry::tests::test_desktop_skills_registration`: Verified all 6 desktop automation skills register cleanly with `ToolDispatcher` (total 18 tools across built-in, file, and desktop).
+  - `tests::test_skill_registry_desktop_skills_execution_and_risk_tiers`: Verified end-to-end execution and risk tier verification for `app.list`, `app.launch`, `process.list`, `process.kill`, `window.list`, and `window.focus`.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit
+
 
 
 

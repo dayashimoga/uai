@@ -104,6 +104,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "aissistant-platform"
+version = "0.1.0"
+dependencies = [
+ "aissistant-core",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tracing",
+]
+
+[[package]]
 name = "aissistant-security"
 version = "0.1.0"
 dependencies = [
@@ -124,6 +137,7 @@ version = "0.1.0"
 dependencies = [
  "aissistant-core",
  "aissistant-orchestrator",
+ "aissistant-platform",
  "aissistant-security",
  "blake3",
  "serde",

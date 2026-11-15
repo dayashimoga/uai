@@ -10,6 +10,7 @@ members = [
     "crates/aissistant-llm",
     "crates/aissistant-orchestrator",
     "crates/aissistant-skills",
+    "crates/aissistant-platform",
 ]
 
 [workspace.package]

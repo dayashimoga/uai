@@ -1,5 +1,5 @@
 //! Extensible skill framework, sandboxed executor, built-in safe utility skills,
-//! and jail-constrained file management skills.
+//! jail-constrained file management skills, and desktop native automation skills.
 //!
 //! Conforms to strict risk tiers, path canonicalization, symlink escape prevention,
 //! and BLAKE3 hash-chained audit logging requirements.
@@ -7,12 +7,17 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod desktop;
 pub mod error;
 pub mod file;
 pub mod registry;
 pub mod sandbox;
 pub mod utility;
 
+pub use desktop::{
+    AppLaunchSkill, AppListSkill, ProcessKillSkill, ProcessListSkill, WindowFocusSkill,
+    WindowListSkill,
+};
 pub use error::{Result, SkillError};
 pub use file::{
     FileArchiveSkill, FileChecksumSkill, FileDeleteSkill, FileMoveSkill, FileReadSkill,
@@ -26,6 +31,7 @@ pub use utility::{CalcSkill, ConvertSkill, TelemetrySkill, TimeSkill, TimerSkill
 mod tests {
     use super::*;
     use aissistant_orchestrator::ToolDispatcher;
+    use aissistant_platform::VirtualDesktopAdapter;
     use aissistant_security::RiskTier;
     use serde_json::json;
     use std::sync::Arc;
@@ -248,6 +254,88 @@ mod tests {
             .unwrap();
         assert!(del_res["deleted"].as_bool().unwrap());
         assert!(!moved_file.exists());
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_skill_registry_desktop_skills_execution_and_risk_tiers() {
+        let registry = SkillRegistry::new();
+        let dispatcher = ToolDispatcher::new();
+        let v_adapter = Arc::new(VirtualDesktopAdapter::new());
+
+        registry
+            .register_all_desktop_skills(&dispatcher, Some(v_adapter))
+            .unwrap();
+
+        // Verify risk tiers
+        assert_eq!(
+            dispatcher.get("app.list").unwrap().unwrap().risk_tier(),
+            RiskTier::ReadOnly
+        );
+        assert_eq!(
+            dispatcher.get("app.launch").unwrap().unwrap().risk_tier(),
+            RiskTier::FileAndApp
+        );
+        assert_eq!(
+            dispatcher.get("process.list").unwrap().unwrap().risk_tier(),
+            RiskTier::ReadOnly
+        );
+        assert_eq!(
+            dispatcher.get("process.kill").unwrap().unwrap().risk_tier(),
+            RiskTier::Destructive
+        );
+        assert_eq!(
+            dispatcher.get("window.list").unwrap().unwrap().risk_tier(),
+            RiskTier::ReadOnly
+        );
+        assert_eq!(
+            dispatcher.get("window.focus").unwrap().unwrap().risk_tier(),
+            RiskTier::StateModifying
+        );
+
+        // 1. app.list
+        let app_res = dispatcher.execute("app.list", json!({})).unwrap();
+        assert_eq!(app_res["count"], 2);
+
+        // 2. app.launch
+        let launch_res = dispatcher
+            .execute(
+                "app.launch",
+                json!({
+                    "executable": "test_app",
+                    "arguments": ["--verbose"]
+                }),
+            )
+            .unwrap();
+        assert!(launch_res["launched"].as_bool().unwrap());
+        let spawned_pid = launch_res["pid"].as_u64().unwrap() as u32;
+
+        // 3. process.list
+        let proc_res = dispatcher
+            .execute(
+                "process.list",
+                json!({
+                    "query": "test_app"
+                }),
+            )
+            .unwrap();
+        assert_eq!(proc_res["count"], 1);
+
+        // 4. window.list
+        let win_res = dispatcher.execute("window.list", json!({})).unwrap();
+        assert_eq!(win_res["count"], 1);
+
+        // 5. window.focus
+        let focus_res = dispatcher
+            .execute("window.focus", json!({"window_id": 1001}))
+            .unwrap();
+        assert!(focus_res["focused"].as_bool().unwrap());
+
+        // 6. process.kill
+        let kill_res = dispatcher
+            .execute("process.kill", json!({"pid": spawned_pid}))
+            .unwrap();
+        assert!(kill_res["killed"].as_bool().unwrap());
     }
 
     #[test]

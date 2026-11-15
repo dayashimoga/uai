@@ -1,9 +1,14 @@
-//! Central skill registry and built-in utility and file skill initialization.
+//! Central skill registry and built-in utility, file, and desktop skill initialization.
 
 use std::sync::Arc;
 
 use aissistant_orchestrator::{ToolDispatcher, ToolHandler};
+use aissistant_platform::{create_default_desktop_adapter, DesktopPlatformAdapter};
 
+use crate::desktop::{
+    AppLaunchSkill, AppListSkill, ProcessKillSkill, ProcessListSkill, WindowFocusSkill,
+    WindowListSkill,
+};
 use crate::error::Result;
 use crate::file::{
     FileArchiveSkill, FileChecksumSkill, FileDeleteSkill, FileMoveSkill, FileReadSkill,
@@ -74,6 +79,34 @@ impl SkillRegistry {
         ]
     }
 
+    /// Creates instances of all desktop OS automation skills wrapped in `SandboxedSkill`.
+    #[must_use]
+    pub fn desktop_skills(
+        adapter: Option<Arc<dyn DesktopPlatformAdapter>>,
+    ) -> Vec<Arc<dyn ToolHandler>> {
+        let active_adapter = adapter.unwrap_or_else(create_default_desktop_adapter);
+        vec![
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                AppListSkill::new(active_adapter.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                AppLaunchSkill::new(active_adapter.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                ProcessListSkill::new(active_adapter.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                ProcessKillSkill::new(active_adapter.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                WindowListSkill::new(active_adapter.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                WindowFocusSkill::new(active_adapter),
+            ))),
+        ]
+    }
+
     /// Registers all built-in utility skills into the supplied tool dispatcher.
     pub fn register_all_builtins(&self, dispatcher: &ToolDispatcher) -> Result<()> {
         for skill in Self::builtin_skills() {
@@ -94,14 +127,28 @@ impl SkillRegistry {
         Ok(())
     }
 
-    /// Registers all built-in utility and file management skills into the tool dispatcher.
+    /// Registers all desktop native automation skills into the supplied tool dispatcher.
+    pub fn register_all_desktop_skills(
+        &self,
+        dispatcher: &ToolDispatcher,
+        adapter: Option<Arc<dyn DesktopPlatformAdapter>>,
+    ) -> Result<()> {
+        for skill in Self::desktop_skills(adapter) {
+            dispatcher.register(skill)?;
+        }
+        Ok(())
+    }
+
+    /// Registers all built-in utility, file management, and desktop skills into the tool dispatcher.
     pub fn register_all(
         &self,
         dispatcher: &ToolDispatcher,
         jail: Option<Arc<PathJail>>,
+        adapter: Option<Arc<dyn DesktopPlatformAdapter>>,
     ) -> Result<()> {
         self.register_all_builtins(dispatcher)?;
         self.register_all_file_skills(dispatcher, jail)?;
+        self.register_all_desktop_skills(dispatcher, adapter)?;
         Ok(())
     }
 }
@@ -110,6 +157,7 @@ impl SkillRegistry {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use aissistant_platform::VirtualDesktopAdapter;
 
     #[test]
     fn test_builtin_skills_registration() {
@@ -152,13 +200,38 @@ mod tests {
     }
 
     #[test]
+    fn test_desktop_skills_registration() {
+        let registry = SkillRegistry::new();
+        let dispatcher = ToolDispatcher::new();
+        let v_adapter = Arc::new(VirtualDesktopAdapter::new());
+
+        registry
+            .register_all_desktop_skills(&dispatcher, Some(v_adapter))
+            .unwrap();
+
+        let defs = dispatcher.tool_definitions().unwrap();
+        assert_eq!(defs.len(), 6);
+
+        let names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
+        assert!(names.contains(&"app.list"));
+        assert!(names.contains(&"app.launch"));
+        assert!(names.contains(&"process.list"));
+        assert!(names.contains(&"process.kill"));
+        assert!(names.contains(&"window.list"));
+        assert!(names.contains(&"window.focus"));
+    }
+
+    #[test]
     fn test_register_all_combined() {
         let registry = SkillRegistry::new();
         let dispatcher = ToolDispatcher::new();
+        let v_adapter = Arc::new(VirtualDesktopAdapter::new());
 
-        registry.register_all(&dispatcher, None).unwrap();
+        registry
+            .register_all(&dispatcher, None, Some(v_adapter))
+            .unwrap();
 
         let defs = dispatcher.tool_definitions().unwrap();
-        assert_eq!(defs.len(), 12);
+        assert_eq!(defs.len(), 18);
     }
 }
