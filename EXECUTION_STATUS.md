@@ -826,7 +826,7 @@ Status Legend:
   - `app/test/devices_screen_test.dart`: Verified `DevicesScreen` widget rendering, 100% offline LAN indicator, discovered peer list, active pairing card with monospace 6-digit SAS code and QR code visual, SAS confirmation workflow, cancellation, unpairing confirmation dialog, and peer simulation.
   - `app/test/widget_test.dart`: Verified `AdaptiveShell` desktop NavigationRail and mobile NavigationBar with the new `Devices` navigation tab.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `4166d42`
 
 
 
