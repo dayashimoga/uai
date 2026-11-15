@@ -1,9 +1,14 @@
+pub mod embeddings;
 pub mod engine;
 pub mod error;
 pub mod grammar;
 pub mod hardware;
 pub mod models;
 
+pub use embeddings::{
+    cosine_similarity, l2_norm, l2_normalize, EmbeddingEngine, LocalEmbeddingEngine,
+    DEFAULT_EMBEDDING_DIMENSION,
+};
 pub use engine::{
     FinishReason, InferenceMetrics, LlmCancellationHandle, LlmEngine, LlmEngineConfig, LlmSession,
     LocalLlmEngine, SamplingParams, TokenChunk,

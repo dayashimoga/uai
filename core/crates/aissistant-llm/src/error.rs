@@ -34,6 +34,9 @@ pub enum LlmError {
     #[error("GBNF grammar compilation error: {0}")]
     GrammarError(String),
 
+    #[error("Embedding generation error: {0}")]
+    EmbeddingError(String),
+
     #[error("Inference cancellation requested")]
     CancellationRequested,
 

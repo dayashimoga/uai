@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 4 — Orchestration State Machine, Context Engine & Hybrid Vector Memory  
-**Next Subphase in Queue:** `S4.P1.2` (Local Embedding Generation & Hybrid Vector Memory Retrieval)
+**Next Subphase in Queue:** `S4.P2.1` (Deterministic Orchestrator Turn State Machine)
 
 ---
 
@@ -54,7 +54,7 @@ Status Legend:
 | **Stage 3** | `S3.P2.2` | GBNF Grammar Compiler for Structured JSON Tool Calling | `S3.P2.1` | `COMPLETED` | Verified [Commit `0aed806`]: 164 Rust workspace unit tests passing (23 in `aissistant-llm`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, `GbnfGrammar` production rule AST with standard JSON primitives (`ws`, `string`, `number`, `integer`, `boolean`, `null`), `SchemaCompiler` translating JSON Schema (primitives, enums, objects with required properties, nested arrays) into GBNF grammars, single and multi-tool grammar compilation with conversational fallback, and strict `ToolCallValidator` verifying argument compliance verified. |
 | **Stage 3** | `S3.P2.3` | Flutter Model Manager UI & Live Benchmark Diagnostics | `S3.P2.2` | `COMPLETED` | Verified [Commit `fc57dde`]: 167 Rust workspace unit tests passing (24 in `aissistant-ffi`), 45 Flutter unit and widget tests passing (100%), `flutter analyze` zero issues, `ModelSupervisor` FFI bridge endpoints (`model_snapshot`, `model_load`, `model_unload`, `model_benchmark_run`), C-ABI functions, `ModelsScreen` responsive UI, hardware headroom & SIMD overview, active model card with unload control, live TTFT/throughput benchmark card, and segmented model catalog verified. |
 | **Stage 4** | `S4.P1.1` | Conversation Persistence & SQLite FTS5 Episodic Search | `S3.P2.3` | `COMPLETED` | Verified [Commit `da53efb`]: 175 Rust workspace unit tests passing (24 in `aissistant-storage`), 45 Flutter tests passing (100%), `flutter analyze` zero issues, `Migration 3` schema runner, `conversations` & `conversation_turns` relational tables, automatic `conversation_turns_fts` FTS5 index triggers, query sanitization, BM25 scoring, snippet excerpts, JSON export, and complete privacy purge verified. |
-| **Stage 4** | `S4.P1.2` | Local Embedding Generation & Hybrid Vector Memory Retrieval | `S4.P1.1` | `PENDING` | — |
+| **Stage 4** | `S4.P1.2` | Local Embedding Generation & Hybrid Vector Memory Retrieval | `S4.P1.1` | `COMPLETED` | Verified: 185 Rust workspace unit tests passing (29 in `aissistant-storage`, 28 in `aissistant-llm`), 45 Flutter tests passing (100%), `flutter analyze` zero issues, `Migration 4` vector store, `LocalEmbeddingEngine` normalized 384-d semantic hash projections, `VectorMemoryStore` binary IEEE 754 float blob storage, cosine similarity k-NN retrieval, and `HybridSearchEngine` Reciprocal Rank Fusion (RRF) verified. |
 | **Stage 4** | `S4.P2.1` | Deterministic Orchestrator Turn State Machine (`aissistant-orchestrator`) | `S4.P1.2` | `PENDING` | — |
 | **Stage 4** | `S4.P2.2` | Policy-Enforced Tool Dispatcher & User Confirmation Flow | `S4.P2.1` | `PENDING` | — |
 | **Stage 5** | `S5.P1.1` | Skill Registry, Sandbox Validator & Built-In Utility Skills | `S4.P2.2` | `PENDING` | — |
@@ -548,6 +548,30 @@ Status Legend:
   - `conversation_store::tests::test_turn_role_conversions`: Verified string conversions, case-insensitive parsing, and display formatting for all `TurnRole` variants (`user`, `assistant`, `system`, `tool`).
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `da53efb`
+
+### Verification Evidence — S4.P1.2 (Local Embedding Generation & Hybrid Vector Memory Retrieval)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 7 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (185 passed across 7 crates; 29 in `aissistant-storage`, 28 in `aissistant-llm`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (45 passed across 7 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `embeddings::tests::test_l2_norm_and_normalization`: Verified vector Euclidean norm computation and in-place unit sphere scaling with zero-norm division guard.
+  - `embeddings::tests::test_cosine_similarity_properties`: Verified cosine similarity range `[-1.0, 1.0]`, identical vectors yielding 1.0, orthogonal vectors yielding 0.0, opposite vectors yielding -1.0, and dimension mismatch guards.
+  - `embeddings::tests::test_local_embedding_engine_dimension_and_determinism`: Verified deterministic 384-dimensional vector production, identical text producing identical vectors, and unit L2-norm invariants.
+  - `embeddings::tests::test_local_embedding_engine_semantic_relatedness`: Verified semantic relatedness discriminating conceptually similar texts (e.g. concurrent Rust programming: cosine similarity > 0.4) against unrelated domains (e.g. Italian pizza recipe: cosine similarity < 0.2).
+  - `embeddings::tests::test_batch_embedding`: Verified sequential batch embedding across multiple text inputs.
+  - `migration::tests::test_migration_runner_applies_v1_and_is_idempotent`: Verified `Migration 4` creating `semantic_embeddings` table, entity and conversation indexes, and cascading cleanup triggers (`trg_turns_del_embeddings`, `trg_conv_del_embeddings`).
+  - `vector_store::tests::test_vec_blob_serde_roundtrip`: Verified little-endian IEEE 754 binary serialization (`vec_to_blob`) and exact float deserialization (`blob_to_vec`) with length validation.
+  - `vector_store::tests::test_vector_memory_store_crud`: Verified vector record insertion, upsert on conflict, retrieval by ID, conversation scoped listing, and deletion.
+  - `vector_store::tests::test_vector_similarity_search`: Verified k-NN vector search computing cosine similarities against query embeddings with threshold gating (`min_similarity`) and conversation filtering.
+  - `vector_store::tests::test_cascade_trigger_cleans_embeddings_on_turn_delete`: Verified automatic trigger deleting turn embeddings when their parent conversation turn is deleted.
+  - `hybrid_search::tests::test_hybrid_search_rrf_dual_hit_boost`: Verified Reciprocal Rank Fusion ($RRF(d) = \sum \frac{w}{k + r}$) properly fusing FTS5 BM25 keyword rankings with dense vector cosine similarities, boosting dual-hit items above single-hit items.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+
 
 
 

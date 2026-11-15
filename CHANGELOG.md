@@ -762,3 +762,35 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 175 unit and integration tests (0 failures; 24 in `aissistant-storage`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+---
+
+## [2026-11-15] — Stage 4 Phase 1 Subphase 2 (`S4.P1.2`)
+
+### Added
+- `core/crates/aissistant-llm/src/embeddings.rs`:
+  - `EmbeddingEngine` — Trait defining sync/batch dense embedding extraction from text.
+  - Vector math functions: `l2_norm()`, `l2_normalize()`, `cosine_similarity()` with zero-norm and dimension-mismatch guards.
+  - `LocalEmbeddingEngine` — Deterministic local embedding engine producing normalized 384-dimensional dense vectors using subword n-gram hashing and inverse position weighting.
+- `core/crates/aissistant-storage/src/migration.rs`:
+  - `Migration 4` — Dense vector embeddings store (`semantic_embeddings`) with entity and conversation indexes.
+  - Cascading cleanup triggers: `trg_turns_del_embeddings` (on `conversation_turns` delete) and `trg_conv_del_embeddings` (on `conversations` delete).
+- `core/crates/aissistant-storage/src/vector_store.rs`:
+  - `VectorMemoryStore` — SQLite persistence and cosine similarity k-NN search engine.
+  - Models: `VectorRecord`, `VectorSearchResult`.
+  - Serializers: IEEE 754 little-endian binary float conversion (`vec_to_blob`, `blob_to_vec`).
+  - Methods: `store_embedding()`, `get_embedding()`, `delete_embedding()`, `delete_embeddings_for_entity()`, `list_embeddings_for_conversation()`, `search_vector_similarity()`.
+- `core/crates/aissistant-storage/src/hybrid_search.rs`:
+  - `HybridSearchEngine` — Reciprocal Rank Fusion (RRF) combining SQLite FTS5 BM25 episodic keyword ranking with dense vector cosine similarity.
+  - Hyperparameter model `RrfConfig` with smoothing constant $k$ (default 60.0) and modality weights.
+  - `HybridSearchResult` conveying combined RRF score, individual modality ranks (`bm25_rank`, `vector_rank`), raw cosine similarity, and highlighted text snippets.
+- `core/crates/aissistant-storage/src/lib.rs`:
+  - Exported `VectorMemoryStore`, `VectorRecord`, `VectorSearchResult`, `HybridSearchEngine`, `HybridSearchResult`, `RrfConfig`, `vec_to_blob`, `blob_to_vec`, `cosine_similarity`.
+  - Integrated vector storage and hybrid search into end-to-end integration test.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 185 unit and integration tests (0 failures; 29 in `aissistant-storage`, 28 in `aissistant-llm`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.

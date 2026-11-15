@@ -107,6 +107,35 @@ const MIGRATIONS: &[Migration] = &[
             END;
         ",
     },
+    Migration {
+        version: 4,
+        description: "Dense vector embeddings store for hybrid episodic and semantic memory retrieval",
+        sql: "
+            CREATE TABLE IF NOT EXISTS semantic_embeddings (
+                id TEXT PRIMARY KEY,
+                entity_type TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                conversation_id TEXT,
+                dimension INTEGER NOT NULL,
+                embedding_blob BLOB NOT NULL,
+                content_snippet TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_embeddings_entity ON semantic_embeddings(entity_type, entity_id);
+            CREATE INDEX IF NOT EXISTS idx_embeddings_conversation ON semantic_embeddings(conversation_id);
+
+            CREATE TRIGGER IF NOT EXISTS trg_turns_del_embeddings AFTER DELETE ON conversation_turns
+            BEGIN
+                DELETE FROM semantic_embeddings WHERE entity_type = 'turn' AND entity_id = old.id;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_conv_del_embeddings AFTER DELETE ON conversations
+            BEGIN
+                DELETE FROM semantic_embeddings WHERE conversation_id = old.id;
+            END;
+        ",
+    },
 ];
 
 /// Migration runner applying incremental DDL changes within ACID transactions.
@@ -179,21 +208,21 @@ mod tests {
 
         // Initial run
         let version = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version, 3);
-        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 3);
+        assert_eq!(version, 4);
+        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 4);
 
         // Verify tables exist
         let tables_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts');",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts', 'semantic_embeddings');",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(tables_count, 7);
+        assert_eq!(tables_count, 8);
 
         // Second run must be a no-op
         let version_again = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version_again, 3);
+        assert_eq!(version_again, 4);
     }
 }

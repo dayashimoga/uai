@@ -64,6 +64,6 @@
 
 ## Stage 4 Queue (Orchestration State Machine, Context Engine & Hybrid Vector Memory)
 - [x] `[S4.P1.1]` Conversation Persistence & SQLite FTS5 Episodic Search *(Completed 2026-11-15)*
-- [ ] `[S4.P1.2]` Local Embedding Generation & Hybrid Vector Memory Retrieval
+- [x] `[S4.P1.2]` Local Embedding Generation & Hybrid Vector Memory Retrieval *(Completed 2026-11-15)*
 - [ ] `[S4.P2.1]` Deterministic Orchestrator Turn State Machine (`aissistant-orchestrator`)
 - [ ] `[S4.P2.2]` Policy-Enforced Tool Dispatcher & User Confirmation Flow
