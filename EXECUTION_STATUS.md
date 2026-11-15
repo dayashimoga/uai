@@ -456,6 +456,6 @@ Status Legend:
   - `tests::test_kv_cache_estimation`: Verified FP16 KV-cache estimation scaling linearly across context window lengths (2048 to 8192 tokens).
   - `tests::test_hardware_profile_serde_roundtrip`: Verified complete JSON serialization and deserialization of live hardware profiles.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** `Pending`
+- **Commit Reference:** `6452bbb`
 
 
