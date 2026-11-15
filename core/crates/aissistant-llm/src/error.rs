@@ -43,6 +43,9 @@ pub enum LlmError {
     #[error("OCR extraction error: {0}")]
     OcrError(String),
 
+    #[error("Translation error: {0}")]
+    TranslationError(String),
+
     #[error("Inference cancellation requested")]
     CancellationRequested,
 

@@ -27,7 +27,7 @@ void main() {
       // Verify Host Runner card is rendered
       expect(find.textContaining('Host Runner'), findsOneWidget);
       expect(find.textContaining('Active'), findsOneWidget);
-      expect(find.text('Platform Capabilities (10)'), findsOneWidget);
+      expect(find.text('Platform Capabilities (11)'), findsOneWidget);
     });
 
     testWidgets('displays tier badges and capability names correctly', (tester) async {

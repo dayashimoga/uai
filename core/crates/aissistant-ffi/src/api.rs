@@ -6,6 +6,8 @@ use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
 
 use aissistant_core::{AuditEntryId, Capability, CapabilityRegistry, CapabilityStatus, SkillId};
+use aissistant_llm::{Language, TranslationEngine};
+use aissistant_orchestrator::{InterpreterSession, InterpreterSessionConfig};
 use aissistant_security::{
     Actor, AeadKey, AuditEntry, AuditExecutionStatus, DeviceIdentity, PolicyDecision, PolicyEngine,
     GENESIS_PREV_HASH,
@@ -220,6 +222,42 @@ pub struct OcrDocumentItem {
     pub processing_time_ms: u64,
 }
 
+/// FFI view of a multilingual text translation result.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TranslationResultItem {
+    pub source_text: String,
+    pub translated_text: String,
+    pub source_lang: String,
+    pub target_lang: String,
+    pub confidence: f32,
+    pub latency_ms: u64,
+    pub engine: String,
+}
+
+/// FFI view of a live interpreter dialogue turn.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InterpreterTurnItem {
+    pub turn_id: u32,
+    pub speaker: String,
+    pub source_text: String,
+    pub translated_text: String,
+    pub source_lang: String,
+    pub target_lang: String,
+    pub confidence: f32,
+    pub latency_ms: u64,
+    pub timestamp_ms: u64,
+}
+
+/// FFI view of interpreter session state.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InterpreterSessionStatusItem {
+    pub session_id: String,
+    pub party_a_lang: String,
+    pub party_b_lang: String,
+    pub active_speaker: String,
+    pub turn_count: usize,
+}
+
 /// Core bridge orchestrating subsystem access and safe FFI dispatch.
 pub struct CoreBridge {
     db: SqliteDb,
@@ -234,6 +272,8 @@ pub struct CoreBridge {
     voice_supervisor: Arc<Mutex<VoicePipelineSupervisor>>,
     model_supervisor: Arc<Mutex<ModelSupervisor>>,
     device_supervisor: Arc<DeviceSupervisor>,
+    interpreter_session: Arc<Mutex<InterpreterSession>>,
+    translation_engine: TranslationEngine,
     data_dir: Option<PathBuf>,
 }
 
@@ -276,6 +316,10 @@ impl CoreBridge {
             db.clone(),
             event_sink.clone(),
         ));
+        let interpreter_session = Arc::new(Mutex::new(InterpreterSession::new(
+            InterpreterSessionConfig::default(),
+        )));
+        let translation_engine = TranslationEngine::new();
 
         runtime.transition_to(LifecycleState::Running, Some("ready"))?;
 
@@ -292,6 +336,8 @@ impl CoreBridge {
             voice_supervisor,
             model_supervisor,
             device_supervisor,
+            interpreter_session,
+            translation_engine,
             data_dir: None,
         })
     }
@@ -336,6 +382,10 @@ impl CoreBridge {
             db.clone(),
             event_sink.clone(),
         ));
+        let interpreter_session = Arc::new(Mutex::new(InterpreterSession::new(
+            InterpreterSessionConfig::default(),
+        )));
+        let translation_engine = TranslationEngine::new();
 
         runtime.transition_to(LifecycleState::Running, Some("ready"))?;
 
@@ -352,6 +402,8 @@ impl CoreBridge {
             voice_supervisor,
             model_supervisor,
             device_supervisor,
+            interpreter_session,
+            translation_engine,
             data_dir: Some(path.to_path_buf()),
         })
     }
@@ -1074,6 +1126,148 @@ impl CoreBridge {
             processing_time_ms: doc.processing_time_ms,
         })
     }
+
+    /// Translates text between two ISO 639-1 languages.
+    pub fn translate_text(
+        &self,
+        text: &str,
+        source_lang: &str,
+        target_lang: &str,
+    ) -> FfiResult<TranslationResultItem> {
+        let src: Language = source_lang
+            .parse()
+            .map_err(|e| FfiError::InvalidParameter(format!("{e}")))?;
+        let tgt: Language = target_lang
+            .parse()
+            .map_err(|e| FfiError::InvalidParameter(format!("{e}")))?;
+
+        let res = self
+            .translation_engine
+            .translate(text, src, tgt)
+            .map_err(|e| FfiError::Model(format!("{e}")))?;
+
+        Ok(TranslationResultItem {
+            source_text: res.source_text,
+            translated_text: res.translated_text,
+            source_lang: res.source_lang.code().to_string(),
+            target_lang: res.target_lang.code().to_string(),
+            confidence: res.confidence,
+            latency_ms: res.latency_ms,
+            engine: res.engine,
+        })
+    }
+
+    /// Configures a live voice interpreter session.
+    pub fn interpreter_start_session(
+        &self,
+        party_a_lang: &str,
+        party_b_lang: &str,
+    ) -> FfiResult<InterpreterSessionStatusItem> {
+        let lang_a: Language = party_a_lang
+            .parse()
+            .map_err(|e| FfiError::InvalidParameter(format!("{e}")))?;
+        let lang_b: Language = party_b_lang
+            .parse()
+            .map_err(|e| FfiError::InvalidParameter(format!("{e}")))?;
+
+        let mut session_guard = self.interpreter_session.lock().map_err(|_| {
+            FfiError::LockPoisoned("Failed to lock interpreter session".to_string())
+        })?;
+
+        let config = InterpreterSessionConfig {
+            party_a_lang: lang_a,
+            party_b_lang: lang_b,
+            auto_swap_speaker: true,
+        };
+
+        let new_session = InterpreterSession::new(config);
+        let status = InterpreterSessionStatusItem {
+            session_id: new_session.session_id().to_string(),
+            party_a_lang: lang_a.code().to_string(),
+            party_b_lang: lang_b.code().to_string(),
+            active_speaker: new_session.active_speaker().as_str().to_string(),
+            turn_count: 0,
+        };
+
+        *session_guard = new_session;
+        Ok(status)
+    }
+
+    /// Submits an utterance to the active interpreter session.
+    pub fn interpreter_submit_turn(&self, text: &str) -> FfiResult<InterpreterTurnItem> {
+        let mut session_guard = self.interpreter_session.lock().map_err(|_| {
+            FfiError::LockPoisoned("Failed to lock interpreter session".to_string())
+        })?;
+
+        let turn = session_guard
+            .submit_turn(text)
+            .map_err(|e| FfiError::Model(format!("{e}")))?;
+
+        Ok(InterpreterTurnItem {
+            turn_id: turn.turn_id,
+            speaker: turn.speaker.as_str().to_string(),
+            source_text: turn.source_text,
+            translated_text: turn.translated_text,
+            source_lang: turn.source_lang.code().to_string(),
+            target_lang: turn.target_lang.code().to_string(),
+            confidence: turn.confidence,
+            latency_ms: turn.latency_ms,
+            timestamp_ms: turn.timestamp_ms,
+        })
+    }
+
+    /// Returns all completed turns in the active interpreter session.
+    pub fn interpreter_get_turns(&self) -> FfiResult<Vec<InterpreterTurnItem>> {
+        let session_guard = self.interpreter_session.lock().map_err(|_| {
+            FfiError::LockPoisoned("Failed to lock interpreter session".to_string())
+        })?;
+
+        let items = session_guard
+            .turns()
+            .iter()
+            .map(|t| InterpreterTurnItem {
+                turn_id: t.turn_id,
+                speaker: t.speaker.as_str().to_string(),
+                source_text: t.source_text.clone(),
+                translated_text: t.translated_text.clone(),
+                source_lang: t.source_lang.code().to_string(),
+                target_lang: t.target_lang.code().to_string(),
+                confidence: t.confidence,
+                latency_ms: t.latency_ms,
+                timestamp_ms: t.timestamp_ms,
+            })
+            .collect();
+
+        Ok(items)
+    }
+
+    /// Swaps Party A and Party B languages in the active interpreter session.
+    pub fn interpreter_swap_languages(&self) -> FfiResult<InterpreterSessionStatusItem> {
+        let mut session_guard = self.interpreter_session.lock().map_err(|_| {
+            FfiError::LockPoisoned("Failed to lock interpreter session".to_string())
+        })?;
+
+        session_guard.swap_languages();
+        let cfg = session_guard.config();
+
+        Ok(InterpreterSessionStatusItem {
+            session_id: session_guard.session_id().to_string(),
+            party_a_lang: cfg.party_a_lang.code().to_string(),
+            party_b_lang: cfg.party_b_lang.code().to_string(),
+            active_speaker: session_guard.active_speaker().as_str().to_string(),
+            turn_count: session_guard.turns().len(),
+        })
+    }
+
+    /// Clears turns history from the interpreter session.
+    pub fn interpreter_clear_session(&self) -> FfiResult<()> {
+        let mut session_guard = self.interpreter_session.lock().map_err(|_| {
+            FfiError::LockPoisoned("Failed to lock interpreter session".to_string())
+        })?;
+
+        session_guard.clear_history();
+        Ok(())
+    }
 }
 
 // Global Singleton Bridge Management
@@ -1336,6 +1530,49 @@ pub fn bridge_knowledge_search(query: &str, limit: usize) -> FfiResult<Vec<Knowl
 pub fn bridge_vision_ocr_extract(image_bytes: &[u8]) -> FfiResult<OcrDocumentItem> {
     let bridge = get_bridge()?;
     bridge.vision_ocr_extract(image_bytes)
+}
+
+/// Convenience entry point: translates text between two ISO 639-1 languages.
+pub fn bridge_translate_text(
+    text: &str,
+    source_lang: &str,
+    target_lang: &str,
+) -> FfiResult<TranslationResultItem> {
+    let bridge = get_bridge()?;
+    bridge.translate_text(text, source_lang, target_lang)
+}
+
+/// Convenience entry point: starts or reconfigures live interpreter session.
+pub fn bridge_interpreter_start_session(
+    party_a_lang: &str,
+    party_b_lang: &str,
+) -> FfiResult<InterpreterSessionStatusItem> {
+    let bridge = get_bridge()?;
+    bridge.interpreter_start_session(party_a_lang, party_b_lang)
+}
+
+/// Convenience entry point: submits an utterance turn to the interpreter session.
+pub fn bridge_interpreter_submit_turn(text: &str) -> FfiResult<InterpreterTurnItem> {
+    let bridge = get_bridge()?;
+    bridge.interpreter_submit_turn(text)
+}
+
+/// Convenience entry point: returns all completed interpreter turns.
+pub fn bridge_interpreter_get_turns() -> FfiResult<Vec<InterpreterTurnItem>> {
+    let bridge = get_bridge()?;
+    bridge.interpreter_get_turns()
+}
+
+/// Convenience entry point: swaps languages in active interpreter session.
+pub fn bridge_interpreter_swap_languages() -> FfiResult<InterpreterSessionStatusItem> {
+    let bridge = get_bridge()?;
+    bridge.interpreter_swap_languages()
+}
+
+/// Convenience entry point: clears active interpreter session turns.
+pub fn bridge_interpreter_clear_session() -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.interpreter_clear_session()
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

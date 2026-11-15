@@ -62,6 +62,7 @@ dependencies = [
  "aissistant-core",
  "aissistant-llm",
  "aissistant-network",
+ "aissistant-orchestrator",
  "aissistant-security",
  "aissistant-speech",
  "aissistant-storage",

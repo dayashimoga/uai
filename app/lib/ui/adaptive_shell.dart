@@ -5,6 +5,7 @@ import 'screens/audit_log_screen.dart';
 import 'screens/capabilities_screen.dart';
 import 'screens/devices_screen.dart';
 import 'screens/diagnostics_screen.dart';
+import 'screens/interpreter_screen.dart';
 import 'screens/knowledge_screen.dart';
 import 'screens/models_screen.dart';
 import 'screens/settings_screen.dart';
@@ -35,6 +36,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
       ModelsScreen(controller: widget.controller),
       KnowledgeScreen(controller: widget.controller),
       VisionScreen(controller: widget.controller),
+      InterpreterScreen(controller: widget.controller),
       DevicesScreen(controller: widget.controller),
       CapabilitiesScreen(controller: widget.controller),
       AuditLogScreen(controller: widget.controller),
@@ -66,6 +68,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         icon: Icon(Icons.document_scanner_outlined),
         selectedIcon: Icon(Icons.document_scanner),
         label: 'Vision',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.translate_outlined),
+        selectedIcon: Icon(Icons.translate),
+        label: 'Interpreter',
       ),
       NavigationDestination(
         icon: Icon(Icons.devices_outlined),
@@ -144,6 +151,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                   icon: Icon(Icons.document_scanner_outlined),
                   selectedIcon: Icon(Icons.document_scanner),
                   label: Text('Vision'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.translate_outlined),
+                  selectedIcon: Icon(Icons.translate),
+                  label: Text('Interpreter'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.devices_outlined),

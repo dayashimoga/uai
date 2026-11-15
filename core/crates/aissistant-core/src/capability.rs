@@ -134,6 +134,8 @@ pub enum Capability {
     LanPeerNetworking,
     /// Offline optical character recognition and multimodal vision understanding.
     VisionOcr,
+    /// Offline multilingual translation and live voice interpreter dialogue mode.
+    LiveInterpreter,
 }
 
 impl Capability {
@@ -151,6 +153,7 @@ impl Capability {
             Self::RemoteInputInjectionHost => "remote_input_injection_host",
             Self::LanPeerNetworking => "lan_peer_networking",
             Self::VisionOcr => "vision_ocr",
+            Self::LiveInterpreter => "live_interpreter",
         }
     }
 
@@ -168,6 +171,7 @@ impl Capability {
             Self::RemoteInputInjectionHost,
             Self::LanPeerNetworking,
             Self::VisionOcr,
+            Self::LiveInterpreter,
         ]
     }
 }
@@ -193,6 +197,7 @@ impl FromStr for Capability {
             "remote_input_injection_host" => Ok(Self::RemoteInputInjectionHost),
             "lan_peer_networking" => Ok(Self::LanPeerNetworking),
             "vision_ocr" => Ok(Self::VisionOcr),
+            "live_interpreter" => Ok(Self::LiveInterpreter),
             other => Err(CoreError::InvalidId {
                 entity: "Capability",
                 value: other.to_string(),
@@ -361,6 +366,8 @@ impl CapabilityMatrix {
                     granted: false,
                 },
             },
+
+            Capability::LiveInterpreter => CapabilityStatus::Supported,
         }
     }
 

@@ -8,6 +8,7 @@ import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
 import 'models/device_models.dart';
 import 'models/health_report.dart';
+import 'models/interpreter_models.dart';
 import 'models/knowledge_models.dart';
 import 'models/model_item.dart';
 import 'models/vision_models.dart';
@@ -39,6 +40,11 @@ class AssistantController extends ChangeNotifier {
   OcrDocumentItem? _activeOcrResult;
   bool _isProcessingOcr = false;
   String? _ocrError;
+  InterpreterSessionStatusItem? _interpreterStatus;
+  List<InterpreterTurnItem> _interpreterTurns = <InterpreterTurnItem>[];
+  bool _isProcessingInterpreterTurn = false;
+  String? _interpreterError;
+  TranslationResultItem? _lastTranslationResult;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -69,6 +75,12 @@ class AssistantController extends ChangeNotifier {
   OcrDocumentItem? get activeOcrResult => _activeOcrResult;
   bool get isProcessingOcr => _isProcessingOcr;
   String? get ocrError => _ocrError;
+  InterpreterSessionStatusItem? get interpreterStatus => _interpreterStatus;
+  List<InterpreterTurnItem> get interpreterTurns =>
+      List<InterpreterTurnItem>.unmodifiable(_interpreterTurns);
+  bool get isProcessingInterpreterTurn => _isProcessingInterpreterTurn;
+  String? get interpreterError => _interpreterError;
+  TranslationResultItem? get lastTranslationResult => _lastTranslationResult;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -92,6 +104,8 @@ class AssistantController extends ChangeNotifier {
       _discoveredPeers = List<DiscoveredPeerItem>.from(_bridge.getDiscoveredPeers());
       _pairedDevices = List<PairedDeviceItem>.from(_bridge.getPairedDevices());
       _documents = List<DocumentRecordItem>.from(_bridge.getKnowledgeDocuments());
+      _interpreterStatus = _bridge.startInterpreterSession(partyALang: 'en', partyBLang: 'es');
+      _interpreterTurns = List<InterpreterTurnItem>.from(_bridge.getInterpreterTurns());
 
       // Read persisted theme mode
       final savedTheme = _bridge.getSetting('assistant.theme_mode');
@@ -503,6 +517,8 @@ class AssistantController extends ChangeNotifier {
   Future<void> refreshKnowledgeDocuments() async {
     try {
       _documents = List<DocumentRecordItem>.from(_bridge.getKnowledgeDocuments());
+      _interpreterStatus = _bridge.startInterpreterSession(partyALang: 'en', partyBLang: 'es');
+      _interpreterTurns = List<InterpreterTurnItem>.from(_bridge.getInterpreterTurns());
       notifyListeners();
     } catch (e) {
       _errorMessage = 'Failed to refresh documents: $e';
@@ -607,6 +623,111 @@ class AssistantController extends ChangeNotifier {
     _activeOcrResult = null;
     _ocrError = null;
     _isProcessingOcr = false;
+    notifyListeners();
+  }
+
+  Future<TranslationResultItem?> translateText({
+    required String text,
+    required String sourceLang,
+    required String targetLang,
+  }) async {
+    _isProcessingInterpreterTurn = true;
+    _interpreterError = null;
+    notifyListeners();
+
+    try {
+      final res = _bridge.translateText(
+        text: text,
+        sourceLang: sourceLang,
+        targetLang: targetLang,
+      );
+      _lastTranslationResult = res;
+      return res;
+    } catch (e) {
+      _interpreterError = 'Translation failed: $e';
+      return null;
+    } finally {
+      _isProcessingInterpreterTurn = false;
+      notifyListeners();
+    }
+  }
+
+  Future<InterpreterSessionStatusItem?> startInterpreterSession({
+    String partyALang = 'en',
+    String partyBLang = 'es',
+  }) async {
+    try {
+      final status = _bridge.startInterpreterSession(
+        partyALang: partyALang,
+        partyBLang: partyBLang,
+      );
+      _interpreterStatus = status;
+      _interpreterTurns = List<InterpreterTurnItem>.from(_bridge.getInterpreterTurns());
+      notifyListeners();
+      return status;
+    } catch (e) {
+      _interpreterError = 'Failed to configure interpreter: $e';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<InterpreterTurnItem?> submitInterpreterTurn(String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return null;
+
+    _isProcessingInterpreterTurn = true;
+    _interpreterError = null;
+    notifyListeners();
+
+    try {
+      final turn = _bridge.submitInterpreterTurn(text: trimmed);
+      _interpreterTurns = List<InterpreterTurnItem>.from(_bridge.getInterpreterTurns());
+      if (_interpreterStatus != null) {
+        _interpreterStatus = InterpreterSessionStatusItem(
+          sessionId: _interpreterStatus!.sessionId,
+          partyALang: _interpreterStatus!.partyALang,
+          partyBLang: _interpreterStatus!.partyBLang,
+          activeSpeaker: turn.isPartyA ? 'party_b' : 'party_a',
+          turnCount: _interpreterTurns.length,
+        );
+      }
+      return turn;
+    } catch (e) {
+      _interpreterError = 'Failed to interpret turn: $e';
+      return null;
+    } finally {
+      _isProcessingInterpreterTurn = false;
+      notifyListeners();
+    }
+  }
+
+  Future<InterpreterSessionStatusItem?> swapInterpreterLanguages() async {
+    try {
+      final status = _bridge.swapInterpreterLanguages();
+      _interpreterStatus = status;
+      notifyListeners();
+      return status;
+    } catch (e) {
+      _interpreterError = 'Failed to swap languages: $e';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  void clearInterpreterSession() {
+    _bridge.clearInterpreterSession();
+    _interpreterTurns = <InterpreterTurnItem>[];
+    if (_interpreterStatus != null) {
+      _interpreterStatus = InterpreterSessionStatusItem(
+        sessionId: _interpreterStatus!.sessionId,
+        partyALang: _interpreterStatus!.partyALang,
+        partyBLang: _interpreterStatus!.partyBLang,
+        activeSpeaker: 'party_a',
+        turnCount: 0,
+      );
+    }
+    _interpreterError = null;
     notifyListeners();
   }
 

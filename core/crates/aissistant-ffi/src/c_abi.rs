@@ -15,11 +15,13 @@ use crate::api::{
     bridge_device_cancel_pairing, bridge_device_confirm_pairing, bridge_device_discovered_peers,
     bridge_device_paired_list, bridge_device_set_permission, bridge_device_simulate_peer,
     bridge_device_start_pairing, bridge_device_unpair, bridge_get_capabilities, bridge_get_health,
-    bridge_get_lifecycle_state, bridge_get_setting, bridge_knowledge_delete_document,
+    bridge_get_lifecycle_state, bridge_get_setting, bridge_interpreter_clear_session,
+    bridge_interpreter_get_turns, bridge_interpreter_start_session, bridge_interpreter_submit_turn,
+    bridge_interpreter_swap_languages, bridge_knowledge_delete_document,
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
     bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
     bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
-    bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
+    bridge_translate_text, bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
     bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
     bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge, shutdown_bridge,
 };
@@ -670,6 +672,105 @@ pub unsafe extern "C" fn bridge_c_vision_ocr_extract(
             "Panic in bridge_c_vision_ocr_extract".into(),
         ))
     }))
+}
+
+/// Translates text between two ISO 639-1 languages.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `text`, `source_lang`, and `target_lang` must point to valid null-terminated UTF-8 C strings.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_translate_text(
+    text: *const c_char,
+    source_lang: *const c_char,
+    target_lang: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let t_str = unsafe { c_char_to_str(text) }?;
+        let src_str = unsafe { c_char_to_str(source_lang) }?;
+        let tgt_str = unsafe { c_char_to_str(target_lang) }?;
+        bridge_translate_text(t_str, src_str, tgt_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_translate_text".into(),
+        ))
+    }))
+}
+
+/// Starts or reconfigures a live voice interpreter session.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `party_a_lang` and `party_b_lang` must point to valid null-terminated UTF-8 C strings.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_interpreter_start(
+    party_a_lang: *const c_char,
+    party_b_lang: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let a_str = unsafe { c_char_to_str(party_a_lang) }?;
+        let b_str = unsafe { c_char_to_str(party_b_lang) }?;
+        bridge_interpreter_start_session(a_str, b_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_interpreter_start".into(),
+        ))
+    }))
+}
+
+/// Submits an utterance turn to the active interpreter session.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `text` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_interpreter_submit_turn(text: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let t_str = unsafe { c_char_to_str(text) }?;
+        bridge_interpreter_submit_turn(t_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_interpreter_submit_turn".into(),
+        ))
+    }))
+}
+
+/// Returns all completed turns in the active interpreter session.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+#[no_mangle]
+pub extern "C" fn bridge_c_interpreter_get_turns() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_interpreter_get_turns));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_interpreter_get_turns".into(),
+        ))
+    }))
+}
+
+/// Swaps Party A and Party B languages in the active interpreter session.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+#[no_mangle]
+pub extern "C" fn bridge_c_interpreter_swap_languages() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_interpreter_swap_languages));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_interpreter_swap_languages".into(),
+        ))
+    }))
+}
+
+/// Clears active interpreter session history.
+/// Returns 0 on success, negative on error.
+#[no_mangle]
+pub extern "C" fn bridge_c_interpreter_clear() -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(bridge_interpreter_clear_session));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
 }
 
 /// Frees a C string previously allocated by `aissistant-ffi`.

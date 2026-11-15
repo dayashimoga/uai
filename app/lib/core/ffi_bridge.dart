@@ -11,6 +11,7 @@ import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
 import 'models/device_models.dart';
 import 'models/health_report.dart';
+import 'models/interpreter_models.dart';
 import 'models/knowledge_models.dart';
 import 'models/model_item.dart';
 import 'models/vision_models.dart';
@@ -57,6 +58,19 @@ abstract class AissistantBridge {
   bool deleteKnowledgeDocument(String documentId);
   List<KnowledgeCitationItem> searchKnowledge(String query, {int limit = 10});
   OcrDocumentItem extractOcr({required List<int> imageBytes});
+  TranslationResultItem translateText({
+    required String text,
+    required String sourceLang,
+    required String targetLang,
+  });
+  InterpreterSessionStatusItem startInterpreterSession({
+    required String partyALang,
+    required String partyBLang,
+  });
+  InterpreterTurnItem submitInterpreterTurn({required String text});
+  List<InterpreterTurnItem> getInterpreterTurns();
+  InterpreterSessionStatusItem swapInterpreterLanguages();
+  void clearInterpreterSession();
   Stream<BridgeEvent> get eventStream;
 }
 
@@ -175,6 +189,38 @@ typedef _BridgeKnowledgeSearchDart = Pointer<Utf8> Function(Pointer<Utf8> query,
 typedef _BridgeVisionOcrC = Pointer<Utf8> Function(Pointer<Uint8> imagePtr, IntPtr imageLen);
 typedef _BridgeVisionOcrDart = Pointer<Utf8> Function(Pointer<Uint8> imagePtr, int imageLen);
 
+typedef _BridgeTranslateTextC = Pointer<Utf8> Function(
+  Pointer<Utf8> text,
+  Pointer<Utf8> sourceLang,
+  Pointer<Utf8> targetLang,
+);
+typedef _BridgeTranslateTextDart = Pointer<Utf8> Function(
+  Pointer<Utf8> text,
+  Pointer<Utf8> sourceLang,
+  Pointer<Utf8> targetLang,
+);
+
+typedef _BridgeInterpreterStartC = Pointer<Utf8> Function(
+  Pointer<Utf8> partyALang,
+  Pointer<Utf8> partyBLang,
+);
+typedef _BridgeInterpreterStartDart = Pointer<Utf8> Function(
+  Pointer<Utf8> partyALang,
+  Pointer<Utf8> partyBLang,
+);
+
+typedef _BridgeInterpreterSubmitTurnC = Pointer<Utf8> Function(Pointer<Utf8> text);
+typedef _BridgeInterpreterSubmitTurnDart = Pointer<Utf8> Function(Pointer<Utf8> text);
+
+typedef _BridgeInterpreterGetTurnsC = Pointer<Utf8> Function();
+typedef _BridgeInterpreterGetTurnsDart = Pointer<Utf8> Function();
+
+typedef _BridgeInterpreterSwapC = Pointer<Utf8> Function();
+typedef _BridgeInterpreterSwapDart = Pointer<Utf8> Function();
+
+typedef _BridgeInterpreterClearC = Int32 Function();
+typedef _BridgeInterpreterClearDart = int Function();
+
 /// Native FFI implementation driving aissistant-ffi C-ABI entry points.
 class NativeFfiBridge implements AissistantBridge {
   final DynamicLibrary _lib;
@@ -215,6 +261,12 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeKnowledgeDeleteDart _knowledgeDelete;
   late final _BridgeKnowledgeSearchDart _knowledgeSearch;
   late final _BridgeVisionOcrDart _visionOcrExtract;
+  late final _BridgeTranslateTextDart _translateText;
+  late final _BridgeInterpreterStartDart _interpreterStart;
+  late final _BridgeInterpreterSubmitTurnDart _interpreterSubmitTurn;
+  late final _BridgeInterpreterGetTurnsDart _interpreterGetTurns;
+  late final _BridgeInterpreterSwapDart _interpreterSwap;
+  late final _BridgeInterpreterClearDart _interpreterClear;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -252,6 +304,12 @@ class NativeFfiBridge implements AissistantBridge {
     _knowledgeDelete = _lib.lookupFunction<_BridgeKnowledgeDeleteC, _BridgeKnowledgeDeleteDart>('bridge_c_knowledge_delete');
     _knowledgeSearch = _lib.lookupFunction<_BridgeKnowledgeSearchC, _BridgeKnowledgeSearchDart>('bridge_c_knowledge_search');
     _visionOcrExtract = _lib.lookupFunction<_BridgeVisionOcrC, _BridgeVisionOcrDart>('bridge_c_vision_ocr_extract');
+    _translateText = _lib.lookupFunction<_BridgeTranslateTextC, _BridgeTranslateTextDart>('bridge_c_translate_text');
+    _interpreterStart = _lib.lookupFunction<_BridgeInterpreterStartC, _BridgeInterpreterStartDart>('bridge_c_interpreter_start');
+    _interpreterSubmitTurn = _lib.lookupFunction<_BridgeInterpreterSubmitTurnC, _BridgeInterpreterSubmitTurnDart>('bridge_c_interpreter_submit_turn');
+    _interpreterGetTurns = _lib.lookupFunction<_BridgeInterpreterGetTurnsC, _BridgeInterpreterGetTurnsDart>('bridge_c_interpreter_get_turns');
+    _interpreterSwap = _lib.lookupFunction<_BridgeInterpreterSwapC, _BridgeInterpreterSwapDart>('bridge_c_interpreter_swap_languages');
+    _interpreterClear = _lib.lookupFunction<_BridgeInterpreterClearC, _BridgeInterpreterClearDart>('bridge_c_interpreter_clear');
     _freeString = _lib.lookupFunction<_BridgeFreeStringC, _BridgeFreeStringDart>('bridge_c_free_string');
   }
 
@@ -715,6 +773,133 @@ class NativeFfiBridge implements AissistantBridge {
       malloc.free(nativeBytes);
     }
   }
+
+  @override
+  TranslationResultItem translateText({
+    required String text,
+    required String sourceLang,
+    required String targetLang,
+  }) {
+    final textPtr = text.toNativeUtf8();
+    final srcPtr = sourceLang.toNativeUtf8();
+    final tgtPtr = targetLang.toNativeUtf8();
+    try {
+      final ptr = _translateText(textPtr, srcPtr, tgtPtr);
+      if (ptr == nullptr) {
+        throw StateError('Translation returned null pointer');
+      }
+      try {
+        final jsonStr = ptr.toDartString();
+        final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+        if (map.containsKey('code') || map.containsKey('error')) {
+          final msg = map['message'] ?? map['error'] ?? 'Translation error';
+          throw StateError('Translation failed: $msg');
+        }
+        return TranslationResultItem.fromJson(map);
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(textPtr);
+      malloc.free(srcPtr);
+      malloc.free(tgtPtr);
+    }
+  }
+
+  @override
+  InterpreterSessionStatusItem startInterpreterSession({
+    required String partyALang,
+    required String partyBLang,
+  }) {
+    final aPtr = partyALang.toNativeUtf8();
+    final bPtr = partyBLang.toNativeUtf8();
+    try {
+      final ptr = _interpreterStart(aPtr, bPtr);
+      if (ptr == nullptr) {
+        throw StateError('Interpreter start returned null pointer');
+      }
+      try {
+        final jsonStr = ptr.toDartString();
+        final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+        if (map.containsKey('code') || map.containsKey('error')) {
+          final msg = map['message'] ?? map['error'] ?? 'Interpreter start error';
+          throw StateError('Interpreter start failed: $msg');
+        }
+        return InterpreterSessionStatusItem.fromJson(map);
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(aPtr);
+      malloc.free(bPtr);
+    }
+  }
+
+  @override
+  InterpreterTurnItem submitInterpreterTurn({required String text}) {
+    final textPtr = text.toNativeUtf8();
+    try {
+      final ptr = _interpreterSubmitTurn(textPtr);
+      if (ptr == nullptr) {
+        throw StateError('Interpreter turn returned null pointer');
+      }
+      try {
+        final jsonStr = ptr.toDartString();
+        final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+        if (map.containsKey('code') || map.containsKey('error')) {
+          final msg = map['message'] ?? map['error'] ?? 'Interpreter turn error';
+          throw StateError('Interpreter turn failed: $msg');
+        }
+        return InterpreterTurnItem.fromJson(map);
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(textPtr);
+    }
+  }
+
+  @override
+  List<InterpreterTurnItem> getInterpreterTurns() {
+    final ptr = _interpreterGetTurns();
+    if (ptr == nullptr) return <InterpreterTurnItem>[];
+    try {
+      final jsonStr = ptr.toDartString();
+      final list = jsonDecode(jsonStr) as List<dynamic>? ?? <dynamic>[];
+      return list
+          .map((item) => InterpreterTurnItem.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  InterpreterSessionStatusItem swapInterpreterLanguages() {
+    final ptr = _interpreterSwap();
+    if (ptr == nullptr) {
+      throw StateError('Interpreter swap returned null pointer');
+    }
+    try {
+      final jsonStr = ptr.toDartString();
+      final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+      if (map.containsKey('code') || map.containsKey('error')) {
+        final msg = map['message'] ?? map['error'] ?? 'Interpreter swap error';
+        throw StateError('Interpreter swap failed: $msg');
+      }
+      return InterpreterSessionStatusItem.fromJson(map);
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  void clearInterpreterSession() {
+    final res = _interpreterClear();
+    if (res != 0) {
+      throw StateError('Failed to clear interpreter session');
+    }
+  }
 }
 
 /// Fallback / mock-free test harness bridge implementing exact live schema contracts.
@@ -794,6 +979,13 @@ class TestHarnessBridge implements AissistantBridge {
     ),
     const CapabilityItem(
       name: 'vision_ocr',
+      tier: 'standard',
+      isSupported: true,
+      isActive: true,
+      status: 'supported',
+    ),
+    const CapabilityItem(
+      name: 'live_interpreter',
       tier: 'standard',
       isSupported: true,
       isActive: true,
@@ -1391,6 +1583,135 @@ class TestHarnessBridge implements AissistantBridge {
       imageWidth: 640,
       imageHeight: 480,
       processingTimeMs: 42,
+    );
+  }
+
+  InterpreterSessionStatusItem _interpreterStatus = const InterpreterSessionStatusItem(
+    sessionId: 'session_mock_01',
+    partyALang: 'en',
+    partyBLang: 'es',
+    activeSpeaker: 'party_a',
+    turnCount: 0,
+  );
+  final List<InterpreterTurnItem> _interpreterTurns = <InterpreterTurnItem>[];
+
+  @override
+  TranslationResultItem translateText({
+    required String text,
+    required String sourceLang,
+    required String targetLang,
+  }) {
+    final lower = text.trim().toLowerCase();
+    String translated;
+    if (sourceLang == 'en' && targetLang == 'es') {
+      if (lower == 'hello') {
+        translated = 'Hola';
+      } else if (lower == 'good morning') {
+        translated = 'Buenos días';
+      } else if (lower == 'thank you') {
+        translated = 'Gracias';
+      } else if (lower == 'goodbye') {
+        translated = 'Adiós';
+      } else {
+        translated = '[ES] $text';
+      }
+    } else if (sourceLang == 'es' && targetLang == 'en') {
+      if (lower == 'hola') {
+        translated = 'Hello';
+      } else if (lower == 'gracias') {
+        translated = 'Thank you';
+      } else if (lower == 'adiós' || lower == 'adios') {
+        translated = 'Goodbye';
+      } else {
+        translated = '[EN] $text';
+      }
+    } else {
+      translated = '[${targetLang.toUpperCase()}] $text';
+    }
+
+    return TranslationResultItem(
+      sourceText: text,
+      translatedText: translated,
+      sourceLang: sourceLang,
+      targetLang: targetLang,
+      confidence: 0.98,
+      latencyMs: 14,
+      engine: 'mock_phrasebook',
+    );
+  }
+
+  @override
+  InterpreterSessionStatusItem startInterpreterSession({
+    required String partyALang,
+    required String partyBLang,
+  }) {
+    _interpreterStatus = InterpreterSessionStatusItem(
+      sessionId: 'session_mock_01',
+      partyALang: partyALang,
+      partyBLang: partyBLang,
+      activeSpeaker: 'party_a',
+      turnCount: _interpreterTurns.length,
+    );
+    return _interpreterStatus;
+  }
+
+  @override
+  InterpreterTurnItem submitInterpreterTurn({required String text}) {
+    final isPartyA = _interpreterStatus.activeSpeaker == 'party_a';
+    final srcLang = isPartyA ? _interpreterStatus.partyALang : _interpreterStatus.partyBLang;
+    final tgtLang = isPartyA ? _interpreterStatus.partyBLang : _interpreterStatus.partyALang;
+
+    final result = translateText(text: text, sourceLang: srcLang, targetLang: tgtLang);
+    final turn = InterpreterTurnItem(
+      turnId: _interpreterTurns.length + 1,
+      speaker: _interpreterStatus.activeSpeaker,
+      sourceText: text,
+      translatedText: result.translatedText,
+      sourceLang: srcLang,
+      targetLang: tgtLang,
+      confidence: result.confidence,
+      latencyMs: result.latencyMs,
+      timestampMs: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    _interpreterTurns.add(turn);
+    _interpreterStatus = InterpreterSessionStatusItem(
+      sessionId: _interpreterStatus.sessionId,
+      partyALang: _interpreterStatus.partyALang,
+      partyBLang: _interpreterStatus.partyBLang,
+      activeSpeaker: isPartyA ? 'party_b' : 'party_a',
+      turnCount: _interpreterTurns.length,
+    );
+
+    return turn;
+  }
+
+  @override
+  List<InterpreterTurnItem> getInterpreterTurns() {
+    return List<InterpreterTurnItem>.from(_interpreterTurns);
+  }
+
+  @override
+  InterpreterSessionStatusItem swapInterpreterLanguages() {
+    _interpreterStatus = InterpreterSessionStatusItem(
+      sessionId: _interpreterStatus.sessionId,
+      partyALang: _interpreterStatus.partyBLang,
+      partyBLang: _interpreterStatus.partyALang,
+      activeSpeaker: _interpreterStatus.activeSpeaker,
+      turnCount: _interpreterTurns.length,
+    );
+    return _interpreterStatus;
+  }
+
+  @override
+  void clearInterpreterSession() {
+    _interpreterTurns.clear();
+    _interpreterStatus = InterpreterSessionStatusItem(
+      sessionId: _interpreterStatus.sessionId,
+      partyALang: _interpreterStatus.partyALang,
+      partyBLang: _interpreterStatus.partyBLang,
+      activeSpeaker: 'party_a',
+      turnCount: 0,
     );
   }
 }

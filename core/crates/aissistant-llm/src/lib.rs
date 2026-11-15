@@ -5,6 +5,7 @@ pub mod grammar;
 pub mod hardware;
 pub mod models;
 pub mod ocr;
+pub mod translation;
 pub mod vision;
 
 pub use embeddings::{
@@ -28,6 +29,9 @@ pub use models::{
     ModelCatalog, ModelDescriptor, ModelDownloader, QuantizationType, Sha256Verifier, GGUF_MAGIC,
 };
 pub use ocr::{OcrBoundingBox, OcrDocument, OcrTextLine, OcrWord, OfflineOcrEngine};
+pub use translation::{
+    Language, LanguagePair, TranslationEngine, TranslationPromptTemplate, TranslationResult,
+};
 pub use vision::{
     ImageBuffer, ImageFormat, ImageMetadata, ImagePatch, VisionPreprocessor,
     VisionPreprocessorConfig,

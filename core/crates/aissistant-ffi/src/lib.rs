@@ -13,16 +13,19 @@ pub use api::{
     bridge_device_cancel_pairing, bridge_device_confirm_pairing, bridge_device_discovered_peers,
     bridge_device_paired_list, bridge_device_set_permission, bridge_device_simulate_peer,
     bridge_device_start_pairing, bridge_device_unpair, bridge_get_capabilities, bridge_get_health,
-    bridge_get_lifecycle_state, bridge_get_setting, bridge_knowledge_delete_document,
+    bridge_get_lifecycle_state, bridge_get_setting, bridge_interpreter_clear_session,
+    bridge_interpreter_get_turns, bridge_interpreter_start_session, bridge_interpreter_submit_turn,
+    bridge_interpreter_swap_languages, bridge_knowledge_delete_document,
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
     bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
     bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
-    bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
+    bridge_translate_text, bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
     bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
     bridge_voice_start_listening, bridge_voice_stop_listening, get_bridge, init_bridge,
     shutdown_bridge, AuditIntegrityReport, AuditItem, CapabilityItem, CoreBridge,
-    DocumentRecordItem, HealthReport, HealthStatus, KnowledgeCitationItem, OcrBoundingBoxItem,
-    OcrDocumentItem, OcrTextLineItem, OcrWordItem,
+    DocumentRecordItem, HealthReport, HealthStatus, InterpreterSessionStatusItem,
+    InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem, OcrDocumentItem,
+    OcrTextLineItem, OcrWordItem, TranslationResultItem,
 };
 pub use device_bridge::{
     DeviceSupervisor, DiscoveredPeerItem, PairedDeviceItem, PairingSessionInfo,
@@ -933,6 +936,108 @@ mod tests {
         let err_str = unsafe { CStr::from_ptr(err_ptr) }.to_str().unwrap();
         assert!(err_str.contains("message") || err_str.contains("code"));
         unsafe { c_abi::bridge_c_free_string(err_ptr) };
+
+        let cleanup = c_abi::bridge_c_shutdown();
+        assert_eq!(cleanup, 0);
+    }
+
+    #[test]
+    fn test_translation_and_interpreter_c_abi() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap();
+        let _ = c_abi::bridge_c_shutdown();
+
+        let init = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
+        assert_eq!(init, 0);
+
+        // 1. Test Text Translation C-ABI
+        let text_c = CString::new("Hello").unwrap();
+        let src_c = CString::new("en").unwrap();
+        let tgt_c = CString::new("es").unwrap();
+
+        let trans_ptr = unsafe {
+            c_abi::bridge_c_translate_text(text_c.as_ptr(), src_c.as_ptr(), tgt_c.as_ptr())
+        };
+        assert!(!trans_ptr.is_null());
+        let trans_json = unsafe { CStr::from_ptr(trans_ptr) }.to_str().unwrap();
+        let trans_res: TranslationResultItem = serde_json::from_str(trans_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(trans_ptr) };
+
+        assert_eq!(trans_res.source_text, "Hello");
+        assert_eq!(trans_res.translated_text, "Hola");
+        assert_eq!(trans_res.source_lang, "en");
+        assert_eq!(trans_res.target_lang, "es");
+        assert!(trans_res.confidence >= 0.95);
+
+        // 2. Test Interpreter Start C-ABI
+        let lang_a_c = CString::new("en").unwrap();
+        let lang_b_c = CString::new("fr").unwrap();
+        let start_ptr = unsafe {
+            c_abi::bridge_c_interpreter_start(lang_a_c.as_ptr(), lang_b_c.as_ptr())
+        };
+        assert!(!start_ptr.is_null());
+        let start_json = unsafe { CStr::from_ptr(start_ptr) }.to_str().unwrap();
+        let status: InterpreterSessionStatusItem = serde_json::from_str(start_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(start_ptr) };
+
+        assert_eq!(status.party_a_lang, "en");
+        assert_eq!(status.party_b_lang, "fr");
+        assert_eq!(status.active_speaker, "party_a");
+        assert_eq!(status.turn_count, 0);
+
+        // 3. Test Interpreter Submit Turn (Party A speaks)
+        let turn1_c = CString::new("Thank you").unwrap();
+        let turn1_ptr = unsafe { c_abi::bridge_c_interpreter_submit_turn(turn1_c.as_ptr()) };
+        assert!(!turn1_ptr.is_null());
+        let turn1_json = unsafe { CStr::from_ptr(turn1_ptr) }.to_str().unwrap();
+        let turn1: InterpreterTurnItem = serde_json::from_str(turn1_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(turn1_ptr) };
+
+        assert_eq!(turn1.turn_id, 1);
+        assert_eq!(turn1.speaker, "party_a");
+        assert_eq!(turn1.source_lang, "en");
+        assert_eq!(turn1.target_lang, "fr");
+        assert_eq!(turn1.translated_text, "Merci");
+
+        // 4. Test Auto-Swapped Turn (Party B speaks)
+        let turn2_c = CString::new("De rien").unwrap();
+        let turn2_ptr = unsafe { c_abi::bridge_c_interpreter_submit_turn(turn2_c.as_ptr()) };
+        assert!(!turn2_ptr.is_null());
+        let turn2_json = unsafe { CStr::from_ptr(turn2_ptr) }.to_str().unwrap();
+        let turn2: InterpreterTurnItem = serde_json::from_str(turn2_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(turn2_ptr) };
+
+        assert_eq!(turn2.turn_id, 2);
+        assert_eq!(turn2.speaker, "party_b");
+        assert_eq!(turn2.source_lang, "fr");
+        assert_eq!(turn2.target_lang, "en");
+        assert_eq!(turn2.translated_text, "You are welcome");
+
+        // 5. Test Get Turns History C-ABI
+        let history_ptr = c_abi::bridge_c_interpreter_get_turns();
+        assert!(!history_ptr.is_null());
+        let history_json = unsafe { CStr::from_ptr(history_ptr) }.to_str().unwrap();
+        let history: Vec<InterpreterTurnItem> = serde_json::from_str(history_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(history_ptr) };
+        assert_eq!(history.len(), 2);
+
+        // 6. Test Language Swap C-ABI
+        let swap_ptr = c_abi::bridge_c_interpreter_swap_languages();
+        assert!(!swap_ptr.is_null());
+        let swap_json = unsafe { CStr::from_ptr(swap_ptr) }.to_str().unwrap();
+        let swapped: InterpreterSessionStatusItem = serde_json::from_str(swap_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(swap_ptr) };
+        assert_eq!(swapped.party_a_lang, "fr");
+        assert_eq!(swapped.party_b_lang, "en");
+
+        // 7. Test Clear History C-ABI
+        let clear_res = c_abi::bridge_c_interpreter_clear();
+        assert_eq!(clear_res, 0);
+
+        let history_after_ptr = c_abi::bridge_c_interpreter_get_turns();
+        let history_after_json = unsafe { CStr::from_ptr(history_after_ptr) }.to_str().unwrap();
+        let history_after: Vec<InterpreterTurnItem> = serde_json::from_str(history_after_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(history_after_ptr) };
+        assert!(history_after.is_empty());
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);
