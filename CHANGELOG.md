@@ -1011,6 +1011,38 @@
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 
+---
+
+## [2026-11-15] — Stage 5 Phase 3 Subphase 1 (`S5.P3.1`)
+
+### Added
+- `app/android/app/src/main/res/values/strings.xml`:
+  - Added string resources for foreground voice service channel, notification titles, stop actions, and accessibility privacy disclosure.
+- `app/android/app/src/main/res/xml/accessibility_service_config.xml`:
+  - Declared Android `accessibility-service` XML configuration with event types, interactive window retrieval, and on-device privacy guarantee.
+- `app/android/app/src/main/AndroidManifest.xml`:
+  - Added permissions: `WAKE_LOCK` and `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`.
+  - Declared `AssistantForegroundService` with `android:foregroundServiceType="microphone"`.
+  - Declared `AssistantAccessibilityService` with `android.permission.BIND_ACCESSIBILITY_SERVICE`.
+  - Added intent filters to `MainActivity` for `android.intent.action.ASSIST` (voice assistant invocation) and `android.intent.action.SEND` (text sharing).
+- `app/android/app/src/main/kotlin/com/aissistant/aissistant/`:
+  - `AssistantForegroundService.kt`: Implemented Android foreground service managing notification channel, ongoing notification with stop action, wake lock acquisition, and microphone foreground service type.
+  - `MediaSessionManager.kt`: Implemented `MediaSession` and `AudioFocusRequest` manager handling hardware/headset transport controls and ducking/pauses during phone calls or alarms.
+  - `AssistantAccessibilityService.kt`: Implemented opt-in accessibility service enabling offline node hierarchy querying and user-authorized action clicking.
+  - `MainActivity.kt`: Configured `MethodChannel("com.aissistant/mobile_bridge")`, wired service start/stop, battery optimization checks, accessibility settings intent, and intent payload extraction (`ACTION_ASSIST`, `ACTION_SEND`).
+- `app/lib/core/mobile_bridge.dart`:
+  - Implemented `MobilePlatformBridge` service providing reactive Dart APIs over the MethodChannel, including `onIntentReceived`, `onMediaCommand`, and `onAudioFocusLost` broadcast streams, with graceful fallback for non-Android platforms.
+- `app/test/mobile_bridge_test.dart`:
+  - Added unit test suite covering MethodChannel invocations, simulated incoming native events, error handling, and platform exception resilience.
+
+### Verification
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 57 unit and widget tests (0 failures; 12 in `mobile_bridge_test.dart`).
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 10 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 270 unit and integration tests (0 failures).
+
+
 
 
 

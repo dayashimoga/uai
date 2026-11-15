@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 5 — Skill Framework & Native Application/System Control  
-**Next Subphase in Queue:** `S5.P3.1` (Android Native Bridge: Foreground Service, Intents, Media, Accessibility)
+**Next Subphase in Queue:** `S5.P3.2` (iOS Native Bridge: AVAudioSession, App Intents/Siri Shortcuts, Scoped Files)
 
 ---
 
@@ -61,7 +61,7 @@ Status Legend:
 | **Stage 5** | `S5.P1.2` | Safe File Management Skills (Search, Read, Write, Move, Archive, Checksum) | `S5.P1.1` | `COMPLETED` | Verified: 239 Rust workspace unit tests passing (33 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, `PathJail` canonicalization & symlink-escape defense, zip-slip prevention, and 7 safe file skills (`file.search`, `file.read`, `file.write`, `file.move`, `file.delete`, `file.archive`, `file.checksum`) verified. |
 | **Stage 5** | `S5.P2.1` | Desktop Application Launch, Process Inspection & Window Management | `S5.P1.2` | `COMPLETED` | Verified: 248 Rust workspace unit tests passing (7 in `aissistant-platform`, 35 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, Win32/XDG desktop adapters, process inspection, unkillable critical PID protection, anti-command-injection direct executable execution, window focus, and 6 desktop skills (`app.list`, `app.launch`, `process.list`, `process.kill`, `window.list`, `window.focus`) verified. |
 | **Stage 5** | `S5.P2.2` | Desktop System Settings, Clipboard, Audio Volume & Media Transport Control | `S5.P2.1` | `COMPLETED` | Verified: 270 Rust workspace unit tests passing (11 in `aissistant-platform`, 39 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, Win32/fallback clipboard read/write, master volume get/set, keyboard media transport simulation, battery power telemetry, and 6 desktop skills (`clipboard.read`, `clipboard.write`, `volume.get`, `volume.set`, `media.transport`, `system.battery`) verified. |
-| **Stage 5** | `S5.P3.1` | Android Native Bridge (Foreground Service, Intents, Media, Accessibility) | `S5.P2.2` | `PENDING` | — |
+| **Stage 5** | `S5.P3.1` | Android Native Bridge (Foreground Service, Intents, Media, Accessibility) | `S5.P2.2` | `COMPLETED` | Verified: 57 Flutter tests passing (100%), 270 Rust workspace tests passing, `flutter analyze` zero issues, `AssistantForegroundService` (microphone type, wake lock, low-priority notification), `MediaSessionManager` (hardware buttons, AudioFocus ducking), `AssistantAccessibilityService` (offline window inspection, node clicking), and `MobilePlatformBridge` MethodChannel verified. |
 | **Stage 5** | `S5.P3.2` | iOS Native Bridge (AVAudioSession, App Intents/Siri Shortcuts, Scoped Files) | `S5.P3.1` | `PENDING` | — |
 | **Stage 6** | `S6.P1.1` | Persistent Device Registry & Peer ACL Store | `S5.P3.2` | `PENDING` | — |
 | **Stage 6** | `S6.P1.2` | mDNS-SD Local Network Discovery (`aissistant-network`) | `S6.P1.1` | `PENDING` | — |
@@ -712,6 +712,35 @@ Status Legend:
   - `registry::tests::test_desktop_skills_registration`: Verified 12 desktop automation skills registered in `desktop_skills` and 24 total skills registered in `register_all`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `7bef361`
+
+### Verification Evidence — S5.P3.1 (Android Native Bridge: Foreground Service, Intents, Media, Accessibility)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  2. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (57 passed across 8 Flutter test suites; 12 in `mobile_bridge_test.dart`)
+  3. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  4. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 10 workspace crates)
+  5. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (270 passed across 10 crates)
+- **Test Summary:**
+  - `mobile_bridge_test.dart`:
+    - `startVoiceService` & `stopVoiceService`: Verified MethodChannel invocation starting/stopping the Android foreground service.
+    - `isVoiceServiceRunning`: Verified boolean query of service lifecycle state.
+    - `isAccessibilityEnabled` & `openAccessibilitySettings`: Verified accessibility permission state check and system settings intent launch.
+    - `isBatteryOptimizationIgnored` & `requestIgnoreBatteryOptimizations`: Verified checking and requesting battery optimization whitelist.
+    - `getInitialIntentPayload`: Verified parsing of incoming Android `ACTION_SEND` (text sharing) and `ACTION_ASSIST` intents.
+    - `getAccessibilityActiveWindow`: Verified node hierarchy extraction (`packageName`, `className`, `text`, `isClickable`, `children`).
+    - `clickAccessibilityNode`: Verified targeting text nodes and simulating action clicks.
+    - `requestAudioFocus` & `abandonAudioFocus`: Verified transient audio focus acquisition and abandonment.
+    - `incoming native method invocations`: Verified broadcasting events on `onIntentReceived`, `onMediaCommand`, and `onAudioFocusLost` streams.
+    - `graceful error handling`: Verified `PlatformException` and `MissingPluginException` safely return default fallback values on non-Android hosts without throwing unhandled exceptions.
+  - Android native Kotlin service implementation:
+    - `AssistantForegroundService.kt`: Android 14+ `FOREGROUND_SERVICE_MICROPHONE`, low-priority channel, ongoing notification, and partial wake lock.
+    - `MediaSessionManager.kt`: Lockscreen / Bluetooth headset transport callbacks (`play`, `pause`, `next`, `previous`, `stop`) and `AudioFocusRequest` ducking.
+    - `AssistantAccessibilityService.kt`: Opt-in window node inspection and action clicking with strict privacy disclosure (`accessibility_service_config.xml`).
+    - `MainActivity.kt`: MethodChannel handler and intent extraction (`ACTION_ASSIST`, `ACTION_SEND`).
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and Android APK builds.
+- **Commit Reference:** Pending commit
 
 
 

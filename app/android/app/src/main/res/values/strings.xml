@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Universal AI Assistant</string>
+    <string name="voice_channel_name">AIssistant Voice Service</string>
+    <string name="voice_channel_desc">Maintains offline wake-word and background voice processing</string>
+    <string name="voice_service_running_title">AIssistant Active</string>
+    <string name="voice_service_running_text">Offline voice processing active — 100% on-device</string>
+    <string name="action_stop_service">Stop</string>
+    <string name="accessibility_service_label">Universal AI Assistant Automation</string>
+    <string name="accessibility_service_description">Enables offline screen reading and assistant UI automation. Processed 100% locally on device with zero cloud transmission.</string>
+</resources>
