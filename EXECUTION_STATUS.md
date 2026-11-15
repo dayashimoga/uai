@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 1 — Repository, Flutter/Rust Foundation & Five-Platform Application Shells  
-**Active Subphase:** None (`S2.P2.2` Complete, `S2.P3.1` Pending Confirmation)
+**Active Subphase:** None (`S2.P3.1` Complete, `S2.P3.2` Pending Confirmation)
 
 ---
 
@@ -45,7 +45,7 @@ Status Legend:
 | **Stage 2** | `S2.P1.2` | Cross-Platform Audio Capture & Playback Engine | `S2.P1.1` | `COMPLETED` | Verified: 111 Rust workspace unit tests passing (23 in `aissistant-audio`), clippy zero warnings, fmt check passed, native device discovery, real-time capture stream, software mute enforcement, playback stream with instant barge-in flush, and headless virtual driver verified. |
 | **Stage 2** | `S2.P2.1` | Offline VAD & Barge-In Detector (`sherpa-onnx` / Silero VAD) | `S2.P1.2` | `COMPLETED` | Verified: 119 Rust workspace unit tests passing (8 in `aissistant-speech`), clippy zero warnings, fmt check passed, offline VAD engine, pre-speech padding, silence timeout tuning, and instant barge-in interruption verified. |
 | **Stage 2** | `S2.P2.2` | Customizable Offline Wake-Word Engine (`sherpa-onnx` KWS) | `S2.P2.1` | `COMPLETED` | Verified: 127 Rust workspace unit tests passing (16 in `aissistant-speech`), clippy zero warnings, fmt check passed, acoustic keyword spotter, Pearson subband trajectory correlation, multi-keyword discrimination, debounce cooldown, and sherpa-onnx KWS interface verified. |
-| **Stage 2** | `S2.P3.1` | Offline Multilingual Streaming Speech-to-Text | `S2.P2.2` | `PENDING` | — |
+| **Stage 2** | `S2.P3.1` | Offline Multilingual Streaming Speech-to-Text | `S2.P2.2` | `COMPLETED` | Verified: 132 Rust workspace unit tests passing (21 in `aissistant-speech`), clippy zero warnings, fmt check passed, streaming partial transcripts, endpoint detection, multilingual language switching, dynamic vocabulary addition, and sherpa-onnx Zipformer/Whisper STT interface verified. |
 | **Stage 2** | `S2.P3.2` | Offline Neural Text-to-Speech & Sentence Streaming | `S2.P3.1` | `PENDING` | — |
 | **Stage 2** | `S2.P3.3` | Voice UI Integration, Waveform Feedback & Push-to-Talk/Wake Mode | `S2.P3.2` | `PENDING` | — |
 | **Stage 3** | `S3.P1.1` | CPU/RAM/GPU Hardware Profiler (`aissistant-llm`) | `S2.P3.3` | `PENDING` | — |
@@ -382,3 +382,21 @@ Status Legend:
   - `tests::test_sherpa_kws_engine_config_and_export`: Verified `sherpa-onnx` keyword file syntax generation (`<keyword> / @<boosting_score>`), filesystem export, and seamless integration with the abstract `WakeWordSpotter` trait.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `b203095`
+
+### Verification Evidence — S2.P3.1 (Offline Multilingual Streaming Speech-to-Text)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 6 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (132 passed across 6 crates; 21 in `aissistant-speech`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (28 passed across 5 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `tests::test_stt_config_validation`: Verified validation of language codes, 16 kHz sample rate enforcement, beam size, endpoint silence rules, and maximum utterance duration bounds.
+  - `tests::test_acoustic_stt_streaming_partial_and_final_transcript`: Verified chunked streaming speech ingestion yielding real-time partial transcript hypothesis events (`StreamingTranscriptEvent::Partial`), advancing to an endpointed final transcript (`StreamingTranscriptEvent::Final`) with `is_endpoint()` state when trailing silence is observed.
+  - `tests::test_acoustic_stt_multilingual_language_switching`: Verified multilingual language code updates (switching from Spanish to German) and clean decoder reset.
+  - `tests::test_acoustic_stt_custom_vocabulary_addition`: Verified runtime vocabulary registration allowing custom command phrases to be recognized dynamically.
+  - `tests::test_sherpa_stt_engine_transducer_and_whisper_configs`: Verified configuration of `sherpa-onnx` streaming Transducer (Zipformer) and offline Whisper architectures, model path checks, and transparent fallback to acoustic decoding in test environments.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit

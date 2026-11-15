@@ -21,4 +21,7 @@ pub enum SpeechError {
 
     #[error("Wake-word detection error: {0}")]
     WakeWordError(String),
+
+    #[error("STT transcription error: {0}")]
+    SttError(String),
 }

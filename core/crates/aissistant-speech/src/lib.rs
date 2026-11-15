@@ -1,18 +1,24 @@
 pub mod acoustic_kws;
+pub mod acoustic_stt;
 pub mod barge_in;
 pub mod energy_vad;
 pub mod error;
 pub mod sherpa_kws;
+pub mod sherpa_stt;
 pub mod silero_vad;
+pub mod stt;
 pub mod vad;
 pub mod wake_word;
 
 pub use acoustic_kws::{AcousticFeature, AcousticKwsSpotter, KeywordTemplate};
+pub use acoustic_stt::{AcousticSttEngine, LexiconEntry};
 pub use barge_in::{BargeInDetector, BargeInEvent};
 pub use energy_vad::EnergyVadEngine;
 pub use error::SpeechError;
 pub use sherpa_kws::{SherpaKwsConfig, SherpaKwsEngine};
+pub use sherpa_stt::{SherpaSttConfig, SherpaSttEngine, SherpaSttModelType};
 pub use silero_vad::{SileroVadConfig, SileroVadEngine};
+pub use stt::{DecodingMethod, StreamingTranscriptEvent, SttConfig, SttEngine, TranscriptSegment};
 pub use vad::{UtteranceSegmenter, VadConfig, VadEngine, VadEvent, VadState};
 pub use wake_word::{WakeWordConfig, WakeWordEvent, WakeWordSpotter};
 
@@ -613,5 +619,182 @@ mod tests {
         let event = engine.process_samples(&audio).expect("Process samples");
         assert!(event.is_some());
         assert_eq!(event.unwrap().keyword, "hey assistant");
+    }
+
+    // =========================================================================
+    // Speech-to-Text (STT) Tests (S2.P3.1)
+    // =========================================================================
+
+    #[test]
+    fn test_stt_config_validation() {
+        let valid = SttConfig::default();
+        assert!(valid.validate().is_ok());
+
+        let invalid_lang = SttConfig {
+            language: "".to_string(),
+            ..Default::default()
+        };
+        assert!(invalid_lang.validate().is_err());
+
+        let invalid_sr = SttConfig {
+            sample_rate: 44_100,
+            ..Default::default()
+        };
+        assert!(invalid_sr.validate().is_err());
+
+        let invalid_beam = SttConfig {
+            beam_size: 0,
+            ..Default::default()
+        };
+        assert!(invalid_beam.validate().is_err());
+
+        let invalid_silence = SttConfig {
+            min_trailing_silence_ms: 0,
+            ..Default::default()
+        };
+        assert!(invalid_silence.validate().is_err());
+
+        let invalid_utterance = SttConfig {
+            min_trailing_silence_ms: 1000,
+            max_utterance_ms: 500,
+            ..Default::default()
+        };
+        assert!(invalid_utterance.validate().is_err());
+    }
+
+    #[test]
+    fn test_acoustic_stt_streaming_partial_and_final_transcript() {
+        let config = SttConfig {
+            language: "en".to_string(),
+            min_trailing_silence_ms: 500,
+            ..Default::default()
+        };
+        let mut stt = AcousticSttEngine::new(config).expect("Init AcousticSttEngine failed");
+
+        // 1. Stream synthetic speech ("hey assistant") in 256-sample chunks
+        let audio = generate_synthetic_hey_assistant(16_000);
+        let mut partial_emitted = false;
+
+        for chunk in audio.chunks(256) {
+            stt.accept_waveform(chunk).expect("Accept chunk");
+            if let Some(StreamingTranscriptEvent::Partial(seg)) =
+                stt.decode_step().expect("Decode step")
+            {
+                assert_eq!(seg.language, "en");
+                assert!(!seg.is_final);
+                assert!(!seg.text.is_empty());
+                partial_emitted = true;
+            }
+        }
+
+        assert!(
+            partial_emitted,
+            "Expected at least one partial transcript event during speech"
+        );
+        let current_res = stt.get_result();
+        assert!(
+            current_res.text.contains("hey assistant"),
+            "Expected 'hey assistant' in hypothesis, got '{}'",
+            current_res.text
+        );
+        assert!(!stt.is_endpoint());
+
+        // 2. Stream trailing silence (600 ms, exceeds min_trailing_silence_ms 500 ms)
+        let silence_padding = vec![0.0001f32; (16_000.0 * 0.6) as usize];
+        let mut final_emitted = false;
+
+        for chunk in silence_padding.chunks(256) {
+            stt.accept_waveform(chunk).expect("Accept silence chunk");
+            if let Some(StreamingTranscriptEvent::Final(seg)) =
+                stt.decode_step().expect("Decode step")
+            {
+                assert!(seg.is_final);
+                assert!(seg.text.contains("hey assistant"));
+                final_emitted = true;
+                break;
+            }
+        }
+
+        assert!(final_emitted, "Expected final transcript upon endpoint");
+        assert!(stt.is_endpoint());
+    }
+
+    #[test]
+    fn test_acoustic_stt_multilingual_language_switching() {
+        let config = SttConfig {
+            language: "es".to_string(),
+            ..Default::default()
+        };
+        let mut stt = AcousticSttEngine::new(config).expect("Init failed");
+        assert_eq!(stt.language(), "es");
+
+        // Switch language to German
+        stt.set_language("de").expect("Set language failed");
+        assert_eq!(stt.language(), "de");
+
+        // Invalid empty language rejected
+        assert!(stt.set_language("   ").is_err());
+    }
+
+    #[test]
+    fn test_acoustic_stt_custom_vocabulary_addition() {
+        let config = SttConfig::default();
+        let mut stt = AcousticSttEngine::new(config).expect("Init failed");
+
+        // Add custom vocabulary
+        stt.add_entry("launch calculator", "en");
+
+        let custom_entry = stt
+            .lexicon()
+            .iter()
+            .find(|e| e.phrase == "launch calculator");
+        assert!(custom_entry.is_some());
+        assert_eq!(custom_entry.unwrap().language, "en");
+    }
+
+    #[test]
+    fn test_sherpa_stt_engine_transducer_and_whisper_configs() {
+        // 1. Transducer (Zipformer) config
+        let transducer_config = SherpaSttConfig {
+            model_type: SherpaSttModelType::Transducer,
+            language: "en".to_string(),
+            min_trailing_silence_ms: 600,
+            ..Default::default()
+        };
+        assert!(transducer_config.validate().is_ok());
+
+        let mut engine =
+            SherpaSttEngine::new(transducer_config).expect("Init SherpaSttEngine failed");
+        assert_eq!(engine.language(), "en");
+        assert!(!engine.is_using_onnx_models()); // Falls back to acoustic engine when ONNX absent
+
+        // Stream synthetic audio
+        let audio = generate_synthetic_hey_assistant(16_000);
+        engine.accept_waveform(&audio).expect("Accept waveform");
+
+        let mut decoded = false;
+        while let Some(event) = engine.decode_step().expect("Decode") {
+            if let StreamingTranscriptEvent::Partial(seg) = event {
+                assert!(seg.text.contains("hey assistant"));
+                decoded = true;
+                break;
+            }
+        }
+        assert!(
+            decoded,
+            "Expected partial transcript event from SherpaSttEngine"
+        );
+
+        // 2. Whisper config
+        let whisper_config = SherpaSttConfig {
+            model_type: SherpaSttModelType::Whisper,
+            language: "es".to_string(),
+            encoder_path: std::path::PathBuf::from("models/whisper/encoder.onnx"),
+            decoder_path: std::path::PathBuf::from("models/whisper/decoder.onnx"),
+            joiner_path: None,
+            tokens_path: std::path::PathBuf::from("models/whisper/tokens.txt"),
+            ..Default::default()
+        };
+        assert!(whisper_config.validate().is_ok());
     }
 }

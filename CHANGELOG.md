@@ -442,3 +442,34 @@
 - `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 127 unit and integration tests (0 failures; 16 in `aissistant-speech`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit and widget tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 2 Phase 3 Subphase 1 (`S2.P3.1`)
+
+### Added
+- `core/crates/aissistant-speech/src/stt.rs`:
+  - `SttConfig` — Configuration parameters for speech-to-text decoding, including language selection (`"en"`, `"es"`, `"de"`, `"fr"`, `"auto"`), 16 kHz sample rate enforcement, beam size, decoding search method (`GreedySearch`, `ModifiedBeamSearch`), endpointing trailing silence rules, and vocabulary hotwords boosting.
+  - `TranscriptSegment` — Transcript payload containing recognized text, resolved language, confidence score, timestamps, endpoint status (`is_final`), and individual subword tokens.
+  - `StreamingTranscriptEvent` — Event stream union (`Partial`, `Final`, `EndpointDetected`, `LanguageIdentified`).
+  - `SttEngine` trait — Abstract interface for streaming chunked waveform acceptance, iterative decoding steps, endpoint polling, and dynamic language switching.
+- `core/crates/aissistant-speech/src/acoustic_stt.rs`:
+  - `AcousticSttEngine` — Streaming offline acoustic-phonetic speech recognizer with multilingual built-in commands lexicon (English, Spanish, German, French).
+  - Trajectory alignment matching streaming FFT subbands against lexical phoneme profiles.
+  - Automatic endpointing upon trailing silence and real-time partial transcript streaming.
+  - Runtime vocabulary expansion via `add_entry` for dynamic skill commands.
+- `core/crates/aissistant-speech/src/sherpa_stt.rs`:
+  - `SherpaSttConfig` & `SherpaSttEngine` — Integration adapter for `sherpa-onnx` streaming Transducer (Zipformer) and offline Whisper architectures.
+  - Validates model file paths (`encoder.onnx`, `decoder.onnx`, `joiner.onnx`, `tokens.txt`), provides hotwords configuration, and transparently falls back to the acoustic recognizer when ONNX assets are pending download.
+- `core/crates/aissistant-speech/src/error.rs`:
+  - Added `SpeechError::SttError`.
+- `core/crates/aissistant-speech/src/lib.rs`:
+  - 5 new unit and integration tests (bringing `aissistant-speech` total to 21, and workspace total to 132).
+  - Verified STT configuration validation, chunked streaming partial-to-final transcript generation, endpoint detection, multilingual language switching, dynamic vocabulary addition, and `sherpa-onnx` Zipformer/Whisper model configuration.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 132 unit and integration tests (0 failures; 21 in `aissistant-speech`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
