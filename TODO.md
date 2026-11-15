@@ -101,4 +101,4 @@
 - [x] `[S8.P1.1]` Local Document Ingestion, Chunking & Indexing Pipeline *(Completed 2026-11-15)*
 - [x] `[S8.P1.2]` Citation-Grounded Offline RAG & Knowledge Explorer UI *(Completed 2026-11-15)*
 - [x] `[S8.P2.1]` Offline OCR & Multimodal Vision Model Integration *(Completed 2026-11-15)*
-- [ ] `[S8.P2.2]` Offline Multilingual Translation & Live Voice Interpreter Mode
+- [x] `[S8.P2.2]` Offline Multilingual Translation & Live Voice Interpreter Mode *(Completed 2026-11-15)*

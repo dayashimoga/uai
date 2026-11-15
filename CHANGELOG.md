@@ -1656,3 +1656,61 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 351 unit and integration tests (0 failures; 13 in `aissistant-llm`, 28 in `aissistant-ffi`).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 82 unit and widget tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 8 Phase 2 Subphase 2 (`S8.P2.2`)
+
+### Added
+- `core/crates/aissistant-llm/src/translation.rs`:
+  - `Language`: ISO 639-1 language code enumeration (`en`, `es`, `fr`, `de`, `zh`, `ja`, `it`, `pt`, `ru`, `ko`) with display names, native endonyms, parsing, and serialization.
+  - `LanguagePair`: Directed language pair struct supporting string formatting (`en-es`), display notation (`en -> es`), and direction reversal.
+  - `TranslationPromptTemplate`: Constrained prompt generator for local neural LLMs with strict formatting and anti-hallucination rules.
+  - `TranslationResult`: Complete translation output tracking source/translated text, language pair, confidence score, execution latency, and engine identifier.
+  - `TranslationEngine`: High-speed offline translation engine combining a verified multi-lingual phrasebook, case preservation matching, and hybrid translation fallback.
+- `core/crates/aissistant-orchestrator/src/interpreter.rs`:
+  - `InterpreterSpeaker`: Dialogue participant enum (`PartyA`, `PartyB`) with alternation toggle.
+  - `InterpreterTurn`: Complete dialogue turn record tracking speaker, source text, translated text, language pair, confidence, latency, and timestamp.
+  - `InterpreterSessionConfig`: Configurable language assignment and auto-alternating speaker option.
+  - `InterpreterSession`: Stateful bi-directional live interpreter conversation manager executing alternating translation turns, language swapping, and transcript logging.
+- `app/lib/core/models/interpreter_models.dart`:
+  - `LanguageItem`: Language descriptor with pre-configured supported language catalog and lookup utilities.
+  - `TranslationResultItem`, `InterpreterTurnItem`, and `InterpreterSessionStatusItem`: Immutable Dart models with full JSON serialization.
+- `app/lib/ui/screens/interpreter_screen.dart`:
+  - Responsive Live Voice Interpreter screen featuring offline privacy notices, participant language tags, manual language swap button, active speaker turn indicator, quick phrase chips, text input submission, and chronological dual-party conversation transcript cards with copy to clipboard buttons.
+- `app/test/interpreter_screen_test.dart`:
+  - 7 comprehensive widget and interaction tests verifying UI rendering, turn submission, bi-directional language alternation, language swapping, clipboard copy, transcript clearing, and adaptive shell navigation.
+
+### Modified
+- `core/crates/aissistant-core/src/capability.rs`:
+  - Added `Capability::LiveInterpreter` variant, string parsing, and 5-platform capability matrix mapping (`Supported` across Windows, Linux, macOS, Android, and iOS).
+- `core/crates/aissistant-llm/src/error.rs`:
+  - Added `LlmError::TranslationError` variant to the error taxonomy.
+- `core/crates/aissistant-llm/src/lib.rs`:
+  - Exposed and re-exported `translation` module, types, and engine.
+- `core/crates/aissistant-orchestrator/src/lib.rs`:
+  - Exposed and re-exported `interpreter` module, types, and session manager.
+- `core/crates/aissistant-ffi/Cargo.toml`:
+  - Added dependency on `aissistant-orchestrator`.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Added `TranslationResultItem`, `InterpreterTurnItem`, and `InterpreterSessionStatusItem` FFI types.
+  - Added `translate_text`, `interpreter_start_session`, `interpreter_submit_turn`, `interpreter_get_turns`, `interpreter_swap_languages`, and `interpreter_clear_session` methods to `CoreBridge` and convenience wrappers.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Added safe C-ABI functions: `bridge_c_translate_text`, `bridge_c_interpreter_start`, `bridge_c_interpreter_submit_turn`, `bridge_c_interpreter_get_turns`, `bridge_c_interpreter_swap_languages`, and `bridge_c_interpreter_clear`.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Re-exported translation and interpreter types and added `test_translation_and_interpreter_c_abi` integration test.
+- `app/lib/core/ffi_bridge.dart`:
+  - Added translation and interpreter operations to `AissistantBridge`, `NativeFfiBridge` (C-ABI bindings), and `TestHarnessBridge` (mock with realistic phrasebook and alternating turn dialogue logic), and added `live_interpreter` capability to test harness.
+- `app/lib/core/assistant_controller.dart`:
+  - Added reactive interpreter and translation state (`interpreterStatus`, `interpreterTurns`, `isProcessingInterpreterTurn`, `interpreterError`, `lastTranslationResult`) and methods (`translateText`, `startInterpreterSession`, `submitInterpreterTurn`, `swapInterpreterLanguages`, `clearInterpreterSession`).
+- `app/lib/ui/adaptive_shell.dart`:
+  - Added `InterpreterScreen` navigation destination to desktop `NavigationRail` and mobile `NavigationBar`.
+- `app/test/assistant_controller_test.dart` and `app/test/capabilities_screen_test.dart`:
+  - Updated capability count expectations to reflect 11 active capabilities.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed cleanly.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 11 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 356 unit and integration tests (0 failures; 40 in `aissistant-llm`, 24 in `aissistant-orchestrator`, 29 in `aissistant-ffi`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 89 unit and widget tests (0 failures).
