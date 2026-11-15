@@ -144,4 +144,4 @@ Status Legend:
   - `policy::tests::test_peer_specific_permission_grant`: Verified per-peer capability grants.
   - `taint::tests`: Verified clean initial state, taint record accumulation across local file, clipboard, screen OCR, and remote peer sources, clean reset, and serde roundtrips.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit.
+- **Commit Reference:** `aaa90d80883333b94a203d16a07b01f44a3814e5`
