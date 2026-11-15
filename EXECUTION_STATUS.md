@@ -244,4 +244,4 @@ Status Legend:
   - `tests::test_memory_pressure_handling_and_sqlite_checkpoint`: Verified handling of moderate and critical OS memory pressure, event dispatch, and SQLite memory trimming and WAL checkpointing (`PRAGMA shrink_memory; PRAGMA wal_checkpoint(PASSIVE)`).
   - `tests::test_c_abi_lifecycle_round_trip`: Verified C-ABI lifecycle functions (`bridge_c_get_lifecycle_state`, `bridge_c_notify_memory_pressure`, `bridge_c_request_shutdown`).
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `32c1546`
