@@ -381,4 +381,4 @@ Status Legend:
   - `tests::test_multi_keyword_discrimination`: Verified sharp acoustic discrimination between different registered keywords ("computer" vs "hey assistant") using Pearson trajectory correlation and phonological category penalties.
   - `tests::test_sherpa_kws_engine_config_and_export`: Verified `sherpa-onnx` keyword file syntax generation (`<keyword> / @<boosting_score>`), filesystem export, and seamless integration with the abstract `WakeWordSpotter` trait.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `b203095`
