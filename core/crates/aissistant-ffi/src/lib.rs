@@ -2,6 +2,7 @@
 
 pub mod api;
 pub mod c_abi;
+pub mod device_bridge;
 pub mod error;
 pub mod events;
 pub mod lifecycle;
@@ -9,13 +10,20 @@ pub mod model_bridge;
 pub mod voice_bridge;
 
 pub use api::{
-    bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state, bridge_get_setting,
-    bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
-    bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
-    bridge_update_permission, bridge_verify_audit, bridge_voice_inject_audio,
-    bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
-    bridge_voice_stop_listening, get_bridge, init_bridge, shutdown_bridge, AuditIntegrityReport,
-    AuditItem, CapabilityItem, CoreBridge, HealthReport, HealthStatus,
+    bridge_device_cancel_pairing, bridge_device_confirm_pairing, bridge_device_discovered_peers,
+    bridge_device_paired_list, bridge_device_set_permission, bridge_device_simulate_peer,
+    bridge_device_start_pairing, bridge_device_unpair, bridge_get_capabilities, bridge_get_health,
+    bridge_get_lifecycle_state, bridge_get_setting, bridge_model_benchmark_run, bridge_model_load,
+    bridge_model_snapshot, bridge_model_unload, bridge_notify_memory_pressure, bridge_query_audit,
+    bridge_request_shutdown, bridge_set_setting, bridge_update_permission, bridge_verify_audit,
+    bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
+    bridge_voice_start_listening, bridge_voice_stop_listening, get_bridge, init_bridge,
+    shutdown_bridge, AuditIntegrityReport, AuditItem, CapabilityItem, CoreBridge, HealthReport,
+    HealthStatus,
+};
+pub use device_bridge::{
+    DeviceSupervisor, DiscoveredPeerItem, PairedDeviceItem, PairingSessionInfo,
+    PairingStateSnapshot, PeerPermissionItem,
 };
 pub use error::{FfiError, FfiResult};
 pub use events::{BridgeEvent, EventStreamSink};
@@ -743,6 +751,82 @@ mod tests {
         let bench_str = unsafe { CStr::from_ptr(bench_ptr) }.to_str().unwrap();
         assert!(bench_str.contains("tokens_per_second"));
         unsafe { c_abi::bridge_c_free_string(bench_ptr) };
+
+        let cleanup = c_abi::bridge_c_shutdown();
+        assert_eq!(cleanup, 0);
+    }
+
+    #[test]
+    fn test_device_bridge_c_abi() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap();
+
+        let init_res = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
+        assert_eq!(init_res, 0);
+
+        // Initially no discovered peers
+        let peers_ptr = c_abi::bridge_c_device_discovered_peers();
+        assert!(!peers_ptr.is_null());
+        let peers_str = unsafe { CStr::from_ptr(peers_ptr) }.to_str().unwrap();
+        assert_eq!(peers_str, "[]");
+        unsafe { c_abi::bridge_c_free_string(peers_ptr) };
+
+        // Simulate a peer via C-ABI
+        let peer_json = CString::new(
+            r#"{"instance_name":"c-peer","platform":"linux","port":51820,"addresses":["192.168.1.12"],"fingerprint":"aabbccddeeff0011","last_seen_ms":5000}"#,
+        )
+        .unwrap();
+        let sim_res = unsafe { c_abi::bridge_c_device_simulate_peer(peer_json.as_ptr()) };
+        assert_eq!(sim_res, 0);
+
+        // Check discovered peers again
+        let peers_ptr2 = c_abi::bridge_c_device_discovered_peers();
+        assert!(!peers_ptr2.is_null());
+        let peers_str2 = unsafe { CStr::from_ptr(peers_ptr2) }.to_str().unwrap();
+        assert!(peers_str2.contains("c-peer"));
+        unsafe { c_abi::bridge_c_free_string(peers_ptr2) };
+
+        // Start pairing via C-ABI
+        let target_name = CString::new("c-peer").unwrap();
+        let pair_ptr = unsafe { c_abi::bridge_c_device_start_pairing(target_name.as_ptr()) };
+        assert!(!pair_ptr.is_null());
+        let pair_str = unsafe { CStr::from_ptr(pair_ptr) }.to_str().unwrap();
+        assert!(pair_str.contains("sas_code"));
+
+        let info: PairingSessionInfo = serde_json::from_str(pair_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(pair_ptr) };
+
+        // Confirm pairing with SAS code via C-ABI
+        let sas_cstr = CString::new(info.sas_code).unwrap();
+        let confirm_ptr = unsafe { c_abi::bridge_c_device_confirm_pairing(sas_cstr.as_ptr()) };
+        assert!(!confirm_ptr.is_null());
+        let confirm_str = unsafe { CStr::from_ptr(confirm_ptr) }.to_str().unwrap();
+        assert!(confirm_str.contains("trusted"));
+        let paired: PairedDeviceItem = serde_json::from_str(confirm_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(confirm_ptr) };
+
+        // Paired list
+        let list_ptr = c_abi::bridge_c_device_paired_list();
+        assert!(!list_ptr.is_null());
+        let list_str = unsafe { CStr::from_ptr(list_ptr) }.to_str().unwrap();
+        assert!(list_str.contains("c-peer"));
+        unsafe { c_abi::bridge_c_free_string(list_ptr) };
+
+        // Update ACL permission via C-ABI
+        let dev_id_cstr = CString::new(paired.device_id.clone()).unwrap();
+        let cap_cstr = CString::new("file_system").unwrap();
+        let lvl_cstr = CString::new("deny").unwrap();
+        let perm_res = unsafe {
+            c_abi::bridge_c_device_set_permission(
+                dev_id_cstr.as_ptr(),
+                cap_cstr.as_ptr(),
+                lvl_cstr.as_ptr(),
+            )
+        };
+        assert_eq!(perm_res, 0);
+
+        // Unpair device via C-ABI
+        let unpair_res = unsafe { c_abi::bridge_c_device_unpair(dev_id_cstr.as_ptr()) };
+        assert_eq!(unpair_res, 0);
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);

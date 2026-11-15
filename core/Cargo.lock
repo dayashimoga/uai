@@ -61,6 +61,7 @@ dependencies = [
  "aissistant-audio",
  "aissistant-core",
  "aissistant-llm",
+ "aissistant-network",
  "aissistant-security",
  "aissistant-speech",
  "aissistant-storage",
@@ -91,8 +92,10 @@ version = "0.1.0"
 dependencies = [
  "aissistant-core",
  "aissistant-security",
+ "aissistant-storage",
  "ed25519-dalek",
  "quinn",
+ "rand 0.8.8",
  "rcgen",
  "rustls",
  "rustls-pki-types",

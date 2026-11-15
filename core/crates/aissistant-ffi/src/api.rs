@@ -15,6 +15,9 @@ use aissistant_storage::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::device_bridge::{
+    DeviceSupervisor, DiscoveredPeerItem, PairedDeviceItem, PairingSessionInfo,
+};
 use crate::error::{FfiError, FfiResult};
 use crate::events::{BridgeEvent, EventStreamSink};
 use crate::lifecycle::{
@@ -142,6 +145,7 @@ pub struct CoreBridge {
     identity: DeviceIdentity,
     voice_supervisor: Arc<Mutex<VoicePipelineSupervisor>>,
     model_supervisor: Arc<Mutex<ModelSupervisor>>,
+    device_supervisor: Arc<DeviceSupervisor>,
     data_dir: Option<PathBuf>,
 }
 
@@ -179,6 +183,11 @@ impl CoreBridge {
             event_sink.clone(),
         )?));
         let model_supervisor = Arc::new(Mutex::new(ModelSupervisor::new(event_sink.clone())));
+        let device_supervisor = Arc::new(DeviceSupervisor::new(
+            Arc::new(DeviceIdentity::from_bytes(&identity.secret_bytes())),
+            db.clone(),
+            event_sink.clone(),
+        ));
 
         runtime.transition_to(LifecycleState::Running, Some("ready"))?;
 
@@ -194,6 +203,7 @@ impl CoreBridge {
             identity,
             voice_supervisor,
             model_supervisor,
+            device_supervisor,
             data_dir: None,
         })
     }
@@ -233,6 +243,11 @@ impl CoreBridge {
             event_sink.clone(),
         )?));
         let model_supervisor = Arc::new(Mutex::new(ModelSupervisor::new(event_sink.clone())));
+        let device_supervisor = Arc::new(DeviceSupervisor::new(
+            Arc::new(DeviceIdentity::from_bytes(&identity.secret_bytes())),
+            db.clone(),
+            event_sink.clone(),
+        ));
 
         runtime.transition_to(LifecycleState::Running, Some("ready"))?;
 
@@ -248,6 +263,7 @@ impl CoreBridge {
             identity,
             voice_supervisor,
             model_supervisor,
+            device_supervisor,
             data_dir: Some(path.to_path_buf()),
         })
     }
@@ -788,6 +804,59 @@ impl CoreBridge {
             .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
         sup.run_benchmark(prompt_tokens, generate_tokens)
     }
+
+    /// Returns the device supervisor.
+    #[must_use]
+    pub fn device_supervisor(&self) -> Arc<DeviceSupervisor> {
+        self.device_supervisor.clone()
+    }
+
+    /// Returns discovered local network peers.
+    #[must_use]
+    pub fn device_discovered_peers(&self) -> Vec<DiscoveredPeerItem> {
+        self.device_supervisor.discovered_peers()
+    }
+
+    /// Returns paired devices and their assigned permissions.
+    pub fn device_paired_list(&self) -> FfiResult<Vec<PairedDeviceItem>> {
+        self.device_supervisor.paired_devices()
+    }
+
+    /// Initiates a pairing ceremony with a discovered peer.
+    pub fn device_start_pairing(&self, peer_instance: &str) -> FfiResult<PairingSessionInfo> {
+        self.device_supervisor.start_pairing(peer_instance)
+    }
+
+    /// Confirms SAS code and persists peer into DeviceRegistry.
+    pub fn device_confirm_pairing(&self, sas_code: &str) -> FfiResult<PairedDeviceItem> {
+        self.device_supervisor.confirm_pairing(sas_code)
+    }
+
+    /// Cancels active pairing ceremony.
+    pub fn device_cancel_pairing(&self) -> FfiResult<()> {
+        self.device_supervisor.cancel_pairing()
+    }
+
+    /// Sets or updates a capability permission level for a paired device.
+    pub fn device_set_permission(
+        &self,
+        device_id: &str,
+        capability: &str,
+        level: &str,
+    ) -> FfiResult<()> {
+        self.device_supervisor
+            .set_peer_permission(device_id, capability, level)
+    }
+
+    /// Unpairs a device and revokes its permissions.
+    pub fn device_unpair(&self, device_id: &str) -> FfiResult<()> {
+        self.device_supervisor.unpair_device(device_id)
+    }
+
+    /// Injects a discovered peer (useful for UI testing).
+    pub fn device_simulate_peer(&self, item: DiscoveredPeerItem) -> FfiResult<()> {
+        self.device_supervisor.simulate_discovered_peer(item)
+    }
 }
 
 // Global Singleton Bridge Management
@@ -963,6 +1032,58 @@ pub fn bridge_model_benchmark_run(
 ) -> FfiResult<BenchmarkReport> {
     let bridge = get_bridge()?;
     bridge.model_benchmark_run(prompt_tokens, generate_tokens)
+}
+
+/// Convenience entry point: returns discovered network peers.
+pub fn bridge_device_discovered_peers() -> FfiResult<Vec<DiscoveredPeerItem>> {
+    let bridge = get_bridge()?;
+    Ok(bridge.device_discovered_peers())
+}
+
+/// Convenience entry point: returns paired devices.
+pub fn bridge_device_paired_list() -> FfiResult<Vec<PairedDeviceItem>> {
+    let bridge = get_bridge()?;
+    bridge.device_paired_list()
+}
+
+/// Convenience entry point: initiates pairing with a peer.
+pub fn bridge_device_start_pairing(peer_instance: &str) -> FfiResult<PairingSessionInfo> {
+    let bridge = get_bridge()?;
+    bridge.device_start_pairing(peer_instance)
+}
+
+/// Convenience entry point: confirms pairing with the 6-digit SAS code.
+pub fn bridge_device_confirm_pairing(sas_code: &str) -> FfiResult<PairedDeviceItem> {
+    let bridge = get_bridge()?;
+    bridge.device_confirm_pairing(sas_code)
+}
+
+/// Convenience entry point: cancels active pairing ceremony.
+pub fn bridge_device_cancel_pairing() -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.device_cancel_pairing()
+}
+
+/// Convenience entry point: updates peer capability permission level.
+pub fn bridge_device_set_permission(
+    device_id: &str,
+    capability: &str,
+    level: &str,
+) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.device_set_permission(device_id, capability, level)
+}
+
+/// Convenience entry point: unpairs a device.
+pub fn bridge_device_unpair(device_id: &str) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.device_unpair(device_id)
+}
+
+/// Convenience entry point: simulates a discovered peer.
+pub fn bridge_device_simulate_peer(item: DiscoveredPeerItem) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.device_simulate_peer(item)
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

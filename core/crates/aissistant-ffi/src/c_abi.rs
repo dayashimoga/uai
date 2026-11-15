@@ -12,13 +12,16 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use aissistant_core::ErrorDescriptor;
 
 use crate::api::{
-    bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state, bridge_get_setting,
-    bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
-    bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
-    bridge_update_permission, bridge_verify_audit, bridge_voice_inject_audio,
-    bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
-    bridge_voice_stop_listening, init_bridge, shutdown_bridge,
+    bridge_device_cancel_pairing, bridge_device_confirm_pairing, bridge_device_discovered_peers,
+    bridge_device_paired_list, bridge_device_set_permission, bridge_device_simulate_peer,
+    bridge_device_start_pairing, bridge_device_unpair, bridge_get_capabilities, bridge_get_health,
+    bridge_get_lifecycle_state, bridge_get_setting, bridge_model_benchmark_run, bridge_model_load,
+    bridge_model_snapshot, bridge_model_unload, bridge_notify_memory_pressure, bridge_query_audit,
+    bridge_request_shutdown, bridge_set_setting, bridge_update_permission, bridge_verify_audit,
+    bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
+    bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge, shutdown_bridge,
 };
+use crate::device_bridge::DiscoveredPeerItem;
 use crate::error::FfiError;
 use crate::lifecycle::{MemoryPressureLevel, ShutdownReason};
 
@@ -431,6 +434,138 @@ pub extern "C" fn bridge_c_model_benchmark_run(
             "Panic in bridge_c_model_benchmark_run".into(),
         ))
     }))
+}
+
+/// Returns discovered network peers as a JSON array.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+#[no_mangle]
+pub extern "C" fn bridge_c_device_discovered_peers() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_device_discovered_peers));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_device_discovered_peers".into(),
+        ))
+    }))
+}
+
+/// Returns paired devices and their assigned permissions as a JSON array.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+#[no_mangle]
+pub extern "C" fn bridge_c_device_paired_list() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_device_paired_list));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_device_paired_list".into(),
+        ))
+    }))
+}
+
+/// Initiates a pairing ceremony with a discovered peer.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `peer_instance` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_device_start_pairing(
+    peer_instance: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let peer_str = unsafe { c_char_to_str(peer_instance) }?;
+        bridge_device_start_pairing(peer_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_device_start_pairing".into(),
+        ))
+    }))
+}
+
+/// Confirms pairing with the 6-digit SAS code.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `sas_code` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_device_confirm_pairing(sas_code: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let code_str = unsafe { c_char_to_str(sas_code) }?;
+        bridge_device_confirm_pairing(code_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_device_confirm_pairing".into(),
+        ))
+    }))
+}
+
+/// Cancels an active pairing ceremony.
+/// Returns 0 on success, negative on error.
+#[no_mangle]
+pub extern "C" fn bridge_c_device_cancel_pairing() -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(bridge_device_cancel_pairing));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Sets or updates a capability permission level for a paired device.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `device_id`, `capability`, and `level` must point to valid null-terminated UTF-8 C strings.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_device_set_permission(
+    device_id: *const c_char,
+    capability: *const c_char,
+    level: *const c_char,
+) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(device_id) }?;
+        let cap_str = unsafe { c_char_to_str(capability) }?;
+        let lvl_str = unsafe { c_char_to_str(level) }?;
+        bridge_device_set_permission(id_str, cap_str, lvl_str)
+    }));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Unpairs a device and revokes its permissions.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `device_id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_device_unpair(device_id: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(device_id) }?;
+        bridge_device_unpair(id_str)
+    }));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Simulates a discovered peer from JSON input.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `peer_json` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_device_simulate_peer(peer_json: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let json_str = unsafe { c_char_to_str(peer_json) }?;
+        let item: DiscoveredPeerItem =
+            serde_json::from_str(json_str).map_err(|e| FfiError::Serialization(e.to_string()))?;
+        bridge_device_simulate_peer(item)
+    }));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
 }
 
 /// Frees a C string previously allocated by `aissistant-ffi`.

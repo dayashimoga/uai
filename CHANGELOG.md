@@ -1188,6 +1188,144 @@
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 64 unit and widget tests (0 failures).
 
+---
+
+## [2026-11-15] — Subphase `S6.P2.2`: Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI
+
+### Added
+- `core/crates/aissistant-network/src/pairing.rs`:
+  - Implemented symmetrical 6-digit decimal Short Authentication String (SAS) derivation (`derive_sas_code`) using canonical key sorting (`min(key_a, key_b), max(key_a, key_b)`) and SHA-256.
+  - Implemented compact QR payload serializer/deserializer (`PairingQrPayload`).
+  - Implemented brute-force rate limiter (`PairingRateLimiter`) enforcing 300s (5-minute) lockout after 3 consecutive failed verification attempts.
+  - Implemented `PairingSessionManager` tracking active session state, SAS verification, and automatic `DeviceRegistry` enrollment.
+- `core/crates/aissistant-ffi/src/device_bridge.rs`:
+  - Implemented `DeviceSupervisor` coordinating discovered peer cache, virtual announcement simulation, pairing ceremony lifecycle, and granular ACL grants.
+  - Exposed serializable DTOs: `DiscoveredPeerItem`, `PeerPermissionItem`, `PairedDeviceItem`, `PairingSessionInfo`, `PairingStateSnapshot`.
+- `core/crates/aissistant-ffi/src/events.rs`:
+  - Added `BridgeEvent::DeviceDiscovered` and `BridgeEvent::PairingStateChanged`.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Exported safe C-ABI functions: `bridge_c_device_discovered_peers`, `bridge_c_device_paired_list`, `bridge_c_device_start_pairing`, `bridge_c_device_confirm_pairing`, `bridge_c_device_cancel_pairing`, `bridge_c_device_set_permission`, `bridge_c_device_unpair`, `bridge_c_device_simulate_peer`.
+- `app/lib/core/models/device_models.dart`:
+  - Created Dart models with JSON serialization: `DiscoveredPeerItem`, `PeerPermissionItem`, `PairedDeviceItem`, `PairingSessionInfo`.
+- `app/lib/ui/screens/devices_screen.dart`:
+  - Built full `DevicesScreen` with responsive UI: 100% offline LAN indicator, discovered peer list, active pairing ceremony card with large monospace 6-digit SAS code, QR code visual container, SAS confirmation input, paired devices list with trust badges, and interactive capability ACL dropdowns (`always_allow`, `ask_each_time`, `deny`).
+- `app/test/devices_screen_test.dart`:
+  - Comprehensive Flutter widget tests for pairing initiation, SAS confirmation, cancellation, unpairing confirmation dialog, and peer simulation.
+
+### Modified
+- `core/crates/aissistant-network/Cargo.toml` & `src/lib.rs`: Exposed pairing ceremony module.
+- `core/crates/aissistant-ffi/Cargo.toml` & `src/lib.rs`: Wired device supervisor and C-ABI exports.
+- `app/lib/core/ffi_bridge.dart`: Added device methods and C-ABI lookup to `NativeFfiBridge` and `TestHarnessBridge`.
+- `app/lib/core/assistant_controller.dart`: Added reactive device state management, bridge event listeners, and pairing actions.
+- `app/lib/ui/adaptive_shell.dart`: Wired `Devices` destination into desktop NavigationRail and mobile NavigationBar.
+- `app/test/assistant_controller_test.dart` & `app/test/widget_test.dart`: Updated test suites for new device capabilities and navigation.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 292 unit and integration tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 6 Phase 1 Subphase 2 (`S6.P1.2`)
+
+### Added
+- `core/crates/aissistant-network/`:
+  - Created new workspace crate registered in `core/Cargo.toml` as 11th workspace crate.
+  - `src/error.rs`: Defined `NetworkError` taxonomy covering `SocketBindFailed`, `MulticastJoinFailed`, `PacketMalformed`, and I/O error variants.
+  - `src/dns.rs`: Implemented binary wire-format parser and builder conforming to RFC 1035, RFC 6762 (mDNS), and RFC 6763 (DNS-SD) supporting Question and Resource Record types (PTR, SRV, TXT, A, AAAA), length-prefixed domain label encoding, and pointer compression.
+  - `src/types.rs`: Defined domain discovery models: `ServiceConfig`, `DiscoveredPeer`, `DiscoveryEvent` (`PeerDiscovered`, `PeerUpdated`, `PeerLost`), and constants (`MDNS_SERVICE_TYPE = "_aissistant._udp.local"`, `MDNS_PORT = 5353`, `DEFAULT_QUIC_PORT = 51820`).
+  - `src/discovery.rs`:
+    - Implemented `DiscoveryEngine` core trait (`start_advertising`, `stop_advertising`, `is_advertising`, `active_peers`, `send_query`, `poll_events`).
+    - Implemented `VirtualDiscoveryEngine` with in-memory lock-protected peer table for deterministic CI/sandbox simulation, peer announcement injection, update detection, and TTL expiration pruning.
+    - Implemented `MdnsDiscoveryEngine` with live dual-stack UDP socket binding, multicast group join (`224.0.0.251:5353`), non-blocking packet reception, authoritative announcement packet generation, and privacy-preserving metadata handling (strictly broadcasting truncated 8-byte SHA-256 fingerprint, platform, and protocol version without personal identifiers).
+  - `src/lib.rs`: Re-exported public API and added multi-node virtual discovery mesh integration tests.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 11 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 285 unit and integration tests (0 failures; 9 in `aissistant-network`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 64 unit and widget tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 6 Phase 2 Subphase 1 (`S6.P2.1`)
+
+### Added
+- `core/Cargo.toml` & `core/crates/aissistant-network/Cargo.toml`:
+  - Added workspace dependencies: `quinn = "0.11"`, `rustls = "0.23"`, `rustls-pki-types = "1.10"`, `rcgen = "0.13"`, `tokio = "1.43"`, and `ed25519-dalek = "2.1"`.
+- `core/crates/aissistant-network/src/error.rs`:
+  - Extended `NetworkError` with `Tls`, `Quic`, `PeerAuthenticationFailed`, and `ConnectionClosed` variants.
+- `core/crates/aissistant-network/src/cert.rs`:
+  - Implemented PKCS#8 DER encoder (`ed25519_secret_to_pkcs8`) for 32-byte Ed25519 secret keys.
+  - Implemented RFC 8410 SPKI public key extraction (`extract_ed25519_public_key`) from X.509 DER certificates.
+  - Implemented self-signed TLS 1.3 certificate generation (`generate_tls_cert`) from `DeviceIdentity` via `rcgen`.
+  - Implemented `PinnedEd25519Verifier` implementing both `rustls::client::danger::ServerCertVerifier` and `rustls::server::danger::ClientCertVerifier`, strictly enforcing TLS 1.3, Ed25519 signatures, and pinning against `DeviceRegistry` public keys (with opt-in unpinned pairing mode).
+- `core/crates/aissistant-network/src/transport.rs`:
+  - Defined protocol constants (`ALPN_P2P_PROTOCOL = b"aissistant-p2p/1"`, `DEFAULT_KEEPALIVE_INTERVAL = 5s`, `DEFAULT_IDLE_TIMEOUT = 30s`).
+  - Implemented `build_quic_server_config` and `build_quic_client_config` using Ring crypto provider, keep-alive heartbeats, and pinned mTLS verifiers.
+  - Implemented `QuicSession` wrapping `quinn::Connection`, extracting verified peer public key, and providing bi-directional stream multiplexing (`open_bi`, `accept_bi`) and datagrams.
+  - Implemented `QuicTransportEngine` for endpoint lifecycle management (`start_endpoint`, `connect_peer`, `accept`, `close_all`).
+  - Implemented `VirtualSession` and `create_virtual_session_pair` for deterministic in-memory session simulation without UDP network sockets.
+- `core/crates/aissistant-network/src/lib.rs`:
+  - Re-exported transport and certificate modules and public types.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 11 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 292 unit and integration tests (0 failures; 16 in `aissistant-network`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 64 unit and widget tests (0 failures).
+
+---
+
+## [2026-11-15] — Subphase `S6.P2.2`: Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI
+
+### Added
+- `core/crates/aissistant-network/src/pairing.rs`:
+  - Implemented symmetrical 6-digit decimal Short Authentication String (SAS) derivation (`derive_sas_code`) using canonical key sorting (`min(key_a, key_b), max(key_a, key_b)`) and SHA-256.
+  - Implemented compact QR payload serializer/deserializer (`PairingQrPayload`).
+  - Implemented brute-force rate limiter (`PairingRateLimiter`) enforcing 300s (5-minute) lockout after 3 consecutive failed verification attempts.
+  - Implemented `PairingSessionManager` tracking active session state, SAS verification, and automatic `DeviceRegistry` enrollment.
+- `core/crates/aissistant-ffi/src/device_bridge.rs`:
+  - Implemented `DeviceSupervisor` coordinating discovered peer cache, virtual announcement simulation, pairing ceremony lifecycle, and granular ACL grants.
+  - Exposed serializable DTOs: `DiscoveredPeerItem`, `PeerPermissionItem`, `PairedDeviceItem`, `PairingSessionInfo`, `PairingStateSnapshot`.
+- `core/crates/aissistant-ffi/src/events.rs`:
+  - Added `BridgeEvent::DeviceDiscovered` and `BridgeEvent::PairingStateChanged`.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Exported safe C-ABI functions: `bridge_c_device_discovered_peers`, `bridge_c_device_paired_list`, `bridge_c_device_start_pairing`, `bridge_c_device_confirm_pairing`, `bridge_c_device_cancel_pairing`, `bridge_c_device_set_permission`, `bridge_c_device_unpair`, `bridge_c_device_simulate_peer`.
+- `app/lib/core/models/device_models.dart`:
+  - Created Dart models with JSON serialization: `DiscoveredPeerItem`, `PeerPermissionItem`, `PairedDeviceItem`, `PairingSessionInfo`.
+- `app/lib/ui/screens/devices_screen.dart`:
+  - Built full `DevicesScreen` with responsive UI: 100% offline LAN indicator, discovered peer list, active pairing ceremony card with large monospace 6-digit SAS code, QR code visual container, SAS confirmation input, paired devices list with trust badges, and interactive capability ACL dropdowns (`always_allow`, `ask_each_time`, `deny`).
+- `app/test/devices_screen_test.dart`:
+  - Comprehensive Flutter widget tests for pairing initiation, SAS confirmation, cancellation, unpairing confirmation dialog, and peer simulation.
+
+### Modified
+- `core/crates/aissistant-network/Cargo.toml` & `src/lib.rs`: Exposed pairing ceremony module.
+- `core/crates/aissistant-ffi/Cargo.toml` & `src/lib.rs`: Wired device supervisor and C-ABI exports.
+- `app/lib/core/ffi_bridge.dart`: Added device methods and C-ABI lookup to `NativeFfiBridge` and `TestHarnessBridge`.
+- `app/lib/core/assistant_controller.dart`: Added reactive device state management, bridge event listeners, and pairing actions.
+- `app/lib/ui/adaptive_shell.dart`: Wired `Devices` destination into desktop NavigationRail and mobile NavigationBar.
+- `app/test/assistant_controller_test.dart` & `app/test/widget_test.dart`: Updated test suites for new device capabilities and navigation.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 292 unit and integration tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).
+
+
+
+
+
+
+
+
 
 
 

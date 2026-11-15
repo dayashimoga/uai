@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aissistant/core/assistant_controller.dart';
 import 'package:aissistant/core/ffi_bridge.dart';
+import 'package:aissistant/core/models/device_models.dart';
 import 'package:aissistant/core/models/health_report.dart';
 import 'package:aissistant/core/models/voice_state.dart';
 
@@ -121,6 +122,50 @@ void main() {
       controller.clearTranscript();
       expect(controller.voiceState.partialTranscript, isEmpty);
       expect(controller.voiceState.finalTranscript, isEmpty);
+    });
+
+    test('manages discovered peers, pairing lifecycle and capability ACLs', () async {
+      await controller.initialize();
+
+      expect(controller.discoveredPeers.length, 1);
+      expect(controller.discoveredPeers.first.instanceName, 'pixel-9-pro');
+
+      expect(controller.pairedDevices.length, 1);
+      expect(controller.pairedDevices.first.name, 'MacBook Pro M3');
+
+      // Start pairing
+      final session = await controller.startPairing('pixel-9-pro');
+      expect(session, isNotNull);
+      expect(controller.isPairing, isTrue);
+      expect(controller.activePairingSession?.sasCode, '481-923');
+
+      // Confirm pairing
+      final paired = await controller.confirmPairing('481-923');
+      expect(paired, isNotNull);
+      expect(controller.isPairing, isFalse);
+      expect(controller.pairedDevices.length, 2);
+
+      // Update ACL
+      controller.updatePeerPermission(paired!.deviceId, 'file_system', 'always_allow');
+      final updated = controller.pairedDevices.firstWhere((d) => d.deviceId == paired.deviceId);
+      final perm = updated.permissions.firstWhere((p) => p.capability == 'file_system');
+      expect(perm.permissionLevel, 'always_allow');
+
+      // Unpair device
+      controller.unpairDevice(paired.deviceId);
+      expect(controller.pairedDevices.length, 1);
+
+      // Simulate discovered peer
+      const sim = DiscoveredPeerItem(
+        instanceName: 'sim-device',
+        platform: 'linux',
+        port: 51820,
+        addresses: <String>['192.168.1.99'],
+        fingerprint: '1122334455667788',
+        lastSeenMs: 1000,
+      );
+      controller.simulateDiscoveredPeer(sim);
+      expect(controller.discoveredPeers.any((p) => p.instanceName == 'sim-device'), isTrue);
     });
   });
 }

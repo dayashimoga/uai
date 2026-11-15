@@ -14,8 +14,10 @@ workspace = true
 [dependencies]
 aissistant-core = { path = "../aissistant-core" }
 aissistant-security = { path = "../aissistant-security" }
+aissistant-storage = { path = "../aissistant-storage" }
 ed25519-dalek = { workspace = true }
 quinn = { workspace = true }
+rand = { workspace = true }
 rcgen = { workspace = true }
 rustls = { workspace = true }
 rustls-pki-types = { workspace = true }

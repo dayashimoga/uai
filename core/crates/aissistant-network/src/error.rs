@@ -53,6 +53,17 @@ pub enum NetworkError {
     /// Network connection was closed or terminated.
     #[error("Connection closed: {0}")]
     ConnectionClosed(String),
+
+    /// Pairing ceremony rate limited due to repeated failures.
+    #[error("Pairing rate limited. Please wait {remaining_secs}s before retrying")]
+    RateLimited {
+        /// Seconds remaining in lockout window.
+        remaining_secs: u64,
+    },
+
+    /// Invalid Short Authentication String (SAS) entered during pairing.
+    #[error("Invalid SAS verification code")]
+    InvalidSasCode,
 }
 
 #[cfg(test)]

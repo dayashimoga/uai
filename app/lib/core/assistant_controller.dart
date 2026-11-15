@@ -6,6 +6,7 @@ import 'ffi_bridge.dart';
 import 'models/audit_item.dart';
 import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
+import 'models/device_models.dart';
 import 'models/health_report.dart';
 import 'models/model_item.dart';
 import 'models/voice_state.dart';
@@ -24,6 +25,11 @@ class AssistantController extends ChangeNotifier {
   ModelManagerSnapshot? _modelSnapshot;
   BenchmarkResult? _lastBenchmark;
   bool _isBenchmarking = false;
+  List<DiscoveredPeerItem> _discoveredPeers = <DiscoveredPeerItem>[];
+  List<PairedDeviceItem> _pairedDevices = <PairedDeviceItem>[];
+  PairingSessionInfo? _activePairingSession;
+  bool _isPairing = false;
+  String? _pairingError;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -41,6 +47,11 @@ class AssistantController extends ChangeNotifier {
   String? get activeModelId => _modelSnapshot?.activeModelId;
   List<ModelItem> get models => _modelSnapshot?.models ?? const <ModelItem>[];
   HardwareOverview? get hardware => _modelSnapshot?.hardware;
+  List<DiscoveredPeerItem> get discoveredPeers => List<DiscoveredPeerItem>.unmodifiable(_discoveredPeers);
+  List<PairedDeviceItem> get pairedDevices => List<PairedDeviceItem>.unmodifiable(_pairedDevices);
+  PairingSessionInfo? get activePairingSession => _activePairingSession;
+  bool get isPairing => _isPairing;
+  String? get pairingError => _pairingError;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -61,6 +72,8 @@ class AssistantController extends ChangeNotifier {
       _auditLogs = List<AuditItem>.from(_bridge.queryAuditLog(limit: 20, offset: 0));
       _auditIntegrity = _bridge.verifyAudit();
       _modelSnapshot = _bridge.getModelSnapshot();
+      _discoveredPeers = List<DiscoveredPeerItem>.from(_bridge.getDiscoveredPeers());
+      _pairedDevices = List<PairedDeviceItem>.from(_bridge.getPairedDevices());
 
       // Read persisted theme mode
       final savedTheme = _bridge.getSetting('assistant.theme_mode');
@@ -143,6 +156,38 @@ class AssistantController extends ChangeNotifier {
         final decoded = jsonDecode(event.metricsJson) as Map<String, dynamic>;
         _lastBenchmark = BenchmarkResult.fromJson(decoded);
       } catch (_) {}
+    } else if (event is DeviceDiscoveredEvent) {
+      final existingIdx = _discoveredPeers.indexWhere((p) => p.instanceName == event.instanceName);
+      final updatedPeer = DiscoveredPeerItem(
+        instanceName: event.instanceName,
+        platform: event.platform,
+        port: 51820,
+        addresses: event.endpoint != null ? <String>[event.endpoint!.split(':').first] : const <String>[],
+        fingerprint: event.fingerprint,
+        lastSeenMs: DateTime.now().millisecondsSinceEpoch,
+      );
+      if (existingIdx != -1) {
+        _discoveredPeers[existingIdx] = updatedPeer;
+      } else {
+        _discoveredPeers.add(updatedPeer);
+      }
+    } else if (event is PairingStateChangedEvent) {
+      if (event.status == 'started') {
+        _isPairing = true;
+        _pairingError = null;
+      } else if (event.status == 'confirmed') {
+        _isPairing = false;
+        _activePairingSession = null;
+        _pairingError = null;
+        refreshDevices();
+      } else if (event.status == 'failed') {
+        _isPairing = false;
+        _pairingError = event.error ?? 'Pairing verification failed';
+      } else if (event.status == 'cancelled') {
+        _isPairing = false;
+        _activePairingSession = null;
+        _pairingError = null;
+      }
     }
     notifyListeners();
   }
@@ -347,6 +392,92 @@ class AssistantController extends ChangeNotifier {
       return null;
     } finally {
       _isBenchmarking = false;
+      notifyListeners();
+    }
+  }
+
+  void refreshDevices() {
+    try {
+      _discoveredPeers = List<DiscoveredPeerItem>.from(_bridge.getDiscoveredPeers());
+      _pairedDevices = List<PairedDeviceItem>.from(_bridge.getPairedDevices());
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to refresh devices: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<PairingSessionInfo?> startPairing(String peerInstance) async {
+    _isPairing = true;
+    _pairingError = null;
+    notifyListeners();
+
+    try {
+      final info = _bridge.startPairing(peerInstance);
+      _activePairingSession = info;
+      notifyListeners();
+      return info;
+    } catch (e) {
+      _isPairing = false;
+      _pairingError = 'Failed to initiate pairing: $e';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<PairedDeviceItem?> confirmPairing(String sasCode) async {
+    _pairingError = null;
+    notifyListeners();
+
+    try {
+      final paired = _bridge.confirmPairing(sasCode);
+      _isPairing = false;
+      _activePairingSession = null;
+      refreshDevices();
+      return paired;
+    } catch (e) {
+      _pairingError = 'Pairing confirmation failed: $e';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  void cancelPairing() {
+    try {
+      _bridge.cancelPairing();
+    } catch (_) {}
+    _isPairing = false;
+    _activePairingSession = null;
+    _pairingError = null;
+    notifyListeners();
+  }
+
+  void updatePeerPermission(String deviceId, String capability, String level) {
+    try {
+      _bridge.setPeerPermission(deviceId, capability, level);
+      refreshDevices();
+    } catch (e) {
+      _errorMessage = 'Failed to update capability permission: $e';
+      notifyListeners();
+    }
+  }
+
+  void unpairDevice(String deviceId) {
+    try {
+      _bridge.unpairDevice(deviceId);
+      refreshDevices();
+    } catch (e) {
+      _errorMessage = 'Failed to unpair device: $e';
+      notifyListeners();
+    }
+  }
+
+  void simulateDiscoveredPeer(DiscoveredPeerItem item) {
+    try {
+      _bridge.simulateDiscoveredPeer(item);
+      refreshDevices();
+    } catch (e) {
+      _errorMessage = 'Failed to simulate discovered peer: $e';
       notifyListeners();
     }
   }

@@ -84,4 +84,13 @@
 - [x] `[S6.P1.1]` Persistent Device Registry & Peer ACL Store *(Completed 2026-11-15)*
 - [x] `[S6.P1.2]` mDNS-SD Local Network Discovery (`aissistant-network`) *(Completed 2026-11-15)*
 - [x] `[S6.P2.1]` QUIC/TLS 1.3 Mutual-Authenticated Transport (`quinn` + `rustls`) *(Completed 2026-11-15)*
-- [ ] `[S6.P2.2]` Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI
+- [x] `[S6.P2.2]` Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI *(Completed 2026-11-15)*
+
+---
+
+## Stage 7 Queue (Remote Skills, Clipboard Sync, Screen Streaming & File Transfer)
+- [ ] `[S7.P1.1]` Authenticated Remote Skill RPC & Target Peer Policy Enforcement
+- [ ] `[S7.P1.2]` End-to-End Encrypted Clipboard Synchronization
+- [ ] `[S7.P2.1]` Chunked, BLAKE3/SHA-256 Verified Resumable File Transfer
+- [ ] `[S7.P2.2]` Low-Latency Cross-Device Screen Capture & Streaming
+- [ ] `[S7.P2.3]` Permission-Gated Remote Input Control & Session Overlay

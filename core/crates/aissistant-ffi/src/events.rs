@@ -132,6 +132,32 @@ pub enum BridgeEvent {
         /// Serialized benchmark metrics.
         metrics_json: String,
     },
+
+    /// Discovered peer updated on local network.
+    DeviceDiscovered {
+        /// Peer instance name.
+        instance_name: String,
+        /// Platform.
+        platform: String,
+        /// Endpoint address.
+        endpoint: Option<String>,
+        /// Public key fingerprint.
+        fingerprint: String,
+    },
+
+    /// Active pairing ceremony state updated.
+    PairingStateChanged {
+        /// Target peer instance name.
+        peer_instance: String,
+        /// Status: "started", "confirmed", "failed", "cancelled".
+        status: String,
+        /// Short Authentication String (if active).
+        sas_code: Option<String>,
+        /// QR payload string (if active).
+        qr_payload: Option<String>,
+        /// Error message if failed.
+        error: Option<String>,
+    },
 }
 
 type CallbackFn = Box<dyn Fn(&BridgeEvent) + Send + Sync + 'static>;

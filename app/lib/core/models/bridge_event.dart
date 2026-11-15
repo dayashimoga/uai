@@ -102,6 +102,23 @@ abstract class BridgeEvent {
           metricsJson: payload['metrics_json'] as String? ?? '{}',
         );
 
+      case 'device_discovered':
+        return DeviceDiscoveredEvent(
+          instanceName: payload['instance_name'] as String? ?? '',
+          platform: payload['platform'] as String? ?? 'unknown',
+          endpoint: payload['endpoint'] as String?,
+          fingerprint: payload['fingerprint'] as String? ?? '',
+        );
+
+      case 'pairing_state_changed':
+        return PairingStateChangedEvent(
+          peerInstance: payload['peer_instance'] as String? ?? '',
+          status: payload['status'] as String? ?? '',
+          sasCode: payload['sas_code'] as String?,
+          qrPayload: payload['qr_payload'] as String?,
+          error: payload['error'] as String?,
+        );
+
       default:
         return UnknownBridgeEvent(type: type, payload: payload);
     }
@@ -256,6 +273,36 @@ class BenchmarkCompletedEvent extends BridgeEvent {
   const BenchmarkCompletedEvent({
     required this.metricsJson,
   }) : super('benchmark_completed');
+}
+
+class DeviceDiscoveredEvent extends BridgeEvent {
+  final String instanceName;
+  final String platform;
+  final String? endpoint;
+  final String fingerprint;
+
+  const DeviceDiscoveredEvent({
+    required this.instanceName,
+    required this.platform,
+    this.endpoint,
+    required this.fingerprint,
+  }) : super('device_discovered');
+}
+
+class PairingStateChangedEvent extends BridgeEvent {
+  final String peerInstance;
+  final String status;
+  final String? sasCode;
+  final String? qrPayload;
+  final String? error;
+
+  const PairingStateChangedEvent({
+    required this.peerInstance,
+    required this.status,
+    this.sasCode,
+    this.qrPayload,
+    this.error,
+  }) : super('pairing_state_changed');
 }
 
 class UnknownBridgeEvent extends BridgeEvent {

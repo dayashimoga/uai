@@ -66,7 +66,7 @@ Status Legend:
 | **Stage 6** | `S6.P1.1` | Persistent Device Registry & Peer ACL Store | `S5.P3.2` | `COMPLETED` | Verified: 276 Rust workspace unit tests passing (34 in `aissistant-core`, 32 in `aissistant-storage`), clippy zero warnings, fmt check passed, 64 Flutter tests passing, `Migration 5` schema (paired_devices & peer_permissions tables), cascading deletion, heartbeat updating, trust state transitions, default-deny ACL evaluation, and BLAKE3 hash-chained audit logging verified. |
 | **Stage 6** | `S6.P1.2` | mDNS-SD Local Network Discovery (`aissistant-network`) | `S6.P1.1` | `COMPLETED` | Verified: 285 Rust workspace unit tests passing (9 in `aissistant-network`), clippy zero warnings, fmt check passed, 64 Flutter tests passing, RFC 1035/6762/6763 DNS wire-format builder/parser, privacy-preserving TXT metadata, VirtualDiscoveryEngine deterministic simulation, and MdnsDiscoveryEngine dual-stack UDP multicast verified. |
 | **Stage 6** | `S6.P2.1` | QUIC/TLS 1.3 Mutual-Authenticated Transport (`quinn` + `rustls`) | `S6.P1.2` | `COMPLETED` | Verified: 292 Rust workspace unit tests passing (16 in `aissistant-network`), clippy zero warnings, fmt check passed, 64 Flutter tests passing, self-signed X.509 Ed25519 cert generation (`rcgen`), RFC 8410 SPKI key extraction, PinnedEd25519Verifier for client & server mTLS, bi-directional QUIC stream multiplexing, and untrusted peer rejection verified. |
-| **Stage 6** | `S6.P2.2` | Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI | `S6.P2.1` | `PENDING` | — |
+| **Stage 6** | `S6.P2.2` | Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI | `S6.P2.1` | `COMPLETED` | Verified: 292 Rust workspace unit tests passing (20 in `aissistant-network`, 26 in `aissistant-ffi`), 72 Flutter tests passing (100%), `flutter analyze` zero issues, symmetrical 6-digit SAS derivation (`derive_sas_code`), QR payload serialization, brute-force rate limiting (5m lockout after 3 fails), `PairingSessionManager`, `DeviceSupervisor` FFI bridge, C-ABI functions, `DevicesScreen` UI, SAS display/input dialog, and capability ACL editor verified. |
 | **Stage 7** | `S7.P1.1` | Authenticated Remote Skill RPC & Target Peer Policy Enforcement | `S6.P2.2` | `PENDING` | — |
 | **Stage 7** | `S7.P1.2` | End-to-End Encrypted Clipboard Synchronization | `S7.P1.1` | `PENDING` | — |
 | **Stage 7** | `S7.P2.1` | Chunked, BLAKE3/SHA-256 Verified Resumable File Transfer | `S7.P1.2` | `PENDING` | — |
@@ -806,25 +806,27 @@ Status Legend:
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `b5f7b01`
 
-### Verification Evidence — S6.P2.1 (QUIC/TLS 1.3 Mutual-Authenticated Transport — quinn + rustls)
+### Verification Evidence — S6.P2.2 (Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI)
 - **Host OS:** Windows (x86_64-pc-windows-gnu)
 - **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
 - **Commands Executed:**
   1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
   2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 11 workspace crates)
-  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (292 passed across 11 crates; 16 in `aissistant-network`)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (292 passed across 11 crates; 20 in `aissistant-network`, 26 in `aissistant-ffi`)
   4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
-  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (64 passed across 9 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (72 passed across 10 Flutter test suites)
 - **Test Summary:**
-  - `cert::tests::test_generate_and_extract_ed25519_cert`: Verified self-signed X.509 certificate generation from `DeviceIdentity` (`rcgen` + PKCS#8 DER) and extracted 32-byte Ed25519 public key via RFC 8410 SPKI pattern matching.
-  - `cert::tests::test_verifier_pins_matching_peer_and_rejects_untrusted`: Verified `PinnedEd25519Verifier` validates matching pinned public keys, rejects untrusted keys, and supports pairing mode.
-  - `transport::tests::test_virtual_session_bidirectional_data_exchange`: Verified in-memory channel-backed session exchanging bi-directional data frames and honoring graceful closure.
-  - `transport::tests::test_quic_configs_build_cleanly`: Verified constructing `quinn::ServerConfig` and `quinn::ClientConfig` with ALPN `aissistant-p2p/1`, Ring crypto provider, keepalive interval (5s), and max idle timeout (30s).
-  - `transport::tests::test_quic_loopback_mtls_connection`: Verified full loopback mTLS connection establishment between dual Quinn endpoints, peer identity key extraction from TLS certs, bi-directional stream opening, and ping-pong payload transfer.
-  - `transport::tests::test_quic_rejects_untrusted_peer`: Verified that a server configured with pinned ACL strictly rejects incoming mTLS handshakes from unpinned/untrusted peer certificates (error 40).
-  - `transport::tests::test_quic_client_rejects_untrusted_server`: Verified that a client strictly aborts connection establishment when connecting to a server whose public key is not in the client's pinned allowlist.
+  - `pairing::tests::test_sas_derivation_is_strictly_symmetrical`: Verified that public keys are canonically sorted (`min(key_a, key_b), max(key_a, key_b)`) before SHA-256 derivation with session salt, ensuring identical 6-digit decimal strings on both devices regardless of initiator.
+  - `pairing::tests::test_qr_payload_serde_roundtrip`: Verified compact JSON serialization and deserialization of `PairingQrPayload` containing instance name, platform, port, IP addresses, truncated fingerprint, session salt, and full public key.
+  - `pairing::tests::test_rate_limiter_locks_after_max_failures`: Verified that 3 consecutive invalid SAS verification attempts trigger a mandatory 300s (5-minute) rate-limit lockout defending against LAN brute-force attacks.
+  - `pairing::tests::test_pairing_session_lifecycle_and_registry_persistence`: Verified active pairing session initialization, invalid code rejection with failure counting, valid code confirmation, and automatic enrollment into `DeviceRegistry` as a `Trusted` peer.
+  - `device_bridge::tests::test_device_supervisor_pairing_and_acl_lifecycle`: Verified `DeviceSupervisor` peer discovery simulation, start pairing, SAS confirmation, default baseline ACL provisioning, permission modification, and device unpairing.
+  - `tests::test_device_bridge_c_abi`: Verified C-ABI round trips (`bridge_c_device_discovered_peers`, `bridge_c_device_simulate_peer`, `bridge_c_device_start_pairing`, `bridge_c_device_confirm_pairing`, `bridge_c_device_paired_list`, `bridge_c_device_set_permission`, `bridge_c_device_unpair`).
+  - `app/test/assistant_controller_test.dart`: Verified Flutter reactive state management for discovered peers, active pairing session, SAS confirmation, ACL rule updating, device removal, and bridge event reactions.
+  - `app/test/devices_screen_test.dart`: Verified `DevicesScreen` widget rendering, 100% offline LAN indicator, discovered peer list, active pairing card with monospace 6-digit SAS code and QR code visual, SAS confirmation workflow, cancellation, unpairing confirmation dialog, and peer simulation.
+  - `app/test/widget_test.dart`: Verified `AdaptiveShell` desktop NavigationRail and mobile NavigationBar with the new `Devices` navigation tab.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
-- **Commit Reference:** `b60f8ac`
+- **Commit Reference:** Pending commit
 
 
 

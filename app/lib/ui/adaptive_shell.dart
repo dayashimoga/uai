@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/assistant_controller.dart';
 import 'screens/audit_log_screen.dart';
 import 'screens/capabilities_screen.dart';
+import 'screens/devices_screen.dart';
 import 'screens/diagnostics_screen.dart';
 import 'screens/models_screen.dart';
 import 'screens/settings_screen.dart';
@@ -30,6 +31,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
       DiagnosticsScreen(controller: widget.controller),
       VoiceScreen(controller: widget.controller),
       ModelsScreen(controller: widget.controller),
+      DevicesScreen(controller: widget.controller),
       CapabilitiesScreen(controller: widget.controller),
       AuditLogScreen(controller: widget.controller),
       SettingsScreen(controller: widget.controller),
@@ -50,6 +52,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         icon: Icon(Icons.memory_outlined),
         selectedIcon: Icon(Icons.memory),
         label: 'Models',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.devices_outlined),
+        selectedIcon: Icon(Icons.devices),
+        label: 'Devices',
       ),
       NavigationDestination(
         icon: Icon(Icons.grid_view_outlined),
@@ -113,6 +120,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                   icon: Icon(Icons.memory_outlined),
                   selectedIcon: Icon(Icons.memory),
                   label: Text('Models'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.devices_outlined),
+                  selectedIcon: Icon(Icons.devices),
+                  label: Text('Devices'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.grid_view_outlined),

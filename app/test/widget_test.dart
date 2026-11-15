@@ -84,6 +84,12 @@ void main() {
     expect(find.text('Host Hardware & Inference Budget'), findsOneWidget);
     expect(find.text('Curated Models Catalog'), findsOneWidget);
 
+    // Navigate to Devices
+    await tester.tap(find.text('Devices'));
+    await tester.pumpAndSettle();
+    expect(find.text('Devices & Cross-Device Mesh'), findsOneWidget);
+    expect(find.text('100% Offline LAN'), findsOneWidget);
+
     // Navigate to Capabilities
     await tester.tap(find.text('Capabilities'));
     await tester.pumpAndSettle();

@@ -9,6 +9,7 @@ import 'package:ffi/ffi.dart';
 import 'models/audit_item.dart';
 import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
+import 'models/device_models.dart';
 import 'models/health_report.dart';
 import 'models/model_item.dart';
 import 'models/voice_state.dart';
@@ -36,6 +37,14 @@ abstract class AissistantBridge {
   void loadModel(String modelId);
   void unloadModel();
   BenchmarkResult runModelBenchmark({int promptTokens = 32, int generateTokens = 16});
+  List<DiscoveredPeerItem> getDiscoveredPeers();
+  List<PairedDeviceItem> getPairedDevices();
+  PairingSessionInfo startPairing(String peerInstance);
+  PairedDeviceItem confirmPairing(String sasCode);
+  void cancelPairing();
+  void setPeerPermission(String deviceId, String capability, String level);
+  void unpairDevice(String deviceId);
+  void simulateDiscoveredPeer(DiscoveredPeerItem item);
   Stream<BridgeEvent> get eventStream;
 }
 
@@ -97,6 +106,38 @@ typedef _BridgeModelBenchDart = Pointer<Utf8> Function(int promptTokens, int gen
 typedef _BridgeFreeStringC = Void Function(Pointer<Utf8> ptr);
 typedef _BridgeFreeStringDart = void Function(Pointer<Utf8> ptr);
 
+typedef _BridgeDevicePeersC = Pointer<Utf8> Function();
+typedef _BridgeDevicePeersDart = Pointer<Utf8> Function();
+
+typedef _BridgeDevicePairedC = Pointer<Utf8> Function();
+typedef _BridgeDevicePairedDart = Pointer<Utf8> Function();
+
+typedef _BridgeDeviceStartPairC = Pointer<Utf8> Function(Pointer<Utf8> peerInstance);
+typedef _BridgeDeviceStartPairDart = Pointer<Utf8> Function(Pointer<Utf8> peerInstance);
+
+typedef _BridgeDeviceConfirmPairC = Pointer<Utf8> Function(Pointer<Utf8> sasCode);
+typedef _BridgeDeviceConfirmPairDart = Pointer<Utf8> Function(Pointer<Utf8> sasCode);
+
+typedef _BridgeDeviceCancelPairC = Int32 Function();
+typedef _BridgeDeviceCancelPairDart = int Function();
+
+typedef _BridgeDeviceSetPermC = Int32 Function(
+  Pointer<Utf8> deviceId,
+  Pointer<Utf8> capability,
+  Pointer<Utf8> level,
+);
+typedef _BridgeDeviceSetPermDart = int Function(
+  Pointer<Utf8> deviceId,
+  Pointer<Utf8> capability,
+  Pointer<Utf8> level,
+);
+
+typedef _BridgeDeviceUnpairC = Int32 Function(Pointer<Utf8> deviceId);
+typedef _BridgeDeviceUnpairDart = int Function(Pointer<Utf8> deviceId);
+
+typedef _BridgeDeviceSimPeerC = Int32 Function(Pointer<Utf8> peerJson);
+typedef _BridgeDeviceSimPeerDart = int Function(Pointer<Utf8> peerJson);
+
 /// Native FFI implementation driving aissistant-ffi C-ABI entry points.
 class NativeFfiBridge implements AissistantBridge {
   final DynamicLibrary _lib;
@@ -124,6 +165,14 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeModelLoadDart _modelLoad;
   late final _BridgeModelUnloadDart _modelUnload;
   late final _BridgeModelBenchDart _modelBenchmarkRun;
+  late final _BridgeDevicePeersDart _deviceDiscoveredPeers;
+  late final _BridgeDevicePairedDart _devicePairedList;
+  late final _BridgeDeviceStartPairDart _deviceStartPairing;
+  late final _BridgeDeviceConfirmPairDart _deviceConfirmPairing;
+  late final _BridgeDeviceCancelPairDart _deviceCancelPairing;
+  late final _BridgeDeviceSetPermDart _deviceSetPermission;
+  late final _BridgeDeviceUnpairDart _deviceUnpair;
+  late final _BridgeDeviceSimPeerDart _deviceSimulatePeer;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -148,6 +197,14 @@ class NativeFfiBridge implements AissistantBridge {
     _modelLoad = _lib.lookupFunction<_BridgeModelLoadC, _BridgeModelLoadDart>('bridge_c_model_load');
     _modelUnload = _lib.lookupFunction<_BridgeModelUnloadC, _BridgeModelUnloadDart>('bridge_c_model_unload');
     _modelBenchmarkRun = _lib.lookupFunction<_BridgeModelBenchC, _BridgeModelBenchDart>('bridge_c_model_benchmark_run');
+    _deviceDiscoveredPeers = _lib.lookupFunction<_BridgeDevicePeersC, _BridgeDevicePeersDart>('bridge_c_device_discovered_peers');
+    _devicePairedList = _lib.lookupFunction<_BridgeDevicePairedC, _BridgeDevicePairedDart>('bridge_c_device_paired_list');
+    _deviceStartPairing = _lib.lookupFunction<_BridgeDeviceStartPairC, _BridgeDeviceStartPairDart>('bridge_c_device_start_pairing');
+    _deviceConfirmPairing = _lib.lookupFunction<_BridgeDeviceConfirmPairC, _BridgeDeviceConfirmPairDart>('bridge_c_device_confirm_pairing');
+    _deviceCancelPairing = _lib.lookupFunction<_BridgeDeviceCancelPairC, _BridgeDeviceCancelPairDart>('bridge_c_device_cancel_pairing');
+    _deviceSetPermission = _lib.lookupFunction<_BridgeDeviceSetPermC, _BridgeDeviceSetPermDart>('bridge_c_device_set_permission');
+    _deviceUnpair = _lib.lookupFunction<_BridgeDeviceUnpairC, _BridgeDeviceUnpairDart>('bridge_c_device_unpair');
+    _deviceSimulatePeer = _lib.lookupFunction<_BridgeDeviceSimPeerC, _BridgeDeviceSimPeerDart>('bridge_c_device_simulate_peer');
     _freeString = _lib.lookupFunction<_BridgeFreeStringC, _BridgeFreeStringDart>('bridge_c_free_string');
   }
 
@@ -418,6 +475,97 @@ class NativeFfiBridge implements AissistantBridge {
       _freeString(ptr);
     }
   }
+
+  @override
+  List<DiscoveredPeerItem> getDiscoveredPeers() {
+    final jsonStr = _consumeAndFree(_deviceDiscoveredPeers());
+    final decoded = jsonDecode(jsonStr) as List<dynamic>;
+    return decoded
+        .map((e) => DiscoveredPeerItem.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  List<PairedDeviceItem> getPairedDevices() {
+    final jsonStr = _consumeAndFree(_devicePairedList());
+    final decoded = jsonDecode(jsonStr) as List<dynamic>;
+    return decoded
+        .map((e) => PairedDeviceItem.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  PairingSessionInfo startPairing(String peerInstance) {
+    final ptr = peerInstance.toNativeUtf8();
+    try {
+      final jsonStr = _consumeAndFree(_deviceStartPairing(ptr));
+      final decoded = jsonDecode(jsonStr) as Map<String, dynamic>;
+      return PairingSessionInfo.fromJson(decoded);
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  @override
+  PairedDeviceItem confirmPairing(String sasCode) {
+    final ptr = sasCode.toNativeUtf8();
+    try {
+      final jsonStr = _consumeAndFree(_deviceConfirmPairing(ptr));
+      final decoded = jsonDecode(jsonStr) as Map<String, dynamic>;
+      return PairedDeviceItem.fromJson(decoded);
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  @override
+  void cancelPairing() {
+    _deviceCancelPairing();
+  }
+
+  @override
+  void setPeerPermission(String deviceId, String capability, String level) {
+    final idPtr = deviceId.toNativeUtf8();
+    final capPtr = capability.toNativeUtf8();
+    final lvlPtr = level.toNativeUtf8();
+    try {
+      final res = _deviceSetPermission(idPtr, capPtr, lvlPtr);
+      if (res != 0) {
+        throw StateError('Failed to set peer permission for $deviceId');
+      }
+    } finally {
+      malloc.free(idPtr);
+      malloc.free(capPtr);
+      malloc.free(lvlPtr);
+    }
+  }
+
+  @override
+  void unpairDevice(String deviceId) {
+    final idPtr = deviceId.toNativeUtf8();
+    try {
+      final res = _deviceUnpair(idPtr);
+      if (res != 0) {
+        throw StateError('Failed to unpair device $deviceId');
+      }
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  void simulateDiscoveredPeer(DiscoveredPeerItem item) {
+    final jsonStr = jsonEncode(item.toJson());
+    final ptr = jsonStr.toNativeUtf8();
+    try {
+      final res = _deviceSimulatePeer(ptr);
+      if (res != 0) {
+        throw StateError('Failed to simulate discovered peer');
+      }
+    } finally {
+      malloc.free(ptr);
+    }
+  }
 }
 
 /// Fallback / mock-free test harness bridge implementing exact live schema contracts.
@@ -510,6 +658,38 @@ class TestHarnessBridge implements AissistantBridge {
       prevHash: '0000000000000000000000000000000000000000000000000000000000000000',
     ),
   ];
+
+  final List<DiscoveredPeerItem> _discoveredPeers = <DiscoveredPeerItem>[
+    const DiscoveredPeerItem(
+      instanceName: 'pixel-9-pro',
+      platform: 'android',
+      port: 51820,
+      addresses: <String>['192.168.1.105'],
+      fingerprint: '3a4f8b1c9d2e5a7f',
+      lastSeenMs: 1731671000000,
+    ),
+  ];
+
+  final List<PairedDeviceItem> _pairedDevices = <PairedDeviceItem>[
+    const PairedDeviceItem(
+      deviceId: 'dev_macbook_pro',
+      name: 'MacBook Pro M3',
+      platform: 'macos',
+      fingerprint: '7b2c9a1d4f6e8c3a',
+      trustState: 'trusted',
+      lastEndpoint: '192.168.1.50:51820',
+      lastSeenMs: 1731671000000,
+      pairedAtMs: 1731670000000,
+      permissions: <PeerPermissionItem>[
+        PeerPermissionItem(capability: 'local_llm', permissionLevel: 'always_allow'),
+        PeerPermissionItem(capability: 'file_system', permissionLevel: 'ask_each_time'),
+        PeerPermissionItem(capability: 'application_management', permissionLevel: 'ask_each_time'),
+        PeerPermissionItem(capability: 'lan_peer_networking', permissionLevel: 'always_allow'),
+      ],
+    ),
+  ];
+
+  PairingSessionInfo? _activePairing;
 
   @override
   Stream<BridgeEvent> get eventStream => _eventController.stream;
@@ -778,5 +958,117 @@ class TestHarnessBridge implements AissistantBridge {
       }),
     ));
     return report;
+  }
+
+  @override
+  List<DiscoveredPeerItem> getDiscoveredPeers() {
+    return List<DiscoveredPeerItem>.unmodifiable(_discoveredPeers);
+  }
+
+  @override
+  List<PairedDeviceItem> getPairedDevices() {
+    return List<PairedDeviceItem>.unmodifiable(_pairedDevices);
+  }
+
+  @override
+  PairingSessionInfo startPairing(String peerInstance) {
+    final info = PairingSessionInfo(
+      sessionId: 'sess_${DateTime.now().millisecondsSinceEpoch}',
+      peerInstance: peerInstance,
+      peerPlatform: 'android',
+      sasCode: '481-923',
+      qrPayload: '{"instance":"$peerInstance","sas":"481-923"}',
+      createdAtSecs: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    );
+    _activePairing = info;
+    _eventController.add(PairingStateChangedEvent(
+      peerInstance: peerInstance,
+      status: 'started',
+      sasCode: info.sasCode,
+      qrPayload: info.qrPayload,
+    ));
+    return info;
+  }
+
+  @override
+  PairedDeviceItem confirmPairing(String sasCode) {
+    final instance = _activePairing?.peerInstance ?? 'Discovered Device';
+    final paired = PairedDeviceItem(
+      deviceId: 'dev_${DateTime.now().millisecondsSinceEpoch}',
+      name: instance,
+      platform: 'android',
+      fingerprint: '3a4f8b1c9d2e5a7f',
+      trustState: 'trusted',
+      lastEndpoint: '192.168.1.105:51820',
+      lastSeenMs: DateTime.now().millisecondsSinceEpoch,
+      pairedAtMs: DateTime.now().millisecondsSinceEpoch,
+      permissions: const <PeerPermissionItem>[
+        PeerPermissionItem(capability: 'local_llm', permissionLevel: 'always_allow'),
+        PeerPermissionItem(capability: 'file_system', permissionLevel: 'ask_each_time'),
+        PeerPermissionItem(capability: 'application_management', permissionLevel: 'ask_each_time'),
+        PeerPermissionItem(capability: 'lan_peer_networking', permissionLevel: 'always_allow'),
+      ],
+    );
+    _pairedDevices.add(paired);
+    _discoveredPeers.removeWhere((p) => p.instanceName == instance);
+    _activePairing = null;
+    _eventController.add(PairingStateChangedEvent(
+      peerInstance: instance,
+      status: 'confirmed',
+    ));
+    return paired;
+  }
+
+  @override
+  void cancelPairing() {
+    final instance = _activePairing?.peerInstance ?? '';
+    _activePairing = null;
+    _eventController.add(PairingStateChangedEvent(
+      peerInstance: instance,
+      status: 'cancelled',
+    ));
+  }
+
+  @override
+  void setPeerPermission(String deviceId, String capability, String level) {
+    final idx = _pairedDevices.indexWhere((d) => d.deviceId == deviceId);
+    if (idx != -1) {
+      final dev = _pairedDevices[idx];
+      final newPerms = List<PeerPermissionItem>.from(dev.permissions);
+      final permIdx = newPerms.indexWhere((p) => p.capability == capability);
+      if (permIdx != -1) {
+        newPerms[permIdx] = PeerPermissionItem(capability: capability, permissionLevel: level);
+      } else {
+        newPerms.add(PeerPermissionItem(capability: capability, permissionLevel: level));
+      }
+      _pairedDevices[idx] = PairedDeviceItem(
+        deviceId: dev.deviceId,
+        name: dev.name,
+        platform: dev.platform,
+        fingerprint: dev.fingerprint,
+        trustState: dev.trustState,
+        lastEndpoint: dev.lastEndpoint,
+        lastSeenMs: dev.lastSeenMs,
+        pairedAtMs: dev.pairedAtMs,
+        permissions: newPerms,
+      );
+    }
+  }
+
+  @override
+  void unpairDevice(String deviceId) {
+    _pairedDevices.removeWhere((d) => d.deviceId == deviceId);
+  }
+
+  @override
+  void simulateDiscoveredPeer(DiscoveredPeerItem item) {
+    _discoveredPeers.removeWhere((p) => p.instanceName == item.instanceName);
+    _discoveredPeers.add(item);
+    _eventController.add(DeviceDiscoveredEvent(
+      instanceName: item.instanceName,
+      platform: item.platform,
+      endpoint: item.addresses.isNotEmpty ? '${item.addresses.first}:${item.port}' : null,
+      fingerprint: item.fingerprint,
+    ));
   }
 }
