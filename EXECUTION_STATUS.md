@@ -884,7 +884,7 @@ Status Legend:
   - `transfer::tests::test_file_transfer_rejects_corrupted_chunk`: Verified that bit-corrupted chunks failing per-chunk BLAKE3 verification fail closed immediately, preventing corrupted data ingestion.
   - `transfer::tests::test_file_transfer_over_quic_mtls_loopback`: Verified complete file transfer over dual Quinn QUIC endpoints using self-signed Ed25519 mTLS certificates across loopback UDP sockets.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `a2dcc28`
 
 
 
