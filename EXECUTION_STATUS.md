@@ -740,7 +740,7 @@ Status Legend:
     - `AssistantAccessibilityService.kt`: Opt-in window node inspection and action clicking with strict privacy disclosure (`accessibility_service_config.xml`).
     - `MainActivity.kt`: MethodChannel handler and intent extraction (`ACTION_ASSIST`, `ACTION_SEND`).
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and Android APK builds.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `6ee6710`
 
 
 
