@@ -919,7 +919,7 @@ Status Legend:
   - `input::tests::test_remote_input_host_emergency_escape`: Verified host emergency escape preemption (`terminate_session`), immediate revocation of active control, halting of further event injection, and audit trail termination recording.
   - `input::tests::test_remote_input_over_quic_mtls_loopback`: Verified end-to-end remote input control over bidirectional Quinn QUIC streams with mutual Ed25519 TLS authentication and event delivery to `VirtualInputInjector` over loopback UDP sockets.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
-- **Commit Reference:** `PENDING`
+- **Commit Reference:** `8798b14`
 
 
 
