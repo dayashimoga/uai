@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/aissistant-core",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Universal AI Assistant Contributors"]
+license = "Apache-2.0"
+repository = "https://github.com/dayashimoga/aissistant"
+rust-version = "1.85.0"
+
+[workspace.lints.rust]
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+match_same_arms = "warn"
+needless_borrow = "warn"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+uuid = { version = "1.10", features = ["v4", "serde"] }

@@ -48,3 +48,20 @@
 
 ### Verification
 - Verified workspace directory structure, Git repository initialization (`main`), and host toolchains (`rustc 1.97.1`, `cargo 1.97.1`, `cmake 4.4.1`, `python 3.11.9`, `git 2.55.0`).
+
+---
+
+## [2026-11-15] — Stage 0 Phase 1 Subphase 1 (`S0.P1.1`)
+
+### Added
+- `core/Cargo.toml` — Cargo workspace manifest with strict workspace lints (`missing_debug_implementations`, `unreachable_pub`, `unused_must_use = deny`, `unwrap_used = deny`, `expect_used = deny`, `panic = deny`).
+- `core/crates/aissistant-core/Cargo.toml` — Foundational crate manifest.
+- `core/crates/aissistant-core/src/lib.rs` — Library entrypoint enforcing `#![forbid(unsafe_code)]` with module re-exports and integration tests.
+- `core/crates/aissistant-core/src/ids.rs` — Strongly typed, validated domain identifiers (`DeviceId`, `ConversationId`, `TurnId`, `SkillId`, `ModelId`, `AuditEntryId`) with UUIDv4 generation, sequence numbering, slug validation, and serde support.
+- `core/crates/aissistant-core/src/error.rs` — Canonical `CoreError` taxonomy, `ErrorCode` strings, `ErrorCategory`, and FFI/UI-safe `ErrorDescriptor`.
+- `core/crates/aissistant-core/src/config.rs` — Complete configuration schemas (`AppConfig`, `VoiceConfig`, `ModelConfig`, `SecurityConfig`, `NetworkConfig`) with offline-first invariants and strict bounds validation.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed cleanly.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 23 unit and integration tests (0 failures).

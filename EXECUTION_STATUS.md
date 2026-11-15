@@ -1,8 +1,8 @@
 # EXECUTION_STATUS.md — Authoritative Live Completion Tracker
 
 **Last Updated:** 2026-11-15  
-**Current Project Phase:** Project Bootstrap Completed — Awaiting User Confirmation for `S0.P1.1`  
-**Active Subphase:** None (Stopped at Post-Bootstrap Gate)
+**Current Project Phase:** Stage 0 — Requirements, Architecture & Engineering Foundation  
+**Active Subphase:** None (Stopped at S0.P1.1 Completion Gate — Awaiting Approval for S0.P1.2)
 
 ---
 
@@ -31,8 +31,8 @@ Status Legend:
 | Stage | Subphase ID | Subphase Title | Dependencies | Status | Verification Evidence / Notes |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Bootstrap** | `BOOTSTRAP` | Repository, Governance, Architecture, Skills, Workflows & CI Bootstrap | None | `COMPLETED` | All 16 bootstrap deliverables created and committed on `main` (2026-11-15). |
-| **Stage 0** | `S0.P1.1` | Core Domain Types & Error Taxonomy (`aissistant-core`) | `BOOTSTRAP` | `PENDING` | **Next Pending Subphase — Awaiting User Approval** |
-| **Stage 0** | `S0.P1.2` | Five-Platform Capability Matrix & Runtime Probe Contract | `S0.P1.1` | `PENDING` | — |
+| **Stage 0** | `S0.P1.1` | Core Domain Types & Error Taxonomy (`aissistant-core`) | `BOOTSTRAP` | `COMPLETED` | Verified: 23 unit tests passing, clippy zero warnings, fmt check passed. |
+| **Stage 0** | `S0.P1.2` | Five-Platform Capability Matrix & Runtime Probe Contract | `S0.P1.1` | `PENDING` | **Next Pending Subphase — Awaiting User Approval** |
 | **Stage 0** | `S0.P2.1` | Risk Tiers, Policy Engine & Taint Tracking Core (`aissistant-security`) | `S0.P1.2` | `PENDING` | — |
 | **Stage 0** | `S0.P2.2` | Cryptographic Primitives & Hash-Chained Audit Log Contract | `S0.P2.1` | `PENDING` | — |
 | **Stage 1** | `S1.P1.1` | SQLite WAL Engine & Schema Migration Runner (`aissistant-storage`) | `S0.P2.2` | `PENDING` | — |
@@ -88,3 +88,22 @@ Status Legend:
 | **Stage 11** | `S11.P1.2` | Mobile Release Packaging (Android APK/AAB & iOS IPA) | `S11.P1.1` | `PENDING` | — |
 | **Stage 11** | `S11.P2.1` | Full Acceptance Matrix Verification, SBOM & SHA-256 Manifests | `S11.P1.2` | `PENDING` | — |
 | **Stage 11** | `S11.P2.2` | v1.0.0 Production Release Tagging & Final Documentation Sign-Off | `S11.P2.1` | `PENDING` | — |
+
+---
+
+## 3. Subphase Execution Evidence Records
+
+### Verification Evidence — S0.P1.1 (Core Domain Types & Error Taxonomy)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (23 passed, 0 failed)
+- **Test Summary:**
+  - `ids::tests`: Validated UUIDv4 generation, sequential ID generation, string slug constraints, namespace validation for skills, model ID parsing, and serde roundtrips.
+  - `error::tests`: Validated all 8 `ErrorCategory` variants, stable `ErrorCode` strings, `to_descriptor` conversion with structured JSON details, retryability logic, and `From<serde_json::Error>`.
+  - `config::tests`: Validated default offline-first invariant, `AppConfig`, `VoiceConfig`, `ModelConfig`, `SecurityConfig`, `NetworkConfig`, boundary condition enforcement, and serde JSON serialization.
+  - `tests::test_end_to_end_core_contracts`: Validated end-to-end integration across domain types.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit.

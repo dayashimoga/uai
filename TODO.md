@@ -24,8 +24,8 @@
 
 ---
 
-## Stage 0 Queue (Awaiting User Approval)
-- [ ] `[S0.P1.1]` Initialize `core/` Cargo workspace and implement `aissistant-core` domain IDs, error taxonomy (`CoreError`), and configuration schemas with >=90% test coverage.
+## Stage 0 Queue
+- [x] `[S0.P1.1]` Initialize `core/` Cargo workspace and implement `aissistant-core` domain IDs, error taxonomy (`CoreError`), and configuration schemas with >=90% test coverage. *(Completed 2026-11-15)*
 - [ ] `[S0.P1.2]` Implement `CapabilityRegistry`, 5-platform capability matrix, and host runtime probe in `aissistant-core`.
 - [ ] `[S0.P2.1]` Implement `aissistant-security` `PolicyEngine`, risk tiers, and untrusted input taint tracking.
 - [ ] `[S0.P2.2]` Implement Ed25519 device identity keys, XChaCha20-Poly1305 AEAD helpers, and BLAKE3 hash-chained `AuditLogEntry` verification.
