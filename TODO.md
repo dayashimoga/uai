@@ -83,5 +83,5 @@
 ## Stage 6 Queue (Device Agents, Pairing & Device Registry)
 - [x] `[S6.P1.1]` Persistent Device Registry & Peer ACL Store *(Completed 2026-11-15)*
 - [x] `[S6.P1.2]` mDNS-SD Local Network Discovery (`aissistant-network`) *(Completed 2026-11-15)*
-- [ ] `[S6.P2.1]` QUIC/TLS 1.3 Mutual-Authenticated Transport (`quinn` + `rustls`)
+- [x] `[S6.P2.1]` QUIC/TLS 1.3 Mutual-Authenticated Transport (`quinn` + `rustls`) *(Completed 2026-11-15)*
 - [ ] `[S6.P2.2]` Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI

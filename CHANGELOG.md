@@ -1158,6 +1158,37 @@
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 64 unit and widget tests (0 failures).
 
+---
+
+## [2026-11-15] — Stage 6 Phase 2 Subphase 1 (`S6.P2.1`)
+
+### Added
+- `core/Cargo.toml` & `core/crates/aissistant-network/Cargo.toml`:
+  - Added workspace dependencies: `quinn = "0.11"`, `rustls = "0.23"`, `rustls-pki-types = "1.10"`, `rcgen = "0.13"`, `tokio = "1.43"`, and `ed25519-dalek = "2.1"`.
+- `core/crates/aissistant-network/src/error.rs`:
+  - Extended `NetworkError` with `Tls`, `Quic`, `PeerAuthenticationFailed`, and `ConnectionClosed` variants.
+- `core/crates/aissistant-network/src/cert.rs`:
+  - Implemented PKCS#8 DER encoder (`ed25519_secret_to_pkcs8`) for 32-byte Ed25519 secret keys.
+  - Implemented RFC 8410 SPKI public key extraction (`extract_ed25519_public_key`) from X.509 DER certificates.
+  - Implemented self-signed TLS 1.3 certificate generation (`generate_tls_cert`) from `DeviceIdentity` via `rcgen`.
+  - Implemented `PinnedEd25519Verifier` implementing both `rustls::client::danger::ServerCertVerifier` and `rustls::server::danger::ClientCertVerifier`, strictly enforcing TLS 1.3, Ed25519 signatures, and pinning against `DeviceRegistry` public keys (with opt-in unpinned pairing mode).
+- `core/crates/aissistant-network/src/transport.rs`:
+  - Defined protocol constants (`ALPN_P2P_PROTOCOL = b"aissistant-p2p/1"`, `DEFAULT_KEEPALIVE_INTERVAL = 5s`, `DEFAULT_IDLE_TIMEOUT = 30s`).
+  - Implemented `build_quic_server_config` and `build_quic_client_config` using Ring crypto provider, keep-alive heartbeats, and pinned mTLS verifiers.
+  - Implemented `QuicSession` wrapping `quinn::Connection`, extracting verified peer public key, and providing bi-directional stream multiplexing (`open_bi`, `accept_bi`) and datagrams.
+  - Implemented `QuicTransportEngine` for endpoint lifecycle management (`start_endpoint`, `connect_peer`, `accept`, `close_all`).
+  - Implemented `VirtualSession` and `create_virtual_session_pair` for deterministic in-memory session simulation without UDP network sockets.
+- `core/crates/aissistant-network/src/lib.rs`:
+  - Re-exported transport and certificate modules and public types.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 11 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 292 unit and integration tests (0 failures; 16 in `aissistant-network`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 64 unit and widget tests (0 failures).
+
+
 
 
 

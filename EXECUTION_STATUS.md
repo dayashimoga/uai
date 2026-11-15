@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 6 — Device Agents, Pairing & Device Registry  
-**Next Subphase in Queue:** `S6.P2.1` (QUIC/TLS 1.3 Mutual-Authenticated Transport (`quinn` + `rustls`))
+**Next Subphase in Queue:** `S6.P2.2` (Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI)
 
 ---
 
@@ -65,7 +65,7 @@ Status Legend:
 | **Stage 5** | `S5.P3.2` | iOS Native Bridge (AVAudioSession, App Intents/Siri Shortcuts, Scoped Files) | `S5.P3.1` | `COMPLETED` | Verified: 64 Flutter tests passing (100%), 270 Rust workspace tests passing, `flutter analyze` zero issues, `AudioSessionManager` (AVAudioSession .playAndRecord, .spokenAudio, interruption & route change notifications), `AppDelegate` Siri Shortcuts / URL scheme routing, `startAccessingSecurityScopedResource` document bookmark access, and `IosPlatformBridge` MethodChannel verified. |
 | **Stage 6** | `S6.P1.1` | Persistent Device Registry & Peer ACL Store | `S5.P3.2` | `COMPLETED` | Verified: 276 Rust workspace unit tests passing (34 in `aissistant-core`, 32 in `aissistant-storage`), clippy zero warnings, fmt check passed, 64 Flutter tests passing, `Migration 5` schema (paired_devices & peer_permissions tables), cascading deletion, heartbeat updating, trust state transitions, default-deny ACL evaluation, and BLAKE3 hash-chained audit logging verified. |
 | **Stage 6** | `S6.P1.2` | mDNS-SD Local Network Discovery (`aissistant-network`) | `S6.P1.1` | `COMPLETED` | Verified: 285 Rust workspace unit tests passing (9 in `aissistant-network`), clippy zero warnings, fmt check passed, 64 Flutter tests passing, RFC 1035/6762/6763 DNS wire-format builder/parser, privacy-preserving TXT metadata, VirtualDiscoveryEngine deterministic simulation, and MdnsDiscoveryEngine dual-stack UDP multicast verified. |
-| **Stage 6** | `S6.P2.1` | QUIC/TLS 1.3 Mutual-Authenticated Transport (`quinn` + `rustls`) | `S6.P1.2` | `PENDING` | — |
+| **Stage 6** | `S6.P2.1` | QUIC/TLS 1.3 Mutual-Authenticated Transport (`quinn` + `rustls`) | `S6.P1.2` | `COMPLETED` | Verified: 292 Rust workspace unit tests passing (16 in `aissistant-network`), clippy zero warnings, fmt check passed, 64 Flutter tests passing, self-signed X.509 Ed25519 cert generation (`rcgen`), RFC 8410 SPKI key extraction, PinnedEd25519Verifier for client & server mTLS, bi-directional QUIC stream multiplexing, and untrusted peer rejection verified. |
 | **Stage 6** | `S6.P2.2` | Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI | `S6.P2.1` | `PENDING` | — |
 | **Stage 7** | `S7.P1.1` | Authenticated Remote Skill RPC & Target Peer Policy Enforcement | `S6.P2.2` | `PENDING` | — |
 | **Stage 7** | `S7.P1.2` | End-to-End Encrypted Clipboard Synchronization | `S7.P1.1` | `PENDING` | — |
@@ -805,6 +805,27 @@ Status Legend:
   - `tests::test_end_to_end_virtual_mesh_discovery`: Verified multi-node virtual discovery mesh simulating simultaneous bi-directional peer discovery across Windows and Linux nodes.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `b5f7b01`
+
+### Verification Evidence — S6.P2.1 (QUIC/TLS 1.3 Mutual-Authenticated Transport — quinn + rustls)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 11 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (292 passed across 11 crates; 16 in `aissistant-network`)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (64 passed across 9 Flutter test suites)
+- **Test Summary:**
+  - `cert::tests::test_generate_and_extract_ed25519_cert`: Verified self-signed X.509 certificate generation from `DeviceIdentity` (`rcgen` + PKCS#8 DER) and extracted 32-byte Ed25519 public key via RFC 8410 SPKI pattern matching.
+  - `cert::tests::test_verifier_pins_matching_peer_and_rejects_untrusted`: Verified `PinnedEd25519Verifier` validates matching pinned public keys, rejects untrusted keys, and supports pairing mode.
+  - `transport::tests::test_virtual_session_bidirectional_data_exchange`: Verified in-memory channel-backed session exchanging bi-directional data frames and honoring graceful closure.
+  - `transport::tests::test_quic_configs_build_cleanly`: Verified constructing `quinn::ServerConfig` and `quinn::ClientConfig` with ALPN `aissistant-p2p/1`, Ring crypto provider, keepalive interval (5s), and max idle timeout (30s).
+  - `transport::tests::test_quic_loopback_mtls_connection`: Verified full loopback mTLS connection establishment between dual Quinn endpoints, peer identity key extraction from TLS certs, bi-directional stream opening, and ping-pong payload transfer.
+  - `transport::tests::test_quic_rejects_untrusted_peer`: Verified that a server configured with pinned ACL strictly rejects incoming mTLS handshakes from unpinned/untrusted peer certificates (error 40).
+  - `transport::tests::test_quic_client_rejects_untrusted_server`: Verified that a client strictly aborts connection establishment when connecting to a server whose public key is not in the client's pinned allowlist.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** `b60f8ac`
+
 
 
 
