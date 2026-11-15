@@ -4,6 +4,7 @@
 
 pub mod audit_store;
 pub mod conversation_store;
+pub mod device_registry;
 pub mod error;
 pub mod hybrid_search;
 pub mod keystore;
@@ -18,6 +19,7 @@ pub use conversation_store::{
     sanitize_fts5_query, Conversation, ConversationMetadata, ConversationStore, ConversationTurn,
     EpisodicSearchResult, ExportedConversation, TurnMetadata, TurnRole,
 };
+pub use device_registry::DeviceRegistry;
 pub use error::StorageError;
 pub use hybrid_search::{HybridSearchEngine, HybridSearchResult, RrfConfig};
 pub use keystore::{

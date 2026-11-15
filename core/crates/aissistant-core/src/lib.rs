@@ -5,6 +5,7 @@
 
 pub mod capability;
 pub mod config;
+pub mod device;
 pub mod error;
 pub mod ids;
 
@@ -13,6 +14,7 @@ pub use capability::{
     PlatformTarget,
 };
 pub use config::{AppConfig, ModelConfig, NetworkConfig, SecurityConfig, VoiceConfig};
+pub use device::{DeviceTrustState, PairedDevice, PeerPermission, PeerPermissionLevel};
 pub use error::{CoreError, ErrorCategory, ErrorCode, ErrorDescriptor};
 pub use ids::{AuditEntryId, ConversationId, DeviceId, ModelId, SkillId, TurnId};
 

@@ -7,7 +7,9 @@ pub mod crypto;
 pub mod policy;
 pub mod taint;
 
-pub use audit::{AuditChainVerifier, AuditEntry, AuditExecutionStatus, GENESIS_PREV_HASH};
+pub use audit::{
+    AuditChainVerifier, AuditEntry, AuditExecutionStatus, NewAuditEntry, GENESIS_PREV_HASH,
+};
 pub use crypto::{AeadKey, DeviceIdentity, MIN_AEAD_PAYLOAD_LEN, XCHACHA20_NONCE_LEN};
 pub use policy::{Actor, PolicyContext, PolicyDecision, PolicyEngine, RiskTier};
 pub use taint::{TaintRecord, TaintSource, TaintState, TaintTracker};

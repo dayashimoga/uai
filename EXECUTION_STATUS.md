@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 6 — Device Agents, Pairing & Device Registry  
-**Next Subphase in Queue:** `S6.P1.1` (Persistent Device Registry & Peer ACL Store)
+**Next Subphase in Queue:** `S6.P1.2` (mDNS-SD Local Network Discovery (`aissistant-network`))
 
 ---
 
@@ -63,7 +63,7 @@ Status Legend:
 | **Stage 5** | `S5.P2.2` | Desktop System Settings, Clipboard, Audio Volume & Media Transport Control | `S5.P2.1` | `COMPLETED` | Verified: 270 Rust workspace unit tests passing (11 in `aissistant-platform`, 39 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, Win32/fallback clipboard read/write, master volume get/set, keyboard media transport simulation, battery power telemetry, and 6 desktop skills (`clipboard.read`, `clipboard.write`, `volume.get`, `volume.set`, `media.transport`, `system.battery`) verified. |
 | **Stage 5** | `S5.P3.1` | Android Native Bridge (Foreground Service, Intents, Media, Accessibility) | `S5.P2.2` | `COMPLETED` | Verified: 57 Flutter tests passing (100%), 270 Rust workspace tests passing, `flutter analyze` zero issues, `AssistantForegroundService` (microphone type, wake lock, low-priority notification), `MediaSessionManager` (hardware buttons, AudioFocus ducking), `AssistantAccessibilityService` (offline window inspection, node clicking), and `MobilePlatformBridge` MethodChannel verified. |
 | **Stage 5** | `S5.P3.2` | iOS Native Bridge (AVAudioSession, App Intents/Siri Shortcuts, Scoped Files) | `S5.P3.1` | `COMPLETED` | Verified: 64 Flutter tests passing (100%), 270 Rust workspace tests passing, `flutter analyze` zero issues, `AudioSessionManager` (AVAudioSession .playAndRecord, .spokenAudio, interruption & route change notifications), `AppDelegate` Siri Shortcuts / URL scheme routing, `startAccessingSecurityScopedResource` document bookmark access, and `IosPlatformBridge` MethodChannel verified. |
-| **Stage 6** | `S6.P1.1` | Persistent Device Registry & Peer ACL Store | `S5.P3.2` | `PENDING` | — |
+| **Stage 6** | `S6.P1.1` | Persistent Device Registry & Peer ACL Store | `S5.P3.2` | `COMPLETED` | Verified: 276 Rust workspace unit tests passing (34 in `aissistant-core`, 32 in `aissistant-storage`), clippy zero warnings, fmt check passed, 64 Flutter tests passing, `Migration 5` schema (paired_devices & peer_permissions tables), cascading deletion, heartbeat updating, trust state transitions, default-deny ACL evaluation, and BLAKE3 hash-chained audit logging verified. |
 | **Stage 6** | `S6.P1.2` | mDNS-SD Local Network Discovery (`aissistant-network`) | `S6.P1.1` | `PENDING` | — |
 | **Stage 6** | `S6.P2.1` | QUIC/TLS 1.3 Mutual-Authenticated Transport (`quinn` + `rustls`) | `S6.P1.2` | `PENDING` | — |
 | **Stage 6** | `S6.P2.2` | Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI | `S6.P2.1` | `PENDING` | — |
@@ -766,6 +766,25 @@ Status Legend:
     - `AppDelegate.swift`: Implemented MethodChannel `com.aissistant/ios_bridge`, URL scheme parsing (`application(_:open:options:)`), and Siri Shortcuts / UserActivity restoration (`application(_:continue:restorationHandler:)`).
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `c3e49c7`
+
+### Verification Evidence — S6.P1.1 (Persistent Device Registry & Peer ACL Store)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 10 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (276 passed across 10 crates; 34 in `aissistant-core`, 32 in `aissistant-storage`)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (64 passed across 9 Flutter test suites)
+- **Test Summary:**
+  - `device::tests::test_device_trust_state_roundtrips` & `test_peer_permission_level_roundtrips`: Verified string and serde round-trip parsing for trust states (`Trusted`, `Blocked`, `PendingVerification`, `Revoked`) and ACL levels (`AlwaysAllow`, `AskEachTime`, `Deny`).
+  - `device::tests::test_paired_device_serde`: Verified JSON serialization of `PairedDevice` including 32-byte Ed25519 public key.
+  - `migration::tests::test_migration_runner_applies_v1_and_is_idempotent`: Verified `Migration 5` applying `paired_devices` and `peer_permissions` schemas idempotently (10 total tables).
+  - `device_registry::tests::test_device_registry_crud_lifecycle`: Verified device registration, retrieval, heartbeat timestamp & endpoint updating, trust state transitions, and permanent deletion.
+  - `device_registry::tests::test_peer_permissions_and_cascade_on_delete`: Verified granular capability permission grants, default-deny evaluation for unconfigured/blocked peers, and foreign key cascading deletion of grants on device removal.
+  - `device_registry::tests::test_device_registry_audit_log_continuity`: Verified that device registrations, trust updates, permission modifications, and deletions append cryptographically sealed, hash-chained entries to the security audit log (`verify_integrity` passes).
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** Pending commit
 
 
 

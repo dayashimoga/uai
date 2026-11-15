@@ -136,6 +136,35 @@ const MIGRATIONS: &[Migration] = &[
             END;
         ",
     },
+    Migration {
+        version: 5,
+        description: "Persistent paired devices registry and granular peer capability ACL store",
+        sql: "
+            CREATE TABLE IF NOT EXISTS paired_devices (
+                device_id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                ed25519_public_key BLOB NOT NULL,
+                paired_at_ms INTEGER NOT NULL,
+                last_seen_ms INTEGER NOT NULL,
+                last_endpoint TEXT,
+                trust_state TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_paired_devices_trust ON paired_devices(trust_state);
+            CREATE INDEX IF NOT EXISTS idx_paired_devices_last_seen ON paired_devices(last_seen_ms);
+
+            CREATE TABLE IF NOT EXISTS peer_permissions (
+                device_id TEXT NOT NULL REFERENCES paired_devices(device_id) ON DELETE CASCADE,
+                capability_id TEXT NOT NULL,
+                permission_level TEXT NOT NULL,
+                granted_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (device_id, capability_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_peer_permissions_device ON peer_permissions(device_id);
+        ",
+    },
 ];
 
 /// Migration runner applying incremental DDL changes within ACID transactions.
@@ -208,21 +237,21 @@ mod tests {
 
         // Initial run
         let version = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version, 4);
-        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 4);
+        assert_eq!(version, 5);
+        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 5);
 
         // Verify tables exist
         let tables_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts', 'semantic_embeddings');",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts', 'semantic_embeddings', 'paired_devices', 'peer_permissions');",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(tables_count, 8);
+        assert_eq!(tables_count, 10);
 
         // Second run must be a no-op
         let version_again = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version_again, 4);
+        assert_eq!(version_again, 5);
     }
 }
