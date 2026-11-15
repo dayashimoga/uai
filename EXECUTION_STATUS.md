@@ -901,7 +901,7 @@ Status Legend:
   - `screen::tests::test_screen_stream_end_to_end_and_active_indicator`: Verified complete session lifecycle (`StartSession` -> `SessionStarted` -> frame delivery -> `StopSession` -> `SessionStopped`), active host indicator state tracking (`is_streaming_active`), and BLAKE3 hash-chained audit logging.
   - `screen::tests::test_screen_stream_over_quic_mtls_loopback`: Verified end-to-end screen streaming over bidirectional Quinn QUIC streams with mutual Ed25519 TLS authentication and frame integrity checking over loopback UDP sockets.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
-- **Commit Reference:** `PENDING`
+- **Commit Reference:** `b0cde7a`
 
 
 
