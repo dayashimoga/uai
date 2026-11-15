@@ -895,4 +895,45 @@
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 
+---
+
+## [2026-11-15] — Stage 5 Phase 1 Subphase 2 (`S5.P1.2`)
+
+### Added
+- `core/crates/aissistant-skills/Cargo.toml`:
+  - Added `zip` v7.4.0 (pure-Rust deflate/zlib-rs), `blake3`, and `sha2` dependencies.
+- `core/crates/aissistant-skills/src/error.rs`:
+  - Added `PathEscape`, `SecurityViolation`, `Io`, and `Zip` error variants with conversions into `CoreError` and `OrchestratorError`.
+- `core/crates/aissistant-skills/src/file/jail.rs`:
+  - Implemented `PathJail` providing strict path canonicalization, allowed root confinement, symlink escape detection, zip-slip defense, null byte rejection, and system path denylists (`Windows/System32`, `Program Files/WindowsApps`, `/etc`, `/sys`, `/proc`, `/dev`, `/boot`).
+  - Added rejection of Windows reserved DOS device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`).
+- `core/crates/aissistant-skills/src/file/search_skill.rs`:
+  - Implemented `FileSearchSkill` (`file.search`, `RiskTier::ReadOnly`) supporting recursive directory walking, substring/extension matching, max results limits, and hidden file filters.
+- `core/crates/aissistant-skills/src/file/read_skill.rs`:
+  - Implemented `FileReadSkill` (`file.read`, `RiskTier::ReadOnly`) supporting bounded byte buffer reads (up to 1 MB cap), pagination offsets, EOF detection, and UTF-8/Hex encodings.
+- `core/crates/aissistant-skills/src/file/write_skill.rs`:
+  - Implemented `FileWriteSkill` (`file.write`, `RiskTier::FileAndApp`) supporting atomic write, append, and create-new modes with parent directory validation.
+- `core/crates/aissistant-skills/src/file/move_skill.rs`:
+  - Implemented `FileMoveSkill` (`file.move`, `RiskTier::FileAndApp`) supporting safe file and folder moving and renaming with destination collision checks.
+- `core/crates/aissistant-skills/src/file/delete_skill.rs`:
+  - Implemented `FileDeleteSkill` (`file.delete`, `RiskTier::Destructive`) supporting permanent deletion of files and recursive removal of non-empty folders.
+- `core/crates/aissistant-skills/src/file/archive_skill.rs`:
+  - Implemented `FileArchiveSkill` (`file.archive`, `RiskTier::FileAndApp`) supporting pure-Rust ZIP archive creation, entry listing, and safe extraction with zip-slip traversal protection.
+- `core/crates/aissistant-skills/src/file/checksum_skill.rs`:
+  - Implemented `FileChecksumSkill` (`file.checksum`, `RiskTier::ReadOnly`) supporting streaming BLAKE3 and SHA-256 cryptographic digest calculation.
+- `core/crates/aissistant-skills/src/file/mod.rs`:
+  - Re-exported all file skills and `PathJail`.
+- `core/crates/aissistant-skills/src/registry.rs`:
+  - Added `file_skills()`, `register_all_file_skills()`, and `register_all()` methods to `SkillRegistry` registering all 12 utility and file management skills into `ToolDispatcher`.
+- `core/crates/aissistant-skills/src/lib.rs`:
+  - Re-exported file module and added comprehensive integration tests verifying dispatch of all file skills through `ToolDispatcher`.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 9 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 239 unit and integration tests (0 failures; 33 in `aissistant-skills`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+
 

@@ -1,18 +1,23 @@
-//! Extensible skill framework, sandboxed executor, and built-in safe utility skills.
+//! Extensible skill framework, sandboxed executor, built-in safe utility skills,
+//! and jail-constrained file management skills.
 //!
-//! Provides the core registry, execution sandbox, and offline safe utility tools
-//! (`system.time`, `system.timer`, `system.calc`, `system.convert`, and `system.telemetry`)
-//! conforming to strict risk tiers (Risk Tier 0 and 1) and audit logging requirements.
+//! Conforms to strict risk tiers, path canonicalization, symlink escape prevention,
+//! and BLAKE3 hash-chained audit logging requirements.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
 pub mod error;
+pub mod file;
 pub mod registry;
 pub mod sandbox;
 pub mod utility;
 
 pub use error::{Result, SkillError};
+pub use file::{
+    FileArchiveSkill, FileChecksumSkill, FileDeleteSkill, FileMoveSkill, FileReadSkill,
+    FileSearchSkill, FileWriteSkill, PathJail,
+};
 pub use registry::SkillRegistry;
 pub use sandbox::{SandboxedSkill, DEFAULT_SKILL_TIMEOUT_MS};
 pub use utility::{CalcSkill, ConvertSkill, TelemetrySkill, TimeSkill, TimerSkill};
@@ -24,6 +29,7 @@ mod tests {
     use aissistant_security::RiskTier;
     use serde_json::json;
     use std::sync::Arc;
+    use tempfile::tempdir;
 
     #[test]
     #[allow(clippy::unwrap_used)]
@@ -91,6 +97,157 @@ mod tests {
             .execute("system.telemetry", json!({"metric": "all"}))
             .unwrap();
         assert!(telem_res.to_string().contains("total_bytes"));
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_skill_registry_file_skills_execution_and_risk_tiers() {
+        let temp = tempdir().unwrap();
+        let jail_root = temp.path().to_path_buf();
+        let jail = Arc::new(PathJail::new(vec![jail_root.clone()]));
+
+        let registry = SkillRegistry::new();
+        let dispatcher = ToolDispatcher::new();
+        registry
+            .register_all_file_skills(&dispatcher, Some(jail))
+            .unwrap();
+
+        // Check risk tiers
+        assert_eq!(
+            dispatcher.get("file.search").unwrap().unwrap().risk_tier(),
+            RiskTier::ReadOnly
+        );
+        assert_eq!(
+            dispatcher.get("file.read").unwrap().unwrap().risk_tier(),
+            RiskTier::ReadOnly
+        );
+        assert_eq!(
+            dispatcher
+                .get("file.checksum")
+                .unwrap()
+                .unwrap()
+                .risk_tier(),
+            RiskTier::ReadOnly
+        );
+        assert_eq!(
+            dispatcher.get("file.write").unwrap().unwrap().risk_tier(),
+            RiskTier::FileAndApp
+        );
+        assert_eq!(
+            dispatcher.get("file.move").unwrap().unwrap().risk_tier(),
+            RiskTier::FileAndApp
+        );
+        assert_eq!(
+            dispatcher.get("file.archive").unwrap().unwrap().risk_tier(),
+            RiskTier::FileAndApp
+        );
+        assert_eq!(
+            dispatcher.get("file.delete").unwrap().unwrap().risk_tier(),
+            RiskTier::Destructive
+        );
+
+        // 1. file.write
+        let target_file = jail_root.join("hello.txt");
+        let write_res = dispatcher
+            .execute(
+                "file.write",
+                json!({
+                    "path": target_file.to_str().unwrap(),
+                    "content": "Hello Universal Assistant!",
+                    "mode": "overwrite"
+                }),
+            )
+            .unwrap();
+        assert_eq!(write_res["bytes_written"], 26);
+
+        // 2. file.read
+        let read_res = dispatcher
+            .execute(
+                "file.read",
+                json!({
+                    "path": target_file.to_str().unwrap(),
+                    "offset": 0,
+                    "max_bytes": 100
+                }),
+            )
+            .unwrap();
+        assert_eq!(read_res["content"], "Hello Universal Assistant!");
+
+        // 3. file.checksum
+        let sum_res = dispatcher
+            .execute(
+                "file.checksum",
+                json!({
+                    "path": target_file.to_str().unwrap(),
+                    "algorithm": "blake3"
+                }),
+            )
+            .unwrap();
+        assert!(!sum_res["digest_hex"].as_str().unwrap().is_empty());
+
+        // 4. file.search
+        let search_res = dispatcher
+            .execute(
+                "file.search",
+                json!({
+                    "path": jail_root.to_str().unwrap(),
+                    "query": "hello"
+                }),
+            )
+            .unwrap();
+        assert_eq!(search_res["count"], 1);
+
+        // 5. file.move
+        let moved_file = jail_root.join("renamed.txt");
+        let move_res = dispatcher
+            .execute(
+                "file.move",
+                json!({
+                    "source_path": target_file.to_str().unwrap(),
+                    "destination_path": moved_file.to_str().unwrap()
+                }),
+            )
+            .unwrap();
+        assert_eq!(move_res["size_bytes"], 26);
+        assert!(!target_file.exists());
+        assert!(moved_file.exists());
+
+        // 6. file.archive (create & list)
+        let zip_file = jail_root.join("bundle.zip");
+        let arch_create = dispatcher
+            .execute(
+                "file.archive",
+                json!({
+                    "action": "create",
+                    "archive_path": zip_file.to_str().unwrap(),
+                    "target_path": moved_file.to_str().unwrap()
+                }),
+            )
+            .unwrap();
+        assert_eq!(arch_create["entries_count"], 1);
+
+        let arch_list = dispatcher
+            .execute(
+                "file.archive",
+                json!({
+                    "action": "list",
+                    "archive_path": zip_file.to_str().unwrap()
+                }),
+            )
+            .unwrap();
+        assert_eq!(arch_list["entries_count"], 1);
+
+        // 7. file.delete
+        let del_res = dispatcher
+            .execute(
+                "file.delete",
+                json!({
+                    "path": moved_file.to_str().unwrap()
+                }),
+            )
+            .unwrap();
+        assert!(del_res["deleted"].as_bool().unwrap());
+        assert!(!moved_file.exists());
     }
 
     #[test]

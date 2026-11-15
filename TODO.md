@@ -72,7 +72,7 @@
 
 ## Stage 5 Queue (Skill Framework & Native Application/System Control)
 - [x] `[S5.P1.1]` Skill Registry, Sandbox Validator & Built-In Utility Skills *(Completed 2026-11-15)*
-- [ ] `[S5.P1.2]` Safe File Management Skills (Search, Read, Write, Move, Archive, Checksum)
+- [x] `[S5.P1.2]` Safe File Management Skills (Search, Read, Write, Move, Archive, Checksum) *(Completed 2026-11-15)*
 - [ ] `[S5.P2.1]` Desktop Application Launch, Process Inspection & Window Management
 - [ ] `[S5.P2.2]` Desktop System Settings, Clipboard, Audio Volume & Media Transport Control
 - [ ] `[S5.P3.1]` Android Native Bridge (Foreground Service, Intents, Media, Accessibility)

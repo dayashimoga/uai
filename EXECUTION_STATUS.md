@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 5 — Skill Framework & Native Application/System Control  
-**Next Subphase in Queue:** `S5.P1.2` (Safe File Management Skills: Search, Read, Write, Move, Archive, Checksum)
+**Next Subphase in Queue:** `S5.P2.1` (Desktop Application Launch, Process Inspection & Window Management)
 
 ---
 
@@ -58,7 +58,7 @@ Status Legend:
 | **Stage 4** | `S4.P2.1` | Deterministic Orchestrator Turn State Machine (`aissistant-orchestrator`) | `S4.P1.2` | `COMPLETED` | Verified [Commit `0a424d9`]: 196 Rust workspace unit tests passing (11 in `aissistant-orchestrator`), 45 Flutter tests passing (100%), `flutter analyze` zero issues, `TurnState` finite state transitions, `TurnStateMachine` cooperative cancellation handle (<20ms latency), `Orchestrator` full turn loop (STT/text -> hybrid memory RRF -> ChatML prompt -> LLM streaming -> TTS speech chunks -> SQLite persistence), and real-time barge-in interruption verified. |
 | **Stage 4** | `S4.P2.2` | Policy-Enforced Tool Dispatcher & User Confirmation Flow | `S4.P2.1` | `COMPLETED` | Verified [Commit `18c183a`]: 206 Rust workspace unit tests passing (21 in `aissistant-orchestrator`), 45 Flutter tests passing (100%), `flutter analyze` zero issues, `ToolDispatcher` registry, `ToolHandler` trait, parameter sanitization & sensitive field redaction, `ConfirmationManager` thread-safe pending requests, non-blocking turn suspension on risk tiers 2-4, taint escalation enforcement, interactive approval/rejection resolution, and 100% cryptographic continuity in BLAKE3 hash-chained `security_audit_log` verified. |
 | **Stage 5** | `S5.P1.1` | Skill Registry, Sandbox Validator & Built-In Utility Skills | `S4.P2.2` | `COMPLETED` | Verified: 226 Rust workspace unit tests passing (20 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, sandboxed worker thread isolation, timeout enforcement, and 5 built-in safe utility skills (`system.time`, `system.timer`, `system.calc`, `system.convert`, `system.telemetry`) verified. |
-| **Stage 5** | `S5.P1.2` | Safe File Management Skills (Search, Read, Write, Move, Archive, Checksum) | `S5.P1.1` | `PENDING` | — |
+| **Stage 5** | `S5.P1.2` | Safe File Management Skills (Search, Read, Write, Move, Archive, Checksum) | `S5.P1.1` | `COMPLETED` | Verified: 239 Rust workspace unit tests passing (33 in `aissistant-skills`), clippy zero warnings, fmt check passed, 45 Flutter tests passing, `PathJail` canonicalization & symlink-escape defense, zip-slip prevention, and 7 safe file skills (`file.search`, `file.read`, `file.write`, `file.move`, `file.delete`, `file.archive`, `file.checksum`) verified. |
 | **Stage 5** | `S5.P2.1` | Desktop Application Launch, Process Inspection & Window Management | `S5.P1.2` | `PENDING` | — |
 | **Stage 5** | `S5.P2.2` | Desktop System Settings, Clipboard, Audio Volume & Media Transport Control | `S5.P2.1` | `PENDING` | — |
 | **Stage 5** | `S5.P3.1` | Android Native Bridge (Foreground Service, Intents, Media, Accessibility) | `S5.P2.2` | `PENDING` | — |
@@ -643,6 +643,32 @@ Status Legend:
   - `tests::test_skill_registry_all_builtins_registration_and_execution`: Verified end-to-end dispatch and schema validation of all 5 built-in tools through `ToolDispatcher`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `bb434fb`
+
+### Verification Evidence — S5.P1.2 (Safe File Management Skills: Search, Read, Write, Move, Archive, Checksum)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 9 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (239 passed across 9 crates; 33 in `aissistant-skills`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (45 passed across 7 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `file::jail::tests::test_path_jail_traversal_rejection`: Verified rejection of null byte injection (`\0`), Windows reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`), and parent directory traversal attempts (`..`).
+  - `file::jail::tests::test_path_jail_allowed_roots_confinement`: Verified strict directory tree confinement; paths attempting escape outside allowed roots return `SkillError::PathEscape`.
+  - `file::jail::tests::test_zip_slip_rejection`: Verified rejection of malicious archive entry paths with leading slashes or parent traversal components (`../../../etc/passwd`).
+  - `file::search_skill::tests::test_file_search_skill_matching`: Verified `file.search` recursive directory scanning, filename pattern matching, and result truncation limits (`RiskTier::ReadOnly`).
+  - `file::read_skill::tests::test_file_read_skill_basic_and_pagination`: Verified bounded byte reading, pagination offset seeking, and EOF detection with 1 MB memory cap (`RiskTier::ReadOnly`).
+  - `file::write_skill::tests::test_file_write_skill_modes`: Verified atomic file creation, append mode, and create-new collision rejection (`RiskTier::FileAndApp`).
+  - `file::move_skill::tests::test_file_move_skill`: Verified atomic file and folder renaming and destination existence checks (`RiskTier::FileAndApp`).
+  - `file::delete_skill::tests::test_file_delete_skill`: Verified permanent file and directory deletion with mandatory confirmation tier (`RiskTier::Destructive`).
+  - `file::archive_skill::tests::test_file_archive_skill_create_list_extract`: Verified pure-Rust ZIP archive creation, entry enumeration, and safe extraction with zip-slip validation (`RiskTier::FileAndApp`).
+  - `file::checksum_skill::tests::test_file_checksum_blake3_and_sha256`: Verified streaming cryptographic digest calculation for BLAKE3 and SHA-256 (`RiskTier::ReadOnly`).
+  - `registry::tests::test_file_skills_registration` & `test_register_all_combined`: Verified all 7 file skills register into `ToolDispatcher` with correct parameters schemas and risk tiers (total 12 tools).
+  - `tests::test_skill_registry_file_skills_execution_and_risk_tiers`: Verified end-to-end tool execution and risk tier verification for all file skills through `ToolDispatcher`.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit
+
 
 
 

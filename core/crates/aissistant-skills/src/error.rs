@@ -47,6 +47,30 @@ pub enum SkillError {
     #[error("Unknown unit: '{0}'")]
     UnknownUnit(String),
 
+    /// Attempted path escape or directory traversal outside permitted jail.
+    #[error("Path escape detected for '{path}': {reason}")]
+    PathEscape {
+        /// Target path that attempted escape.
+        path: String,
+        /// Reason description.
+        reason: String,
+    },
+
+    /// Security policy or access rule violation.
+    #[error("Security violation: {message}")]
+    SecurityViolation {
+        /// Security violation detail message.
+        message: String,
+    },
+
+    /// Standard I/O operation failure.
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+
+    /// Archive compression/decompression error.
+    #[error("Archive error: {0}")]
+    Zip(#[from] zip::result::ZipError),
+
     /// Core domain validation error.
     #[error("Core error: {0}")]
     Core(#[from] aissistant_core::CoreError),
@@ -92,6 +116,20 @@ impl SkillError {
                 entity: "Unit",
                 id: unit.clone(),
             },
+            Self::PathEscape { path, reason } => CoreError::PermissionDenied {
+                action: format!("file_access:{path}"),
+                reason: format!("Path escape: {reason}"),
+            },
+            Self::SecurityViolation { message } => CoreError::PermissionDenied {
+                action: "security_policy".to_string(),
+                reason: message.clone(),
+            },
+            Self::Io(err) => CoreError::Internal {
+                message: format!("I/O error: {err}"),
+            },
+            Self::Zip(err) => CoreError::Internal {
+                message: format!("Archive error: {err}"),
+            },
             Self::Orchestrator(err) => err.to_core_error(),
             Self::Serialization(err) => CoreError::Serialization {
                 message: err.to_string(),
@@ -133,6 +171,22 @@ impl SkillError {
             Self::UnknownUnit(unit) => OrchestratorError::ToolExecutionFailed {
                 tool_name: "system.convert".to_string(),
                 reason: format!("Unknown unit: {unit}"),
+            },
+            Self::PathEscape { path, reason } => OrchestratorError::InvalidToolArguments {
+                tool_name: "file".to_string(),
+                reason: format!("Path escape detected for '{path}': {reason}"),
+            },
+            Self::SecurityViolation { message } => OrchestratorError::ToolExecutionFailed {
+                tool_name: "file".to_string(),
+                reason: format!("Security violation: {message}"),
+            },
+            Self::Io(err) => OrchestratorError::ToolExecutionFailed {
+                tool_name: "file".to_string(),
+                reason: format!("I/O failure: {err}"),
+            },
+            Self::Zip(err) => OrchestratorError::ToolExecutionFailed {
+                tool_name: "file.archive".to_string(),
+                reason: format!("Archive failure: {err}"),
             },
             Self::Orchestrator(err) => match err {
                 OrchestratorError::InvalidToolArguments { tool_name, reason } => {

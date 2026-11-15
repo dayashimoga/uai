@@ -15,11 +15,14 @@ workspace = true
 aissistant-core = { path = "../aissistant-core" }
 aissistant-orchestrator = { path = "../aissistant-orchestrator" }
 aissistant-security = { path = "../aissistant-security" }
+blake3.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 sysinfo.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+zip = { version = "7.3.0", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 tempfile.workspace = true
