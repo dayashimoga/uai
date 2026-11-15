@@ -94,3 +94,11 @@
 - [x] `[S7.P2.1]` Chunked, BLAKE3/SHA-256 Verified Resumable File Transfer *(Completed 2026-11-15)*
 - [x] `[S7.P2.2]` Low-Latency Cross-Device Screen Capture & Streaming *(Completed 2026-11-15)*
 - [x] `[S7.P2.3]` Permission-Gated Remote Input Control & Session Overlay *(Completed 2026-11-15)*
+
+---
+
+## Stage 8 Queue (Vision, Knowledge, Translation & Advanced Intelligence)
+- [x] `[S8.P1.1]` Local Document Ingestion, Chunking & Indexing Pipeline *(Completed 2026-11-15)*
+- [ ] `[S8.P1.2]` Citation-Grounded Offline RAG & Knowledge Explorer UI
+- [ ] `[S8.P2.1]` Offline OCR & Multimodal Vision Model Integration
+- [ ] `[S8.P2.2]` Offline Multilingual Translation & Live Voice Interpreter Mode

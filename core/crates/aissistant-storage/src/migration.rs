@@ -165,6 +165,74 @@ const MIGRATIONS: &[Migration] = &[
             CREATE INDEX IF NOT EXISTS idx_peer_permissions_device ON peer_permissions(device_id);
         ",
     },
+    Migration {
+        version: 6,
+        description: "Local document ingestion, semantic chunking, and FTS5 inverted index",
+        sql: "
+            CREATE TABLE IF NOT EXISTS documents (
+                id TEXT PRIMARY KEY NOT NULL,
+                path TEXT NOT NULL UNIQUE,
+                file_name TEXT NOT NULL,
+                mime_type TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                file_size_bytes INTEGER NOT NULL,
+                chunk_count INTEGER NOT NULL,
+                indexed_at_ms INTEGER NOT NULL,
+                updated_at_ms INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_documents_path ON documents(path);
+            CREATE INDEX IF NOT EXISTS idx_documents_hash ON documents(content_hash);
+
+            CREATE TABLE IF NOT EXISTS document_chunks (
+                id TEXT PRIMARY KEY NOT NULL,
+                document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+                chunk_index INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                token_count INTEGER NOT NULL,
+                byte_offset_start INTEGER NOT NULL,
+                byte_offset_end INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_doc_chunks_doc_id ON document_chunks(document_id);
+            CREATE INDEX IF NOT EXISTS idx_doc_chunks_doc_index ON document_chunks(document_id, chunk_index);
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS document_chunks_fts USING fts5(
+                chunk_id UNINDEXED,
+                document_id UNINDEXED,
+                content,
+                tokenize = 'unicode61 remove_diacritics 2'
+            );
+
+            CREATE TRIGGER IF NOT EXISTS trg_doc_chunks_ai AFTER INSERT ON document_chunks
+            BEGIN
+                INSERT INTO document_chunks_fts(rowid, chunk_id, document_id, content)
+                VALUES (new.rowid, new.id, new.document_id, new.content);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_doc_chunks_ad AFTER DELETE ON document_chunks
+            BEGIN
+                DELETE FROM document_chunks_fts WHERE rowid = old.rowid;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_doc_chunks_au AFTER UPDATE ON document_chunks
+            BEGIN
+                DELETE FROM document_chunks_fts WHERE rowid = old.rowid;
+                INSERT INTO document_chunks_fts(rowid, chunk_id, document_id, content)
+                VALUES (new.rowid, new.id, new.document_id, new.content);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_doc_chunk_del_embeddings AFTER DELETE ON document_chunks
+            BEGIN
+                DELETE FROM semantic_embeddings WHERE entity_type = 'doc_chunk' AND entity_id = old.id;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_document_del_chunks AFTER DELETE ON documents
+            BEGIN
+                DELETE FROM document_chunks WHERE document_id = old.id;
+            END;
+        ",
+    },
 ];
 
 /// Migration runner applying incremental DDL changes within ACID transactions.
@@ -237,21 +305,21 @@ mod tests {
 
         // Initial run
         let version = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version, 5);
-        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 5);
+        assert_eq!(version, 6);
+        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 6);
 
         // Verify tables exist
         let tables_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts', 'semantic_embeddings', 'paired_devices', 'peer_permissions');",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts', 'semantic_embeddings', 'paired_devices', 'peer_permissions', 'documents', 'document_chunks', 'document_chunks_fts');",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(tables_count, 10);
+        assert_eq!(tables_count, 13);
 
         // Second run must be a no-op
         let version_again = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version_again, 5);
+        assert_eq!(version_again, 6);
     }
 }

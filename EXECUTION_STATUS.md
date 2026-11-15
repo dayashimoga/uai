@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 8 — Vision, Knowledge, Translation & Advanced Intelligence  
-**Next Subphase in Queue:** `S8.P1.1` (Local Document Ingestion, Chunking & Indexing Pipeline)
+**Next Subphase in Queue:** `S8.P1.2` (Citation-Grounded Offline RAG & Knowledge Explorer UI)
 
 ---
 
@@ -72,7 +72,7 @@ Status Legend:
 | **Stage 7** | `S7.P2.1` | Chunked, BLAKE3/SHA-256 Verified Resumable File Transfer | `S7.P1.2` | `COMPLETED` | Verified: 311 Rust workspace unit tests passing (39 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, 1 MB chunking, per-chunk and whole-file BLAKE3 digest verification, path traversal defenses (`sanitize_file_name`), `.part` + `.meta` crash consistency and interrupted resume, peer ACL checks, and BLAKE3 hash-chained audit logging verified. |
 | **Stage 7** | `S7.P2.2` | Low-Latency Cross-Device Screen Capture & Streaming | `S7.P2.1` | `COMPLETED` | Verified: 307 Rust workspace unit tests passing (43 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, length-delimited streaming framing, BLAKE3 per-frame integrity digests, caller TLS public key vs DeviceId binding, peer trust and `screen_streaming_host` ACL validation, active host streaming indicator, and BLAKE3 hash-chained audit logging verified. |
 | **Stage 7** | `S7.P2.3` | Permission-Gated Remote Input Control & Session Overlay | `S7.P2.2` | `COMPLETED` | Verified: 312 Rust workspace unit tests passing (48 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, normalized coordinate clamping, TLS caller public key vs DeviceId binding, peer trust and `remote_input_injection_host` ACL validation (`AlwaysAllow`), host emergency escape preemption (`terminate_session`), and BLAKE3 hash-chained audit logging verified. |
-| **Stage 8** | `S8.P1.1` | Local Document Ingestion, Chunking & Indexing Pipeline | `S7.P2.3` | `PENDING` | — |
+| **Stage 8** | `S8.P1.1` | Local Document Ingestion, Chunking & Indexing Pipeline | `S7.P2.3` | `COMPLETED` | Verified: 318 Rust workspace unit tests passing (38 in `aissistant-storage`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, Migration 6 schema runner, boundary-aware document chunking, BLAKE3 incremental skip and update, cascading deletion purging FTS and vector records, and SQLite FTS5 BM25 search verified. |
 | **Stage 8** | `S8.P1.2` | Citation-Grounded Offline RAG & Knowledge Explorer UI | `S8.P1.1` | `PENDING` | — |
 | **Stage 8** | `S8.P2.1` | Offline OCR & Multimodal Vision Model Integration | `S8.P1.2` | `PENDING` | — |
 | **Stage 8** | `S8.P2.2` | Offline Multilingual Translation & Live Voice Interpreter Mode | `S8.P2.1` | `PENDING` | — |
@@ -920,6 +920,27 @@ Status Legend:
   - `input::tests::test_remote_input_over_quic_mtls_loopback`: Verified end-to-end remote input control over bidirectional Quinn QUIC streams with mutual Ed25519 TLS authentication and event delivery to `VirtualInputInjector` over loopback UDP sockets.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `8798b14`
+
+### Verification Evidence — S8.P1.1 (Local Document Ingestion, Chunking & Indexing Pipeline)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 11 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (318 passed across 11 crates; 38 in `aissistant-storage`)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (72 passed across 10 Flutter test suites)
+- **Test Summary:**
+  - `document_store::tests::test_boundary_aware_chunking_preserves_paragraphs_and_sentences`: Verified boundary-aware chunking preserving paragraph breaks (`\n\n`) and sentence boundaries without mid-word truncation.
+  - `document_store::tests::test_short_document_produces_single_chunk`: Verified single-chunk optimization when document text length is within target size.
+  - `document_store::tests::test_index_document_lifecycle_and_incremental_skip`: Verified initial document ingestion, BLAKE3 content hashing, chunk generation, and incremental re-indexing skipping unchanged files with zero recomputation (`SkippedUnchanged`).
+  - `document_store::tests::test_index_document_modification_updates_chunks`: Verified that modifying file content triggers atomic replacement of previous chunks, FTS entries, and updated hash tracking (`Updated`).
+  - `document_store::tests::test_fts5_lexical_search_and_snippet_generation`: Verified SQLite FTS5 BM25 search across chunks with `<mark>` highlighted snippet excerpts and multi-term queries.
+  - `document_store::tests::test_cascading_deletion_purges_chunks_fts_and_embeddings`: Verified that deleting a document triggers 100% cascade cleanup across `document_chunks`, `document_chunks_fts`, and `semantic_embeddings` (`entity_type = 'doc_chunk'`).
+  - `migration::tests::test_migration_runner_applies_v1_and_is_idempotent`: Verified `Migration 6` DDL idempotency and table count across 13 core SQLite tables.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** `PENDING`
+
 
 
 

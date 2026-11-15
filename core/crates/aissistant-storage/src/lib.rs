@@ -5,6 +5,7 @@
 pub mod audit_store;
 pub mod conversation_store;
 pub mod device_registry;
+pub mod document_store;
 pub mod error;
 pub mod hybrid_search;
 pub mod keystore;
@@ -20,6 +21,10 @@ pub use conversation_store::{
     EpisodicSearchResult, ExportedConversation, TurnMetadata, TurnRole,
 };
 pub use device_registry::DeviceRegistry;
+pub use document_store::{
+    estimate_token_count, ChunkSearchResult, DocumentChunk, DocumentChunker, DocumentRecord,
+    DocumentStore, IndexingStatus, RawChunk,
+};
 pub use error::StorageError;
 pub use hybrid_search::{HybridSearchEngine, HybridSearchResult, RrfConfig};
 pub use keystore::{

@@ -1523,3 +1523,37 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 312 unit and integration tests (0 failures; 48 in `aissistant-network`).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).
+
+
+---
+
+## [2026-11-15] — Stage 8 Phase 1 Subphase 1 (`S8.P1.1`)
+
+### Added
+- `core/crates/aissistant-storage/src/migration.rs`:
+  - `Migration 6`:
+    - `documents` table tracking file paths, names, mime types, BLAKE3 content hashes, sizes, and timestamps.
+    - `document_chunks` table storing sequential semantic chunks with start/end byte offsets and estimated token counts.
+    - `document_chunks_fts` SQLite FTS5 inverted index table with `unicode61 remove_diacritics 2` tokenizer.
+    - Automatic SQLite triggers syncing `document_chunks` insertions, deletions, and updates with `document_chunks_fts`.
+    - Automatic cascading trigger purging `semantic_embeddings` (`entity_type = 'doc_chunk'`) upon chunk or document deletion.
+    - Automatic cascading trigger purging `document_chunks` upon document deletion.
+- `core/crates/aissistant-storage/src/document_store.rs`:
+  - `DocumentRecord`, `DocumentChunk`, `RawChunk`, and `ChunkSearchResult` domain data types.
+  - `IndexingStatus` enum (`Indexed`, `SkippedUnchanged`, `Updated`).
+  - `DocumentChunker`: Boundary-aware text chunker with configurable target size, overlap, paragraph breaks (`\n\n`), code block boundaries, and sentence delimiters.
+  - `estimate_token_count` heuristic estimating token volume.
+  - `DocumentStore`:
+    - `index_document`: Ingests documents with incremental BLAKE3 change detection, skipping unchanged files and atomically replacing modified chunks and vector embeddings.
+    - `get_document`, `get_document_by_path`, `list_documents`, `get_document_chunks`.
+    - `delete_document`, `delete_document_by_path` with 100% cascade purge across FTS5 and vector tables.
+    - `search_chunks_fts`: SQLite FTS5 BM25 search across document chunks with highlighted `<mark>` snippet excerpts.
+- `core/crates/aissistant-storage/Cargo.toml`: Added workspace dependency on `blake3`.
+- `core/crates/aissistant-storage/src/lib.rs`: Exposed and re-exported `document_store` module and types.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 318 unit and integration tests (0 failures; 38 in `aissistant-storage`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).
