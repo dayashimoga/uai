@@ -185,4 +185,4 @@ Status Legend:
   - `audit_store::tests::test_adversarial_sql_tampering_detected`: Verified simulated direct SQL tampering (`UPDATE security_audit_log SET arguments_redacted_json = ...`) is caught by `verify_integrity()`.
   - `tests::test_storage_subsystem_end_to_end`: Verified complete cross-crate integration between `aissistant-core`, `aissistant-security`, and `aissistant-storage`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit.
+- **Commit Reference:** `5349565809fe1e223a5c1e3fc9d0ba530cc37916`
