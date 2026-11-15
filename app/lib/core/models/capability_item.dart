@@ -49,4 +49,25 @@ class CapabilityItem {
             : '${word[0].toUpperCase()}${word.substring(1)}')
         .join(' ');
   }
+
+  String get tierDisplayName {
+    final lower = tier.toLowerCase();
+    switch (lower) {
+      case 'tier0':
+      case 'read_only':
+        return 'Tier 0: Read-Only';
+      case 'tier1':
+        return 'Tier 1: Read';
+      case 'tier2':
+        return 'Tier 2: Modify';
+      case 'tier3':
+      case 'system':
+        return 'Tier 3: System';
+      case 'tier4':
+      case 'privileged':
+        return 'Tier 4: Privileged';
+      default:
+        return 'Tier: ${tier.isNotEmpty ? "${tier[0].toUpperCase()}${tier.substring(1)}" : "Standard"}';
+    }
+  }
 }

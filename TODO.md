@@ -32,10 +32,21 @@
 
 ---
 
-## Stage 1 Queue (Completed through S1.P2.2)
+## Stage 1 Queue (Completed — 100%)
 - [x] `[S1.P1.1]` Create `aissistant-storage` crate with SQLite WAL connection pool, deterministic migration runner, settings store, and persistent hash-chained audit log table. *(Completed 2026-11-15)*
 - [x] `[S1.P1.2]` Integrate OS-native keystore adapters (Windows DPAPI, macOS/iOS Keychain, Linux SecretService, Android Keystore fallback abstraction) to seal the master AEAD key. *(Completed 2026-11-15)*
 - [x] `[S1.P2.1]` Create `aissistant-ffi` crate exposing system health, capability matrix, audit log inspection, and event streams. *(Completed 2026-11-15)*
 - [x] `[S1.P2.2]` Implement `CoreRuntime` lifecycle manager handling initialization, background task supervision, and clean shutdown across FFI. *(Completed 2026-11-15)*
 - [x] `[S1.P3.1]` Create `app/` Flutter project with adaptive navigation, accessibility semantics, and live binding to `aissistant-ffi`. *(Completed 2026-11-15)*
-- [ ] `[S1.P3.2]` Configure Windows, Linux, macOS, Android, and iOS native runner manifests, permissions declarations, and capability status views.
+- [x] `[S1.P3.2]` Configure Windows, Linux, macOS, Android, and iOS native runner manifests, permissions declarations, and capability status views. *(Completed 2026-11-15)*
+
+---
+
+## Stage 2 Queue (Offline Voice, Wake Word, STT & TTS)
+- [ ] `[S2.P1.1]` Real-Time Safe Audio Ring Buffer & Resampler (`aissistant-audio`)
+- [ ] `[S2.P1.2]` Cross-Platform Audio Capture & Playback Engine
+- [ ] `[S2.P2.1]` Offline VAD & Barge-In Detector (`sherpa-onnx` / Silero VAD)
+- [ ] `[S2.P2.2]` Customizable Offline Wake-Word Engine (`sherpa-onnx` KWS)
+- [ ] `[S2.P3.1]` Offline Multilingual Streaming Speech-to-Text
+- [ ] `[S2.P3.2]` Offline Neural Text-to-Speech & Sentence Streaming
+- [ ] `[S2.P3.3]` Voice UI Integration, Waveform Feedback & Push-to-Talk/Wake Mode

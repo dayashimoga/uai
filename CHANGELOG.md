@@ -282,3 +282,33 @@
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 20 unit, model, controller, and widget tests (0 failures).
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 88 unit and integration tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 1 Phase 3 Subphase 2 (`S1.P3.2`)
+
+### Added
+- **5-Platform Native Runner Manifests & Scaffolding (`app/`):**
+  - `app/android/`:
+    - `AndroidManifest.xml` configured with offline-first voice and LAN networking permissions (`RECORD_AUDIO`, `INTERNET`, `ACCESS_NETWORK_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `POST_NOTIFICATIONS`) and zero telemetry.
+    - `app/build.gradle.kts` configured for Java/Kotlin 17, minSdk 24 (Android 7.0+), targetSdk 34.
+  - `app/ios/`:
+    - `Runner/Info.plist` configured with offline microphone and local network privacy descriptions (`NSMicrophoneUsageDescription`, `NSLocalNetworkUsageDescription`), Bonjour discovery services (`_aissistant._tcp`, `_aissistant._udp`), and `audio` background mode.
+  - `app/macos/`:
+    - `Runner/Info.plist`, `DebugProfile.entitlements`, and `Release.entitlements` configured with microphone access (`audio-input`), local network client/server entitlements, and App Sandbox.
+  - `app/windows/`:
+    - `CMakeLists.txt` configured with bundling rules installing `aissistant_ffi.dll` into the output executable bundle directory.
+  - `app/linux/`:
+    - `CMakeLists.txt` configured with bundling rules installing `libaissistant_ffi.so` into the output executable bundle directory.
+- **Enhanced Capability Badges & Host OS Detection:**
+  - `app/lib/core/models/capability_item.dart` — Added `tierDisplayName` mapping risk tiers (Tier 0 to Tier 4) to human-readable badges.
+  - `app/lib/ui/screens/capabilities_screen.dart` — Added host runner status banner dynamically displaying current OS (`Windows`, `Linux`, `macOS`, `Android`, `iOS`), Desktop vs Mobile execution mode, capability summary chips, and risk tier badges on each capability tile.
+  - `app/README.md` — Authoritative multiplatform documentation covering the 5-platform architecture, permission models, directory layout, and verification commands.
+- **Automated Tests (`app/test/`):**
+  - `platform_runner_config_test.dart` — 5 unit tests validating that Android, iOS, macOS, Windows, and Linux runner manifests and CMake configurations strictly follow offline security policies and dynamic library bundling rules.
+  - `capabilities_screen_test.dart` — 3 widget tests verifying host runner card rendering, risk tier badges, summary chips, and live capability permission toggling.
+
+### Verification
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit, model, controller, widget, and platform configuration tests (0 failures).
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 88 unit and integration tests (0 failures).

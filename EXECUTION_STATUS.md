@@ -40,7 +40,7 @@ Status Legend:
 | **Stage 1** | `S1.P2.1` | `aissistant-ffi` Crate & Async Stream Bridge | `S1.P1.2` | `COMPLETED` | Verified: 83 workspace unit tests passing (14 in `aissistant-ffi`), clippy zero warnings, fmt check passed, event broadcast stream and safe C-ABI round trips verified. |
 | **Stage 1** | `S1.P2.2` | Core Lifecycle Supervisor & Graceful Shutdown | `S1.P2.1` | `COMPLETED` | Verified: 88 workspace unit tests passing (19 in `aissistant-ffi`), clippy zero warnings, fmt check passed, two-phase graceful shutdown, memory pressure checkpointing, and C-ABI verified. |
 | **Stage 1** | `S1.P3.1` | Shared Flutter App Shell, Adaptive Navigation & Live Core Diagnostics | `S1.P2.2` | `COMPLETED` | Verified: 20 Flutter tests passing (100%), 88 Rust workspace tests passing, `flutter analyze` zero issues, responsive navigation (desktop NavigationRail vs mobile NavigationBar), live diagnostics, capability permission toggling, and hash-chain audit log inspection verified. |
-| **Stage 1** | `S1.P3.2` | Five-Platform Native Runner Configuration & Capability Badges | `S1.P3.1` | `PENDING` | — |
+| **Stage 1** | `S1.P3.2` | Five-Platform Native Runner Configuration & Capability Badges | `S1.P3.1` | `COMPLETED` | Verified: 28 Flutter tests passing (100%), 88 Rust workspace tests passing, `flutter analyze` zero issues, 5-platform runners (Windows, Linux, macOS, Android, iOS) configured with offline privacy manifests, CMake library bundling, and capability status views. |
 | **Stage 2** | `S2.P1.1` | Real-Time Safe Audio Ring Buffer & Resampler (`aissistant-audio`) | `S1.P3.2` | `PENDING` | — |
 | **Stage 2** | `S2.P1.2` | Cross-Platform Audio Capture & Playback Engine | `S2.P1.1` | `PENDING` | — |
 | **Stage 2** | `S2.P2.1` | Offline VAD & Barge-In Detector (`sherpa-onnx` / Silero VAD) | `S2.P1.2` | `PENDING` | — |
@@ -273,3 +273,26 @@ Status Legend:
     - Verified seamless tab switching across Diagnostics, Capabilities, Audit Log, and Settings screens.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows Flutter/Dart); CI matrix pipeline covers Linux, macOS, Android, iOS, and Windows.
 - **Commit Reference:** `8ccc9b51f15ba762de11a82bde5ed4881ef5bf7a`
+
+### Verification Evidence — S1.P3.2 (Five-Platform Native Runner Configuration & Capability Badges)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `Flutter 3.44.6`, `Dart 3.12.2`, `rustc 1.97.1`, `cargo 1.97.1`, `cmake 4.4.1`
+- **Commands Executed:**
+  1. `cd app; C:\flutter\bin\flutter.bat create --platforms=windows,linux,macos,android,ios --org com.aissistant --project-name aissistant .` -> Exit 0 (Platform runners generated)
+  2. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found! 0 warnings/hints)
+  3. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (28 passed, 0 failed across 5 test suites)
+  4. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (88 passed across 4 Rust crates)
+- **Test Summary:**
+  - `platform_runner_config_test.dart`:
+    - Verified `android/app/src/main/AndroidManifest.xml` declares required offline voice, local LAN discovery, and foreground service permissions (`RECORD_AUDIO`, `INTERNET`, `ACCESS_NETWORK_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, `FOREGROUND_SERVICE`, `POST_NOTIFICATIONS`) without cloud telemetry.
+    - Verified `ios/Runner/Info.plist` declares privacy strings (`NSMicrophoneUsageDescription`, `NSLocalNetworkUsageDescription`), Bonjour services (`_aissistant._tcp`, `_aissistant._udp`), and background audio mode.
+    - Verified `macos/Runner/DebugProfile.entitlements` and `Release.entitlements` contain microphone (`audio-input`) and LAN server/client entitlements under App Sandbox.
+    - Verified `windows/CMakeLists.txt` configures bundling rules for `aissistant_ffi.dll`.
+    - Verified `linux/CMakeLists.txt` configures bundling rules for `libaissistant_ffi.so`.
+  - `capabilities_screen_test.dart`:
+    - Verified host platform runner card rendering with dynamic OS detection (`Windows`, `Linux`, `macOS`, `Android`, `iOS`) and Desktop vs Mobile execution mode.
+    - Verified summary chips (`Active`, `Degraded`, `Policy Disabled`).
+    - Verified tier badges (`Tier: Standard`, `Tier 0: Read-Only`, `Tier 3: System`, etc.) on capability tiles.
+    - Verified interactive capability switch triggers live permission toggling in `AssistantController`.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows Flutter/Dart); CI matrix pipeline covers Linux, macOS, Android, iOS, and Windows.
+- **Commit Reference:** Pending commit

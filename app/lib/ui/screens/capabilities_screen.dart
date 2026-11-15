@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/assistant_controller.dart';
@@ -9,9 +10,37 @@ class CapabilitiesScreen extends StatelessWidget {
 
   const CapabilitiesScreen({super.key, required this.controller});
 
+  String _getPlatformDisplayName() {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'Android';
+      case TargetPlatform.iOS:
+        return 'iOS';
+      case TargetPlatform.linux:
+        return 'Linux';
+      case TargetPlatform.macOS:
+        return 'macOS';
+      case TargetPlatform.windows:
+        return 'Windows';
+      case TargetPlatform.fuchsia:
+        return 'Fuchsia';
+    }
+  }
+
+  bool _isDesktopPlatform() {
+    return defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.macOS;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final capabilities = controller.capabilities;
+
+    final supportedCount = capabilities.where((c) => c.status == 'supported' && c.isActive).length;
+    final degradedCount = capabilities.where((c) => c.status == 'degraded').length;
+    final disabledCount = capabilities.where((c) => !c.isActive && c.status != 'unsupported').length;
 
     return Scaffold(
       appBar: AppBar(
@@ -28,17 +57,92 @@ class CapabilitiesScreen extends StatelessWidget {
           ? const Center(child: Text('No capabilities reported by core'))
           : RefreshIndicator(
               onRefresh: () async => controller.refreshCapabilities(),
-              child: ListView.separated(
+              child: ListView(
                 padding: const EdgeInsets.all(16.0),
-                itemCount: capabilities.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final cap = capabilities[index];
-                  return _CapabilityTile(
-                    capability: cap,
-                    onToggle: (val) => controller.toggleCapability(cap.name, val),
-                  );
-                },
+                children: <Widget>[
+                  // Host Platform Runner Banner
+                  Card(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              Icon(
+                                _isDesktopPlatform() ? Icons.desktop_windows : Icons.smartphone,
+                                color: theme.colorScheme.primary,
+                                size: 28,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      '${_getPlatformDisplayName()} Host Runner',
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      _isDesktopPlatform()
+                                          ? 'Desktop Mode (Unconstrained Background & System Control)'
+                                          : 'Mobile Mode (OS Sandbox & Background Lifecycle Rules)',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: <Widget>[
+                              Chip(
+                                avatar: const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                                label: Text('$supportedCount Active'),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              if (degradedCount > 0)
+                                Chip(
+                                  avatar: const Icon(Icons.warning_amber, size: 16, color: Colors.orange),
+                                  label: Text('$degradedCount Degraded'),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              if (disabledCount > 0)
+                                Chip(
+                                  avatar: const Icon(Icons.block, size: 16, color: Colors.grey),
+                                  label: Text('$disabledCount Policy Disabled'),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Platform Capabilities (${capabilities.length})',
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ...capabilities.map(
+                    (cap) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: _CapabilityTile(
+                        capability: cap,
+                        onToggle: (val) => controller.toggleCapability(cap.name, val),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
     );
@@ -89,9 +193,29 @@ class _CapabilityTile extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
                 Expanded(
-                  child: Text(
-                    capability.displayName,
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        capability.displayName,
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          capability.tierDisplayName,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSecondaryContainer,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 Container(
