@@ -419,4 +419,4 @@ Status Legend:
   - `tests::test_acoustic_tts_cancellation_barge_in`: Verified instant synthesis cancellation via cancellation handle, immediately halting generation and returning an empty/cancelled chunk upon user barge-in.
   - `tests::test_sherpa_tts_engine_config_and_lifecycle`: Verified `sherpa-onnx` VITS/Piper/Matcha configuration, model path checking, and transparent acoustic synthesis fallback.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `5e596ef`
