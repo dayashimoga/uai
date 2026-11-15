@@ -37,6 +37,22 @@ pub enum NetworkError {
     /// Generic internal network subsystem failure.
     #[error("Internal network error: {0}")]
     Internal(String),
+
+    /// TLS 1.3 cryptographic or handshake error.
+    #[error("TLS network error: {0}")]
+    Tls(#[from] rustls::Error),
+
+    /// QUIC transport error.
+    #[error("QUIC transport error: {0}")]
+    Quic(String),
+
+    /// Peer authentication failed due to untrusted identity or invalid signature.
+    #[error("Peer authentication failed: {0}")]
+    PeerAuthenticationFailed(String),
+
+    /// Network connection was closed or terminated.
+    #[error("Connection closed: {0}")]
+    ConnectionClosed(String),
 }
 
 #[cfg(test)]

@@ -5,11 +5,16 @@
 //! deterministic virtual discovery simulation, and live dual-stack UDP multicast
 //! network discovery.
 
+pub mod cert;
 pub mod discovery;
 pub mod dns;
 pub mod error;
+pub mod transport;
 pub mod types;
 
+pub use cert::{
+    extract_ed25519_public_key, generate_tls_cert, PinnedEd25519Verifier, ED25519_SPKI_PREFIX,
+};
 pub use discovery::{
     build_announcement_packet, build_query_packet, current_time_ms, format_fingerprint,
     parse_fingerprint, parse_peer_from_packet, DiscoveryEngine, MdnsDiscoveryEngine,
@@ -17,6 +22,11 @@ pub use discovery::{
 };
 pub use dns::{DnsPacket, DnsQuestion, DnsRecord, RData};
 pub use error::{NetworkError, Result};
+pub use transport::{
+    build_quic_client_config, build_quic_server_config, create_virtual_session_pair,
+    extract_peer_public_key, QuicSession, QuicTransportEngine, VirtualSession, ALPN_P2P_PROTOCOL,
+    DEFAULT_IDLE_TIMEOUT, DEFAULT_KEEPALIVE_INTERVAL,
+};
 pub use types::{
     DiscoveredPeer, DiscoveryEvent, ServiceConfig, DEFAULT_QUIC_PORT, MDNS_IPV4_MULTICAST,
     MDNS_PORT, MDNS_SERVICE_TYPE,
