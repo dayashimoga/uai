@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 9 — Personalization, Workflows & Proactive Automation  
-**Next Subphase in Queue:** `S9.P1.1` (User Persona, Voice Profile & Explicit Preference Manager)
+**Next Subphase in Queue:** `S9.P1.2` (Cron, Event-Triggered & Cross-Device Workflow Automation Engine)
 
 ---
 
@@ -76,7 +76,7 @@ Status Legend:
 | **Stage 8** | `S8.P1.2` | Citation-Grounded Offline RAG & Knowledge Explorer UI | `S8.P1.1` | `COMPLETED` | Verified: 343 Rust workspace unit tests passing (40 in `aissistant-storage`, 27 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 77 Flutter tests passing, KnowledgeRetriever RRF hybrid search fusing BM25 lexical and dense vector signals, grounded citation generation with token budget limits, safe FFI and C-ABI exports, reactive AssistantController knowledge state, and responsive KnowledgeExplorer UI verified. |
 | **Stage 8** | `S8.P2.1` | Offline OCR & Multimodal Vision Model Integration | `S8.P1.2` | `COMPLETED` | Verified [Commit `23e6d9d`]: 351 Rust workspace unit tests passing (13 in `aissistant-llm`, 28 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 82 Flutter tests passing (100%), `flutter analyze` zero issues, offline `ImageBuffer` & `VisionPreprocessor` (PNG/JPEG headers, bilinear interpolation, aspect-ratio preservation, ImageNet normalization, patch extraction), `OfflineOcrEngine` (contrast projection profiling, bounding box IoU calculation, confidence scoring), safe FFI & C-ABI exports, reactive `AssistantController` vision state, and responsive `VisionScreen` UI with sample inspection, metrics, full text clipboard copy, and bounding box layout breakdown verified. |
 | **Stage 8** | `S8.P2.2` | Offline Multilingual Translation & Live Voice Interpreter Mode | `S8.P2.1` | `COMPLETED` | Verified [Commit `3719f45`]: 356 Rust workspace unit tests passing (40 in `aissistant-llm`, 24 in `aissistant-orchestrator`, 29 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 89 Flutter tests passing (100%), `flutter analyze` zero issues, offline `Language` & `LanguagePair` (ISO 639-1: en, es, fr, de, zh, ja, it, pt, ru, ko), `TranslationPromptTemplate`, `TranslationEngine` (fast verified phrasebook, casing match, hybrid fallback), `InterpreterSession` & `InterpreterTurn` bi-directional dialogue manager with auto-alternating speakers, safe FFI & C-ABI exports, reactive `AssistantController` interpreter state, and responsive `InterpreterScreen` UI with participant cards, active turn indicator, quick phrase chips, and transcript history verified. |
-| **Stage 9** | `S9.P1.1` | User Persona, Voice Profile & Explicit Preference Manager | `S8.P2.2` | `PENDING` | — |
+| **Stage 9** | `S9.P1.1` | User Persona, Voice Profile & Explicit Preference Manager | `S8.P2.2` | `COMPLETED` | Verified [Commit `aea67e1`]: 367 Rust workspace unit tests passing (46 in `aissistant-storage`, 28 in `aissistant-orchestrator`, 30 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 93 Flutter tests passing (100%), `flutter analyze` zero issues, Migration 7 schema runner, PersonaStore CRUD with active exclusivity and default persona protection, PersonaPromptInjector prompt assembly, safe FFI and C-ABI exports, reactive AssistantController state, and responsive PersonaScreen UI with voice tuning verified. |
 | **Stage 9** | `S9.P1.2` | Cron, Event-Triggered & Cross-Device Workflow Automation Engine | `S9.P1.1` | `PENDING` | — |
 | **Stage 9** | `S9.P2.1` | Local MQTT & Home Assistant / Matter-Bridge Offline Integration | `S9.P1.2` | `PENDING` | — |
 | **Stage 9** | `S9.P2.2` | Automation Builder UI & Execution History Inspector | `S9.P2.1` | `PENDING` | — |
@@ -1016,6 +1016,36 @@ Status Legend:
   - `interpreter_screen_test::adaptive shell displays Interpreter destination and navigates to it`: Verified responsive navigation via NavigationRail on desktop and NavigationBar on mobile.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `3719f45`
+
+### Verification Evidence — S9.P1.1 (User Persona, Voice Profile & Explicit Preference Manager)
+- **Subphase:** `S9.P1.1`
+- **Execution Date:** 2026-11-15
+- **Status:** `COMPLETED`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (Clean formatting)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (0 warnings across 11 crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (367 passed across 11 crates; 46 in `aissistant-storage`, 28 in `aissistant-orchestrator`, 30 in `aissistant-ffi`)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (93 passed across 14 Flutter test suites)
+- **Test Summary:**
+  - `migration::tests::test_migration_runner_applies_v1_and_is_idempotent`: Verified `Migration 7` creating `user_personas` and `user_preferences` schema tables, indices, and seeded default persona (`persona_default`, `Default Assistant`, active, `vits_piper_en_ryan`), with schema version `7` and table count `15`.
+  - `persona_store::tests::test_persona_tone_and_verbosity_serde_and_instructions`: Verified parsing, serialization, and system instruction formatting across all 5 tones (`Balanced`, `Concise`, `Technical`, `Casual`, `Academic`) and 3 verbosities (`Concise`, `Normal`, `Detailed`).
+  - `persona_store::tests::test_default_persona_seeding_and_retrieval`: Verified migration-seeded default persona is retrieved and active.
+  - `persona_store::tests::test_persona_crud_and_exclusivity`: Verified custom persona creation, atomic active exclusivity deactivating prior persona, switching active persona, and deletion.
+  - `persona_store::tests::test_cannot_delete_default_or_active_persona`: Verified protection rules preventing deletion of default system persona or currently active persona.
+  - `persona_store::tests::test_persona_validation_errors`: Verified rejection of empty IDs, names, or non-existent persona activation.
+  - `persona_store::tests::test_user_preferences_crud_and_categories`: Verified preference setting, JSON retrieval, category filtering, and deletion.
+  - `persona::tests::test_inject_persona_none_and_empty_prefs`: Verified fallback to base prompt when no persona directives or preferences are present.
+  - `persona::tests::test_inject_persona_with_tone_and_verbosity`: Verified prompt injection of tone directives and verbosity instructions.
+  - `persona::tests::test_inject_persona_with_override_and_preferences`: Verified custom system prompt override and categorized explicit user preference injection.
+  - `orchestrator::tests::test_orchestrator_persona_and_preferences_prompt_injection`: Verified end-to-end integration of `PersonaStore` into `Orchestrator` during turn execution.
+  - `tests::test_persona_and_preference_c_abi`: Verified C-ABI functions (`bridge_c_persona_get_active`, `bridge_c_persona_list`, `bridge_c_persona_save`, `bridge_c_persona_set_active`, `bridge_c_persona_delete`, `bridge_c_preference_get`, `bridge_c_preference_set`, `bridge_c_preference_list`, `bridge_c_preference_delete`), JSON serialization, and memory freeing via `bridge_c_free_string`.
+  - `persona_screen_test::renders PersonaScreen with active persona, saved personas, and preferences`: Verified responsive UI shell, active hero card, saved personas list, and explicit preferences list.
+  - `persona_screen_test::creates a new custom persona and activates it`: Verified modal dialog creation, list update, and one-tap persona activation.
+  - `persona_screen_test::adds a new explicit preference and deletes it`: Verified preference dialog, JSON entry, categorized rendering, and deletion.
+  - `persona_screen_test::navigates to PersonaScreen via AdaptiveShell`: Verified navigation via `AdaptiveShell` NavigationRail on desktop and NavigationBar on mobile.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** `aea67e1`
 
 
 

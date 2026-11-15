@@ -102,3 +102,11 @@
 - [x] `[S8.P1.2]` Citation-Grounded Offline RAG & Knowledge Explorer UI *(Completed 2026-11-15)*
 - [x] `[S8.P2.1]` Offline OCR & Multimodal Vision Model Integration *(Completed 2026-11-15)*
 - [x] `[S8.P2.2]` Offline Multilingual Translation & Live Voice Interpreter Mode *(Completed 2026-11-15)*
+
+---
+
+## Stage 9 Queue (Personalization, Workflows & Proactive Automation)
+- [x] `[S9.P1.1]` User Persona, Voice Profile & Explicit Preference Manager *(Completed 2026-11-15)*
+- [ ] `[S9.P1.2]` Cron, Event-Triggered & Cross-Device Workflow Automation Engine
+- [ ] `[S9.P2.1]` Local MQTT & Home Assistant / Matter-Bridge Offline Integration
+- [ ] `[S9.P2.2]` Automation Builder UI & Execution History Inspector

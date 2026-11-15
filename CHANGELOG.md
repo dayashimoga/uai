@@ -1714,3 +1714,49 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 356 unit and integration tests (0 failures; 40 in `aissistant-llm`, 24 in `aissistant-orchestrator`, 29 in `aissistant-ffi`).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 89 unit and widget tests (0 failures).
+
+## [Unreleased] - 2026-11-15: Subphase S9.P1.1 — User Persona, Voice Profile & Explicit Preference Manager
+
+### Added
+- `core/crates/aissistant-storage/src/migration.rs`:
+  - Added `Migration 7` defining `user_personas` and `user_preferences` schema tables, indices, and seeded default persona (`persona_default`, `Default Assistant`, active, `vits_piper_en_ryan`).
+  - Updated schema version assertions and table count to 15.
+- `core/crates/aissistant-storage/src/persona_store.rs`:
+  - Implemented `UserPersona`, `UserPreference`, `PersonaTone` (`Balanced`, `Concise`, `Technical`, `Casual`, `Academic`), and `ResponseVerbosity` (`Concise`, `Normal`, `Detailed`) with system prompt guidance formatting.
+  - Implemented `PersonaStore` with CRUD operations: `get_active_persona`, `get_persona`, `list_personas`, `save_persona` (with atomic active exclusivity toggle), `set_active_persona`, `delete_persona` (guarding default and active personas), `get_preference`, `set_preference`, `list_preferences` (with optional category filter), and `delete_preference`.
+- `core/crates/aissistant-storage/src/error.rs`:
+  - Added `StorageError::InvalidData(String)` variant with `CoreError::ConfigValidation` mapping.
+- `core/crates/aissistant-storage/src/lib.rs`:
+  - Exposed and re-exported `persona_store` module and types.
+- `core/crates/aissistant-orchestrator/src/persona.rs`:
+  - Implemented `PersonaPromptInjector` injecting persona identity, tone directives, verbosity depth instructions, and explicit user preference key-values into system prompts.
+- `core/crates/aissistant-orchestrator/src/orchestrator.rs`:
+  - Integrated `PersonaStore` into `Orchestrator` via `with_persona_store`, dynamically embedding active persona directives during turn prompt assembly.
+- `core/crates/aissistant-orchestrator/src/lib.rs`:
+  - Exposed and re-exported `persona` module and `PersonaPromptInjector`.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Added `UserPersonaItem` and `UserPreferenceItem` FFI types with bidirectional conversions.
+  - Added `get_active_persona`, `list_personas`, `save_persona`, `set_active_persona`, `delete_persona`, `get_preference`, `set_preference`, `list_preferences`, and `delete_preference` methods to `CoreBridge` and convenience wrappers.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Added safe C-ABI functions: `bridge_c_persona_get_active`, `bridge_c_persona_list`, `bridge_c_persona_save`, `bridge_c_persona_set_active`, `bridge_c_persona_delete`, `bridge_c_preference_get`, `bridge_c_preference_set`, `bridge_c_preference_list`, and `bridge_c_preference_delete`.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Re-exported persona and preference types and added `test_persona_and_preference_c_abi` integration test.
+- `app/lib/core/models/persona_models.dart`:
+  - Created Dart models `UserPersonaItem`, `UserPreferenceItem`, `PersonaTonePreset`, and `ResponseVerbosityLevel`.
+- `app/lib/core/ffi_bridge.dart`:
+  - Wired persona and preference methods across `AissistantBridge`, `NativeFfiBridge` (C-ABI bindings), and `TestHarnessBridge`.
+- `app/lib/core/assistant_controller.dart`:
+  - Added reactive persona state (`activePersona`, `personas`, `preferences`, `isPersonaLoading`, `personaError`) and methods (`loadPersonas`, `savePersona`, `setActivePersona`, `deletePersona`, `loadPreferences`, `setPreference`, `deletePreference`).
+- `app/lib/ui/screens/persona_screen.dart`:
+  - Built responsive Persona & Voice Profile screen with Active Persona Hero Card, live voice sliders (rate, pitch), saved personas list with quick activation, add/edit modal dialog, and explicit user preferences section with category filtering.
+- `app/lib/ui/adaptive_shell.dart`:
+  - Added `Persona` destination to `NavigationRail` and `NavigationBar`.
+- `app/test/persona_screen_test.dart`:
+  - Added widget tests for persona hero rendering, custom persona creation/activation, voice slider tuning, preference CRUD operations, and adaptive navigation.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed cleanly.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 11 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 367 unit and integration tests (0 failures; 46 in `aissistant-storage`, 28 in `aissistant-orchestrator`, 30 in `aissistant-ffi`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 93 unit and widget tests (0 failures).
