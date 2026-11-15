@@ -46,7 +46,7 @@
 - [x] `[S2.P1.1]` Real-Time Safe Audio Ring Buffer & Resampler (`aissistant-audio`) *(Completed 2026-11-15)*
 - [x] `[S2.P1.2]` Cross-Platform Audio Capture & Playback Engine *(Completed 2026-11-15)*
 - [x] `[S2.P2.1]` Offline VAD & Barge-In Detector (`sherpa-onnx` / Silero VAD) *(Completed 2026-11-15)*
-- [ ] `[S2.P2.2]` Customizable Offline Wake-Word Engine (`sherpa-onnx` KWS)
+- [x] `[S2.P2.2]` Customizable Offline Wake-Word Engine (`sherpa-onnx` KWS) *(Completed 2026-11-15)*
 - [ ] `[S2.P3.1]` Offline Multilingual Streaming Speech-to-Text
 - [ ] `[S2.P3.2]` Offline Neural Text-to-Speech & Sentence Streaming
 - [ ] `[S2.P3.3]` Voice UI Integration, Waveform Feedback & Push-to-Talk/Wake Mode

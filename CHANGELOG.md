@@ -409,3 +409,36 @@
 - `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 119 unit and integration tests (0 failures; 8 in `aissistant-speech`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit and widget tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 2 Phase 2 Subphase 2 (`S2.P2.2`)
+
+### Added
+- `core/crates/aissistant-speech/src/wake_word.rs`:
+  - `WakeWordConfig` — Configuration parameters for offline keyword detection, including customizable keyword list, sensitivity threshold (`[0.0, 1.0]`), debounce interval (`min_keyword_interval_ms`), sample rate (16 kHz), analysis window (512 samples / 32 ms), and slide step (160 samples / 10 ms).
+  - `WakeWordEvent` — Structured event containing detected keyword, confidence score, audio timestamp in milliseconds, start sample, and end sample.
+  - `WakeWordSpotter` trait — Abstract contract for streaming keyword detection, dynamic keyword list modification, and threshold tuning.
+- `core/crates/aissistant-speech/src/acoustic_kws.rs`:
+  - `AcousticKwsSpotter` — Self-contained, offline acoustic keyword spotter running in real time without external model files.
+  - In-place radix-2 Cooley-Tukey FFT with precomputed Hann window extracting zero-crossing rate (ZCR), dBFS energy, spectral centroid, and 4 normalized subband energies (Low, Lower-Mid, Upper-Mid, High).
+  - Pearson trajectory correlation across subbands over time to eliminate vowel baseline bias and capture true phoneme transition dynamics.
+  - Phonological category discrimination penalizing mismatches between sibilant fricatives (e.g., /s/) and vowels/nasals.
+  - Built-in calibrated acoustic profiles for `"hey assistant"`, `"computer"`, and `"jarvis"`, plus algorithmic template synthesis for arbitrary custom phrases.
+  - Debounce timer enforcement guaranteeing single-trigger per utterance.
+- `core/crates/aissistant-speech/src/sherpa_kws.rs`:
+  - `SherpaKwsConfig` & `SherpaKwsEngine` — Model and configuration bridge for `sherpa-onnx` streaming keyword spotter models.
+  - Validates transducer/zipformer encoder/decoder/joiner ONNX paths and `tokens.txt`.
+  - Generates standard `sherpa-onnx` keyword boosting files (`<keyword> / @<boosting_score>`) with file export support.
+  - Seamless fallback to `AcousticKwsSpotter` when ONNX assets are not yet downloaded on the host.
+- `core/crates/aissistant-speech/src/error.rs`:
+  - Added `SpeechError::WakeWordError` for wake-word failure reporting.
+- `core/crates/aissistant-speech/src/lib.rs`:
+  - 8 new unit and integration tests (bringing `aissistant-speech` total to 16, and workspace total to 127).
+  - Verified keyword spotting on synthetic speech audio, false-accept rejection of silence, white noise, and pure tones, debounce interval enforcement, runtime keyword addition/removal, threshold sensitivity, multi-keyword discrimination, and `sherpa-onnx` keyword file generation and export.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 127 unit and integration tests (0 failures; 16 in `aissistant-speech`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit and widget tests (0 failures).

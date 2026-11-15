@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 1 — Repository, Flutter/Rust Foundation & Five-Platform Application Shells  
-**Active Subphase:** `S1.P3.1` (In Progress)
+**Active Subphase:** None (`S2.P2.2` Complete, `S2.P3.1` Pending Confirmation)
 
 ---
 
@@ -44,7 +44,7 @@ Status Legend:
 | **Stage 2** | `S2.P1.1` | Real-Time Safe Audio Ring Buffer & Resampler (`aissistant-audio`) | `S1.P3.2` | `COMPLETED` | Verified: 105 Rust workspace unit tests passing (17 in `aissistant-audio`), clippy zero warnings, fmt check passed, lock-free SPSC circular ring buffer (Strict & Overwrite modes), multi-channel downmixing, continuous 16 kHz resampler, and dBFS level meter verified. |
 | **Stage 2** | `S2.P1.2` | Cross-Platform Audio Capture & Playback Engine | `S2.P1.1` | `COMPLETED` | Verified: 111 Rust workspace unit tests passing (23 in `aissistant-audio`), clippy zero warnings, fmt check passed, native device discovery, real-time capture stream, software mute enforcement, playback stream with instant barge-in flush, and headless virtual driver verified. |
 | **Stage 2** | `S2.P2.1` | Offline VAD & Barge-In Detector (`sherpa-onnx` / Silero VAD) | `S2.P1.2` | `COMPLETED` | Verified: 119 Rust workspace unit tests passing (8 in `aissistant-speech`), clippy zero warnings, fmt check passed, offline VAD engine, pre-speech padding, silence timeout tuning, and instant barge-in interruption verified. |
-| **Stage 2** | `S2.P2.2` | Customizable Offline Wake-Word Engine (`sherpa-onnx` KWS) | `S2.P2.1` | `PENDING` | — |
+| **Stage 2** | `S2.P2.2` | Customizable Offline Wake-Word Engine (`sherpa-onnx` KWS) | `S2.P2.1` | `COMPLETED` | Verified: 127 Rust workspace unit tests passing (16 in `aissistant-speech`), clippy zero warnings, fmt check passed, acoustic keyword spotter, Pearson subband trajectory correlation, multi-keyword discrimination, debounce cooldown, and sherpa-onnx KWS interface verified. |
 | **Stage 2** | `S2.P3.1` | Offline Multilingual Streaming Speech-to-Text | `S2.P2.2` | `PENDING` | — |
 | **Stage 2** | `S2.P3.2` | Offline Neural Text-to-Speech & Sentence Streaming | `S2.P3.1` | `PENDING` | — |
 | **Stage 2** | `S2.P3.3` | Voice UI Integration, Waveform Feedback & Push-to-Talk/Wake Mode | `S2.P3.2` | `PENDING` | — |
@@ -362,3 +362,23 @@ Status Legend:
   - `tests::test_barge_in_speech_drop_resets_counter`: Verified that transient noise spikes or brief speech drops reset the consecutive speech frame accumulator before reaching threshold.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `bbc2218e16c3c27391eb8e56028a42411fba62e3`
+
+### Verification Evidence — S2.P2.2 (Customizable Offline Wake-Word Engine)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 6 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (127 passed across 6 crates; 16 in `aissistant-speech`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (28 passed across 5 Flutter test suites)
+- **Test Summary:**
+  - `tests::test_wake_word_config_validation`: Verified validation of keyword lists, sensitivity threshold bounds `[0.0, 1.0]`, sample rate (16 kHz enforcement), and analysis window/slide parameters.
+  - `tests::test_acoustic_kws_synthetic_hey_assistant_detection`: Verified synthetic "hey assistant" speech detection (smooth acoustic formant evolution and sibilant high-band burst with confidence $\ge 0.60$).
+  - `tests::test_acoustic_kws_false_accept_rejection_silence_and_noise`: Verified that pure silence, static sine wave tones (440 Hz telephone hum), and monotonous steady vowels produce zero false triggers due to spectral dynamics and variance verification.
+  - `tests::test_acoustic_kws_debounce_cooldown`: Verified that identical wake-word audio triggers only once within the 1500 ms debounce window, and reliably triggers again once the debounce cooldown elapses.
+  - `tests::test_acoustic_kws_dynamic_keyword_updates`: Verified runtime keyword registration and removal without restarting the engine.
+  - `tests::test_acoustic_kws_threshold_sensitivity`: Verified that strict threshold (0.999) rejects borderline audio while lower threshold (0.50) accepts with calibrated confidence.
+  - `tests::test_multi_keyword_discrimination`: Verified sharp acoustic discrimination between different registered keywords ("computer" vs "hey assistant") using Pearson trajectory correlation and phonological category penalties.
+  - `tests::test_sherpa_kws_engine_config_and_export`: Verified `sherpa-onnx` keyword file syntax generation (`<keyword> / @<boosting_score>`), filesystem export, and seamless integration with the abstract `WakeWordSpotter` trait.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** Pending commit

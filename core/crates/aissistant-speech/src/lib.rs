@@ -1,14 +1,20 @@
+pub mod acoustic_kws;
 pub mod barge_in;
 pub mod energy_vad;
 pub mod error;
+pub mod sherpa_kws;
 pub mod silero_vad;
 pub mod vad;
+pub mod wake_word;
 
+pub use acoustic_kws::{AcousticFeature, AcousticKwsSpotter, KeywordTemplate};
 pub use barge_in::{BargeInDetector, BargeInEvent};
 pub use energy_vad::EnergyVadEngine;
 pub use error::SpeechError;
+pub use sherpa_kws::{SherpaKwsConfig, SherpaKwsEngine};
 pub use silero_vad::{SileroVadConfig, SileroVadEngine};
 pub use vad::{UtteranceSegmenter, VadConfig, VadEngine, VadEvent, VadState};
+pub use wake_word::{WakeWordConfig, WakeWordEvent, WakeWordSpotter};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
@@ -31,6 +37,129 @@ mod tests {
             let f1 = (2.0 * PI * (freq_hz * 2.0) * (t as f32) / sample_rate as f32).sin() * 0.5;
             samples.push((f0 + f1) * 0.4);
         }
+        samples
+    }
+
+    /// Generates synthetic audio that mimics the acoustic profile of "hey assistant":
+    /// 1. "hey": vowel diphthong (low fundamental 180 Hz + formant 600 Hz + 1800 Hz)
+    /// 2. transition dip
+    /// 3. "uh": vowel (800 Hz)
+    /// 4. "ss": high-frequency sibilant (4200 Hz - 5500 Hz high band burst with high ZCR)
+    /// 5. "is": vowel (1100 Hz)
+    /// 6. "ant": dental transient + vowel
+    fn generate_synthetic_hey_assistant(sample_rate: u32) -> Vec<f32> {
+        let mut samples = Vec::new();
+
+        // 1. "hey" (~60 ms = 960 samples)
+        let n1 = (sample_rate as f32 * 0.060) as usize;
+        for t in 0..n1 {
+            let f0 = (2.0 * PI * 180.0 * (t as f32) / sample_rate as f32).sin() * 0.4;
+            let f1 = (2.0 * PI * 600.0 * (t as f32) / sample_rate as f32).sin() * 0.5;
+            let f2 = (2.0 * PI * 1800.0 * (t as f32) / sample_rate as f32).sin() * 0.2;
+            samples.push(f0 + f1 + f2);
+        }
+
+        // 2. Transition (~20 ms)
+        let n2 = (sample_rate as f32 * 0.020) as usize;
+        for t in 0..n2 {
+            let f0 = (2.0 * PI * 200.0 * (t as f32) / sample_rate as f32).sin() * 0.3;
+            let f1 = (2.0 * PI * 1000.0 * (t as f32) / sample_rate as f32).sin() * 0.3;
+            samples.push(f0 + f1);
+        }
+
+        // 3. "uh" (~40 ms)
+        let n3 = (sample_rate as f32 * 0.040) as usize;
+        for t in 0..n3 {
+            let f0 = (2.0 * PI * 180.0 * (t as f32) / sample_rate as f32).sin() * 0.4;
+            let f1 = (2.0 * PI * 800.0 * (t as f32) / sample_rate as f32).sin() * 0.5;
+            samples.push(f0 + f1);
+        }
+
+        // 4. "ss" sibilant (~80 ms): high frequency multi-carrier resembling fricative
+        let n4 = (sample_rate as f32 * 0.080) as usize;
+        for t in 0..n4 {
+            let s1 = (2.0 * PI * 4200.0 * (t as f32) / sample_rate as f32).sin() * 0.35;
+            let s2 = (2.0 * PI * 4800.0 * (t as f32) / sample_rate as f32).sin() * 0.35;
+            let s3 = (2.0 * PI * 5500.0 * (t as f32) / sample_rate as f32).sin() * 0.30;
+            samples.push(s1 + s2 + s3);
+        }
+
+        // 5. "is" (~40 ms)
+        let n5 = (sample_rate as f32 * 0.040) as usize;
+        for t in 0..n5 {
+            let f0 = (2.0 * PI * 220.0 * (t as f32) / sample_rate as f32).sin() * 0.4;
+            let f1 = (2.0 * PI * 1100.0 * (t as f32) / sample_rate as f32).sin() * 0.5;
+            samples.push(f0 + f1);
+        }
+
+        // 6. "tant" (~60 ms)
+        let n6 = (sample_rate as f32 * 0.060) as usize;
+        for t in 0..n6 {
+            let f0 = (2.0 * PI * 200.0 * (t as f32) / sample_rate as f32).sin() * 0.4;
+            let f1 = (2.0 * PI * 1200.0 * (t as f32) / sample_rate as f32).sin() * 0.4;
+            samples.push(f0 + f1);
+        }
+
+        // 7. Trailing samples to allow FFT window (512 samples) to complete final frames
+        let n7 = 512;
+        for t in 0..n7 {
+            let decay = 1.0 - (t as f32 / n7 as f32);
+            let s = (2.0 * PI * 200.0 * (t as f32) / sample_rate as f32).sin() * 0.2 * decay;
+            samples.push(s);
+        }
+
+        samples
+    }
+
+    /// Generates synthetic audio mimicking the acoustic profile of "computer":
+    /// 1. "k": plosive burst (2200 Hz)
+    /// 2. "om": low-frequency vowel + nasal (200 Hz fundamental + 650 Hz formant)
+    /// 3. "pyu": upper glide (1800 Hz)
+    /// 4. "ter": mid vowel (1200 Hz)
+    fn generate_synthetic_computer(sample_rate: u32) -> Vec<f32> {
+        let mut samples = Vec::new();
+
+        // 1. "k" burst (~40 ms)
+        let n1 = (sample_rate as f32 * 0.040) as usize;
+        for t in 0..n1 {
+            let s1 = (2.0 * PI * 800.0 * (t as f32) / sample_rate as f32).sin() * 0.2;
+            let s2 = (2.0 * PI * 2200.0 * (t as f32) / sample_rate as f32).sin() * 0.4;
+            let s3 = (2.0 * PI * 3500.0 * (t as f32) / sample_rate as f32).sin() * 0.1;
+            samples.push(s1 + s2 + s3);
+        }
+
+        // 2. "om" nasal vowel (~100 ms): strong low band (80-400 Hz)
+        let n2 = (sample_rate as f32 * 0.100) as usize;
+        for t in 0..n2 {
+            let f0 = (2.0 * PI * 160.0 * (t as f32) / sample_rate as f32).sin() * 0.6;
+            let f1 = (2.0 * PI * 650.0 * (t as f32) / sample_rate as f32).sin() * 0.4;
+            samples.push(f0 + f1);
+        }
+
+        // 3. "pyu" glide (~80 ms)
+        let n3 = (sample_rate as f32 * 0.080) as usize;
+        for t in 0..n3 {
+            let f0 = (2.0 * PI * 200.0 * (t as f32) / sample_rate as f32).sin() * 0.3;
+            let f1 = (2.0 * PI * 1800.0 * (t as f32) / sample_rate as f32).sin() * 0.5;
+            samples.push(f0 + f1);
+        }
+
+        // 4. "ter" (~80 ms)
+        let n4 = (sample_rate as f32 * 0.080) as usize;
+        for t in 0..n4 {
+            let f0 = (2.0 * PI * 180.0 * (t as f32) / sample_rate as f32).sin() * 0.4;
+            let f1 = (2.0 * PI * 1200.0 * (t as f32) / sample_rate as f32).sin() * 0.4;
+            samples.push(f0 + f1);
+        }
+
+        // Trailing padding to clear FFT window
+        let n_trail = 512;
+        for t in 0..n_trail {
+            let decay = 1.0 - (t as f32 / n_trail as f32);
+            let s = (2.0 * PI * 180.0 * (t as f32) / sample_rate as f32).sin() * 0.2 * decay;
+            samples.push(s);
+        }
+
         samples
     }
 
@@ -227,5 +356,262 @@ mod tests {
         // High speech frame 2 -> triggers!
         assert!(detector.process_vad_frame(0.8, 196).is_some());
         assert_eq!(detector.total_barge_ins(), 1);
+    }
+
+    // =========================================================================
+    // Wake-Word / Acoustic KWS Tests (S2.P2.2)
+    // =========================================================================
+
+    #[test]
+    fn test_wake_word_config_validation() {
+        // Valid default
+        let valid = WakeWordConfig::default();
+        assert!(valid.validate().is_ok());
+
+        // Empty keywords rejected
+        let invalid_kw = WakeWordConfig {
+            keywords: vec![],
+            ..Default::default()
+        };
+        assert!(invalid_kw.validate().is_err());
+
+        // Whitespace-only keyword rejected
+        let invalid_ws = WakeWordConfig {
+            keywords: vec!["   ".to_string()],
+            ..Default::default()
+        };
+        assert!(invalid_ws.validate().is_err());
+
+        // Invalid threshold rejected
+        let invalid_thresh = WakeWordConfig {
+            threshold: 1.5,
+            ..Default::default()
+        };
+        assert!(invalid_thresh.validate().is_err());
+
+        // Non-16kHz sample rate rejected
+        let invalid_sr = WakeWordConfig {
+            sample_rate: 44_100,
+            ..Default::default()
+        };
+        assert!(invalid_sr.validate().is_err());
+    }
+
+    #[test]
+    fn test_acoustic_kws_synthetic_hey_assistant_detection() {
+        let config = WakeWordConfig {
+            keywords: vec!["hey assistant".to_string()],
+            threshold: 0.60,
+            min_keyword_interval_ms: 1000,
+            ..Default::default()
+        };
+        let mut spotter = AcousticKwsSpotter::new(config).expect("Init spotter failed");
+
+        // Feed some initial ambient silence / lead-in
+        let silence = vec![0.0001f32; 1600];
+        let ev_silence = spotter.process_samples(&silence).expect("Process silence");
+        assert_eq!(ev_silence, None);
+
+        // Feed synthetic "hey assistant"
+        let keyword_audio = generate_synthetic_hey_assistant(16_000);
+        let event = spotter
+            .process_samples(&keyword_audio)
+            .expect("Process keyword audio");
+
+        assert!(
+            event.is_some(),
+            "Expected wake-word 'hey assistant' to be spotted"
+        );
+        let ev = event.unwrap();
+        assert_eq!(ev.keyword, "hey assistant");
+        assert!(
+            ev.confidence >= 0.60,
+            "Expected confidence >= 0.60, got {}",
+            ev.confidence
+        );
+        assert!(ev.end_sample >= ev.start_sample);
+    }
+
+    #[test]
+    fn test_acoustic_kws_false_accept_rejection_silence_and_noise() {
+        let config = WakeWordConfig {
+            keywords: vec!["hey assistant".to_string()],
+            threshold: 0.60,
+            ..Default::default()
+        };
+        let mut spotter = AcousticKwsSpotter::new(config).expect("Init spotter failed");
+
+        // 1. Silence: 1.0 second of zero samples
+        let silence = vec![0.0f32; 16_000];
+        let ev_silence = spotter.process_samples(&silence).expect("Process silence");
+        assert_eq!(ev_silence, None);
+
+        // 2. Pure 440 Hz sine tone: static harmonic with zero formant dynamics
+        let pure_tone = generate_synthetic_speech_tone(16_000, 1000, 440.0);
+        let ev_tone = spotter.process_samples(&pure_tone).expect("Process tone");
+        assert_eq!(ev_tone, None);
+
+        // 3. Monotonous speech tone: steady 200 Hz with no sibilant or vowel shifts
+        let mono_speech = generate_synthetic_speech_tone(16_000, 800, 200.0);
+        let ev_speech = spotter
+            .process_samples(&mono_speech)
+            .expect("Process mono speech");
+        assert_eq!(ev_speech, None);
+    }
+
+    #[test]
+    fn test_acoustic_kws_debounce_cooldown() {
+        let config = WakeWordConfig {
+            keywords: vec!["hey assistant".to_string()],
+            threshold: 0.60,
+            min_keyword_interval_ms: 1500, // 1500 ms debounce
+            ..Default::default()
+        };
+        let mut spotter = AcousticKwsSpotter::new(config).expect("Init spotter failed");
+
+        let keyword_audio = generate_synthetic_hey_assistant(16_000);
+
+        // First trigger succeeds
+        let ev1 = spotter
+            .process_samples(&keyword_audio)
+            .expect("Process kw 1");
+        assert!(ev1.is_some());
+
+        // Immediate repeat within 50 ms (well within 1500 ms debounce)
+        let ev2 = spotter
+            .process_samples(&keyword_audio)
+            .expect("Process kw 2");
+        assert_eq!(ev2, None, "Second trigger should be suppressed by debounce");
+
+        // Advance stream by feeding 1600 ms of silence (exceeds 1500 ms debounce)
+        let silence_padding = vec![0.0001f32; (16_000.0 * 1.6) as usize];
+        let _ = spotter.process_samples(&silence_padding);
+
+        // Now third trigger after debounce should succeed!
+        let ev3 = spotter
+            .process_samples(&keyword_audio)
+            .expect("Process kw 3");
+        assert!(
+            ev3.is_some(),
+            "Trigger after debounce interval should succeed"
+        );
+    }
+
+    #[test]
+    fn test_acoustic_kws_dynamic_keyword_updates() {
+        let config = WakeWordConfig {
+            keywords: vec!["computer".to_string()],
+            threshold: 0.60,
+            ..Default::default()
+        };
+        let mut spotter = AcousticKwsSpotter::new(config).expect("Init failed");
+
+        assert_eq!(spotter.keywords(), &["computer".to_string()]);
+
+        // Playing "hey assistant" does not trigger when only "computer" is active
+        let hey_assistant_audio = generate_synthetic_hey_assistant(16_000);
+        let ev1 = spotter
+            .process_samples(&hey_assistant_audio)
+            .expect("Process audio");
+        assert_eq!(ev1, None);
+
+        // Dynamically add "hey assistant"
+        spotter
+            .set_keywords(&["computer".to_string(), "hey assistant".to_string()])
+            .expect("Set keywords failed");
+        assert_eq!(spotter.keywords().len(), 2);
+
+        // Now playing "hey assistant" triggers!
+        let ev2 = spotter
+            .process_samples(&hey_assistant_audio)
+            .expect("Process audio 2");
+        assert!(ev2.is_some());
+        assert_eq!(ev2.unwrap().keyword, "hey assistant");
+    }
+
+    #[test]
+    fn test_acoustic_kws_threshold_sensitivity() {
+        let config = WakeWordConfig {
+            keywords: vec!["hey assistant".to_string()],
+            threshold: 0.999, // Unattainably strict
+            ..Default::default()
+        };
+        let mut spotter = AcousticKwsSpotter::new(config).expect("Init failed");
+        let audio = generate_synthetic_hey_assistant(16_000);
+
+        let ev_strict = spotter.process_samples(&audio).expect("Process strict");
+        assert_eq!(ev_strict, None);
+
+        // Lower threshold to reachable level
+        spotter.set_threshold(0.50).expect("Set threshold failed");
+        spotter.reset();
+        let ev_lenient = spotter.process_samples(&audio).expect("Process lenient");
+        assert!(ev_lenient.is_some());
+    }
+
+    #[test]
+    fn test_multi_keyword_discrimination() {
+        let config = WakeWordConfig {
+            keywords: vec!["hey assistant".to_string(), "computer".to_string()],
+            threshold: 0.60,
+            min_keyword_interval_ms: 500,
+            ..Default::default()
+        };
+        let mut spotter = AcousticKwsSpotter::new(config).expect("Init failed");
+
+        // 1. Play "computer" audio -> detects "computer"
+        let computer_audio = generate_synthetic_computer(16_000);
+        let ev1 = spotter
+            .process_samples(&computer_audio)
+            .expect("Process computer");
+        assert!(ev1.is_some(), "Expected 'computer' to trigger");
+        assert_eq!(ev1.unwrap().keyword, "computer");
+
+        // Wait past debounce
+        let silence = vec![0.0001f32; 16_000];
+        let _ = spotter.process_samples(&silence);
+
+        // 2. Play "hey assistant" audio -> detects "hey assistant"
+        let hey_assistant_audio = generate_synthetic_hey_assistant(16_000);
+        let ev2 = spotter
+            .process_samples(&hey_assistant_audio)
+            .expect("Process hey assistant");
+        assert!(ev2.is_some(), "Expected 'hey assistant' to trigger");
+        assert_eq!(ev2.unwrap().keyword, "hey assistant");
+    }
+
+    #[test]
+    fn test_sherpa_kws_engine_config_and_export() {
+        let config = SherpaKwsConfig {
+            keywords: vec!["hey assistant".to_string(), "computer".to_string()],
+            keywords_score: 2.0,
+            threshold: 0.65,
+            ..Default::default()
+        };
+        assert!(config.validate().is_ok());
+
+        // Check keywords content formatting
+        let content = config.generate_keywords_content();
+        assert!(content.contains("hey assistant / @2.00"));
+        assert!(content.contains("computer / @2.00"));
+
+        let mut engine = SherpaKwsEngine::new(config).expect("Init SherpaKwsEngine failed");
+        assert_eq!(engine.keywords().len(), 2);
+
+        // Export to temp file
+        let temp_dir = tempfile::tempdir().expect("Create tempdir failed");
+        let file_path = temp_dir.path().join("keywords.txt");
+        engine
+            .export_keywords_file(&file_path)
+            .expect("Export keywords file failed");
+
+        let read_back = std::fs::read_to_string(&file_path).expect("Read exported file");
+        assert_eq!(read_back, content);
+
+        // Verify spotting functions transparently
+        let audio = generate_synthetic_hey_assistant(16_000);
+        let event = engine.process_samples(&audio).expect("Process samples");
+        assert!(event.is_some());
+        assert_eq!(event.unwrap().keyword, "hey assistant");
     }
 }

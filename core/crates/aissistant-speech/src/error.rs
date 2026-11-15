@@ -18,4 +18,7 @@ pub enum SpeechError {
 
     #[error("Speech parameter error: {0}")]
     ParameterError(String),
+
+    #[error("Wake-word detection error: {0}")]
+    WakeWordError(String),
 }
