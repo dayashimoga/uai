@@ -846,7 +846,7 @@ Status Legend:
   - `rpc::tests::test_rpc_virtual_session_invocation`: Verified client invocation and server execution over simulated `VirtualSession` pairs without network dependencies.
   - `rpc::tests::test_rpc_over_quic_mtls_loopback`: Verified client invocation and server execution over dual Quinn `QuicTransportEngine` endpoints using self-signed Ed25519 mTLS certificates across loopback UDP sockets.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `3315fc5`
 
 
 
