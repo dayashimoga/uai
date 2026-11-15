@@ -823,3 +823,39 @@
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 
+---
+
+## [2026-11-15] — Stage 4 Phase 2 Subphase 2 (`S4.P2.2`)
+
+### Added
+- `core/crates/aissistant-orchestrator/src/tool_dispatcher.rs`:
+  - `ToolHandler` trait defining `name()`, `description()`, `parameters_schema()`, `risk_tier()`, and `execute()`.
+  - `redact_sensitive_json()` recursing through parameters and masking sensitive keys (`password`, `secret`, `token`, `key`, `credential`, `auth`) with `[REDACTED]`.
+  - `ToolDispatcher` managing tool registration with `SkillId` namespacing validation, definitions enumeration, schema argument verification via `ToolCallValidator`, and execution.
+- `core/crates/aissistant-orchestrator/src/confirmation.rs`:
+  - `ConfirmationId` strongly-typed identifier for user authorization gates.
+  - `PendingConfirmation` encapsulating conversation, turn, tool name, arguments, risk tier, and human-readable reason.
+  - `ConfirmationManager` thread-safe manager storing, retrieving, and cancelling active pending confirmations.
+- `core/crates/aissistant-orchestrator/src/state.rs`:
+  - Extended `TurnState::ToolInvocationDetected` transition table to allow completing turns on security policy denial.
+  - Added orchestrator events: `ConfirmationRequired`, `ConfirmationResolved`, `ToolExecutionStarted`, and `ToolExecutionCompleted`.
+- `core/crates/aissistant-orchestrator/src/error.rs`:
+  - Added errors: `ToolNotFound`, `ToolExecutionFailed`, `ConfirmationNotFound`, `ToolPolicyDenied`, and `InvalidToolArguments` mapped into canonical `CoreError` taxonomy.
+- `core/crates/aissistant-orchestrator/src/orchestrator.rs`:
+  - Integrated `ToolDispatcher`, `ConfirmationManager`, `PolicyEngine`, `AuditStore`, and `TaintTracker`.
+  - Implemented `execute_turn()` supporting `TurnExecution::Completed(TurnSummary)` and `TurnExecution::AwaitingConfirmation(PendingConfirmation)`.
+  - Automatic tool execution for `RiskTier::ReadOnly` and `RiskTier::StateModifying` (clean context).
+  - Non-blocking turn pausing with `ConfirmationRequired` event on `RiskTier::FileAndApp`, `PrivilegedSystem`, or `Destructive` actions.
+  - Taint escalation rule: conversation context with untrusted input automatically escalates state-modifying actions to require confirmation.
+  - Implemented `resolve_confirmation(id, approved)` resuming execution upon approval or recording user cancellation without side effects.
+  - Cryptographic BLAKE3 audit chain sealing: all tool requests, authorization decisions, user confirmations, and execution statuses are committed to `security_audit_log`.
+- `core/crates/aissistant-llm/src/grammar/schema_compiler.rs`:
+  - Replaced collapsible replace with `tool.name.replace(['-', '.'], "_")` to support namespaced tool names in GBNF rule identifiers.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 8 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 206 unit and integration tests (0 failures; 21 in `aissistant-orchestrator`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+

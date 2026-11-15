@@ -68,7 +68,7 @@ impl SchemaCompiler {
         let mut tool_rule_names = Vec::new();
 
         for tool in tools {
-            let sanitized_name = tool.name.replace('-', "_");
+            let sanitized_name = tool.name.replace(['-', '.'], "_");
             let args_rule_name = format!("{sanitized_name}_args");
             let tool_rule_name = format!("tool_{sanitized_name}");
 

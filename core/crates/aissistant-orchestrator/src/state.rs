@@ -5,6 +5,8 @@ use std::fmt;
 use aissistant_core::{ConversationId, TurnId};
 use serde::{Deserialize, Serialize};
 
+use crate::confirmation::{ConfirmationId, PendingConfirmation};
+
 /// Discrete states in the conversational interaction turn lifecycle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -111,7 +113,11 @@ impl TurnState {
             ),
             Self::ToolInvocationDetected => matches!(
                 target,
-                Self::AwaitingToolExecution | Self::Inferring | Self::Interrupted | Self::Failed
+                Self::AwaitingToolExecution
+                    | Self::TurnCompleted
+                    | Self::Inferring
+                    | Self::Interrupted
+                    | Self::Failed
             ),
             Self::AwaitingToolExecution => matches!(
                 target,
@@ -189,6 +195,18 @@ pub enum OrchestratorEvent {
     },
     /// A structured tool call was emitted by the model.
     ToolCallDetected { tool_name: String },
+    /// Explicit user confirmation is required before proceeding with tool execution.
+    ConfirmationRequired { confirmation: PendingConfirmation },
+    /// A pending confirmation request was resolved (approved or denied).
+    ConfirmationResolved { id: ConfirmationId, approved: bool },
+    /// Tool execution started.
+    ToolExecutionStarted { tool_name: String },
+    /// Tool execution completed.
+    ToolExecutionCompleted {
+        tool_name: String,
+        success: bool,
+        duration_ms: u64,
+    },
     /// User barge-in speech or explicit cancellation triggered.
     BargeInTriggered { timestamp_ms: i64 },
     /// A conversation turn finished executing.

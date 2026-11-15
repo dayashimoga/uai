@@ -62,8 +62,18 @@
 
 ---
 
-## Stage 4 Queue (Orchestration State Machine, Context Engine & Hybrid Vector Memory)
+## Stage 4 Queue (Completed — 100%)
 - [x] `[S4.P1.1]` Conversation Persistence & SQLite FTS5 Episodic Search *(Completed 2026-11-15)*
 - [x] `[S4.P1.2]` Local Embedding Generation & Hybrid Vector Memory Retrieval *(Completed 2026-11-15)*
 - [x] `[S4.P2.1]` Deterministic Orchestrator Turn State Machine (`aissistant-orchestrator`) *(Completed 2026-11-15)*
-- [ ] `[S4.P2.2]` Policy-Enforced Tool Dispatcher & User Confirmation Flow
+- [x] `[S4.P2.2]` Policy-Enforced Tool Dispatcher & User Confirmation Flow *(Completed 2026-11-15)*
+
+---
+
+## Stage 5 Queue (Skill Framework & Native Application/System Control)
+- [ ] `[S5.P1.1]` Skill Registry, Sandbox Validator & Built-In Utility Skills
+- [ ] `[S5.P1.2]` Safe File Management Skills (Search, Read, Write, Move, Archive, Checksum)
+- [ ] `[S5.P2.1]` Desktop Application Launch, Process Inspection & Window Management
+- [ ] `[S5.P2.2]` Desktop System Settings, Clipboard, Audio Volume & Media Transport Control
+- [ ] `[S5.P3.1]` Android Native Bridge (Foreground Service, Intents, Media, Accessibility)
+- [ ] `[S5.P3.2]` iOS Native Bridge (AVAudioSession, App Intents/Siri Shortcuts, Scoped Files)

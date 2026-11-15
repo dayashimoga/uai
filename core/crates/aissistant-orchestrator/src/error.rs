@@ -49,6 +49,26 @@ pub enum OrchestratorError {
     /// General internal orchestrator failure.
     #[error("Internal orchestrator error: {0}")]
     Internal(String),
+
+    /// Requested skill or tool was not found in the dispatcher registry.
+    #[error("Tool not found: {0}")]
+    ToolNotFound(String),
+
+    /// Execution of a tool handler failed.
+    #[error("Tool '{tool_name}' execution failed: {reason}")]
+    ToolExecutionFailed { tool_name: String, reason: String },
+
+    /// Specified pending confirmation request was not found.
+    #[error("Confirmation not found: {0}")]
+    ConfirmationNotFound(String),
+
+    /// Tool execution was strictly denied by security policy.
+    #[error("Tool '{tool_name}' execution denied by policy: {reason}")]
+    ToolPolicyDenied { tool_name: String, reason: String },
+
+    /// Arguments provided for tool execution do not match parameter schema.
+    #[error("Invalid arguments for tool '{tool_name}': {reason}")]
+    InvalidToolArguments { tool_name: String, reason: String },
 }
 
 impl OrchestratorError {
@@ -65,6 +85,25 @@ impl OrchestratorError {
             Self::ConversationNotFound(id) => CoreError::NotFound {
                 entity: "Conversation",
                 id: id.clone(),
+            },
+            Self::ToolNotFound(id) => CoreError::NotFound {
+                entity: "Tool",
+                id: id.clone(),
+            },
+            Self::ConfirmationNotFound(id) => CoreError::NotFound {
+                entity: "Confirmation",
+                id: id.clone(),
+            },
+            Self::ToolPolicyDenied { tool_name, reason } => CoreError::PermissionDenied {
+                action: format!("tool_execution:{tool_name}"),
+                reason: reason.clone(),
+            },
+            Self::InvalidToolArguments { tool_name, reason } => CoreError::ConfigValidation {
+                field: format!("tool_args:{tool_name}"),
+                reason: reason.clone(),
+            },
+            Self::ToolExecutionFailed { tool_name, reason } => CoreError::Internal {
+                message: format!("Tool '{tool_name}' execution failed: {reason}"),
             },
             Self::Interrupted(msg) => CoreError::Internal {
                 message: format!("Turn interrupted: {msg}"),
