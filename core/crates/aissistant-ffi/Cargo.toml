@@ -15,8 +15,10 @@ crate-type = ["cdylib", "staticlib", "lib"]
 workspace = true
 
 [dependencies]
+aissistant-audio = { path = "../aissistant-audio" }
 aissistant-core = { path = "../aissistant-core" }
 aissistant-security = { path = "../aissistant-security" }
+aissistant-speech = { path = "../aissistant-speech" }
 aissistant-storage = { path = "../aissistant-storage" }
 serde = { workspace = true }
 serde_json = { workspace = true }

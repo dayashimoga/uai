@@ -503,3 +503,49 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 139 unit and integration tests (0 failures; 28 in `aissistant-speech`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+---
+
+## [2026-11-15] — Stage 2 Phase 3 Subphase 3 (`S2.P3.3`)
+
+### Added
+- `core/crates/aissistant-ffi/src/voice_bridge.rs`:
+  - `VoicePipelineSupervisor` — Coordinates real-time audio capture, level metering, wake-word spotting, and streaming speech recognition through the core FFI bridge.
+  - `VoiceListeningMode` — Enumeration supporting `PushToTalk` and `WakeWord` operation.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - C-ABI entry points: `bridge_c_voice_start_listening`, `bridge_c_voice_stop_listening`, `bridge_c_voice_set_mode`, `bridge_c_voice_set_keywords`, `bridge_c_voice_inject_audio`.
+- `core/crates/aissistant-ffi/src/events.rs`:
+  - `BridgeEvent` variants: `VoiceLevelUpdated`, `WakeWordTriggered`, `TranscriptUpdated`, `VoiceStateChanged`.
+- `app/lib/core/models/voice_state.dart`:
+  - `VoiceMode` enum (`pushToTalk`, `wakeWord`) and immutable `VoiceState` model with `copyWith`.
+- `app/lib/core/models/bridge_event.dart`:
+  - Dart event models: `VoiceLevelUpdatedEvent`, `WakeWordTriggeredEvent`, `TranscriptUpdatedEvent`, `VoiceStateChangedEvent`.
+- `app/lib/core/ffi_bridge.dart`:
+  - Extended `AissistantBridge` with voice listening, mode selection, keyword management, and audio injection.
+  - Implemented C-ABI bindings in `NativeFfiBridge` and offline simulation harness in `TestHarnessBridge`.
+- `app/lib/core/assistant_controller.dart`:
+  - Added reactive `VoiceState` observable, event subscription handlers, and user action triggers.
+- `app/lib/ui/screens/voice_screen.dart`:
+  - `VoiceScreen` adaptive dashboard.
+  - `WaveformVisualizer` — Dynamic multi-bar animated level visualizer reactive to RMS dBFS and peak audio levels.
+  - `_VoiceActionButton` — Large interactive Push-to-Talk button with animated pulse feedback and accessibility toggle.
+  - `_VoiceModeSelector` — Mode switcher for Push-to-Talk vs Hands-Free Wake Word.
+  - `_KeywordSelector` — Interactive choice chips for customizable wake words ("hey assistant", "computer", "jarvis").
+  - `_TranscriptCard` — Streaming transcript card with partial/final formatting, detected language badge, and clear action.
+  - 100% Offline privacy assurance badge confirming volatile in-memory processing with zero cloud transit.
+- `app/lib/ui/adaptive_shell.dart`:
+  - Integrated `VoiceScreen` as primary destination in desktop `NavigationRail` and mobile `NavigationBar`.
+- Tests:
+  - `core/crates/aissistant-ffi/src/lib.rs`: Added 2 unit tests verifying voice supervisor lifecycle and C-ABI control (141 total Rust workspace tests).
+  - `app/test/voice_screen_test.dart`: 5 new widget and interaction tests verifying UI layout, PTT controls, keyword chips, transcript rendering, and level animations.
+  - `app/test/assistant_controller_test.dart`: Added voice state management and bridge event tests.
+  - `app/test/models_test.dart`: Added tests for voice event JSON deserialization and state models.
+  - `app/test/widget_test.dart`: Added navigation test verifying switching to the Voice screen.
+  - Total Flutter test suite: 37 tests passing (100%).
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 141 unit and integration tests (0 failures; 21 in `aissistant-ffi`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 37 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.

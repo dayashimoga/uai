@@ -5,6 +5,7 @@ import 'screens/audit_log_screen.dart';
 import 'screens/capabilities_screen.dart';
 import 'screens/diagnostics_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/voice_screen.dart';
 
 /// Responsive adaptive shell providing NavigationRail on desktop/tablet and NavigationBar on mobile.
 class AdaptiveShell extends StatefulWidget {
@@ -26,6 +27,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
 
     final screens = <Widget>[
       DiagnosticsScreen(controller: widget.controller),
+      VoiceScreen(controller: widget.controller),
       CapabilitiesScreen(controller: widget.controller),
       AuditLogScreen(controller: widget.controller),
       SettingsScreen(controller: widget.controller),
@@ -36,6 +38,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         icon: Icon(Icons.speed_outlined),
         selectedIcon: Icon(Icons.speed),
         label: 'Diagnostics',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.mic_none_outlined),
+        selectedIcon: Icon(Icons.mic),
+        label: 'Voice',
       ),
       NavigationDestination(
         icon: Icon(Icons.grid_view_outlined),
@@ -89,6 +96,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                   icon: Icon(Icons.speed_outlined),
                   selectedIcon: Icon(Icons.speed),
                   label: Text('Diagnostics'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.mic_none_outlined),
+                  selectedIcon: Icon(Icons.mic),
+                  label: Text('Voice'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.grid_view_outlined),

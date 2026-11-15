@@ -8,7 +8,7 @@ use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
 
 /// Events emitted by the core engine across the FFI bridge to Flutter or native runners.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", rename_all = "snake_case")]
 pub enum BridgeEvent {
     /// System health status updated (e.g. database error, storage restored).
@@ -77,6 +77,42 @@ pub enum BridgeEvent {
     MemoryPressure {
         /// Severity level ("moderate", "critical").
         level: String,
+    },
+
+    /// Voice audio level meter update (RMS & peak in dBFS).
+    VoiceLevelUpdated {
+        /// RMS energy in dBFS.
+        rms_dbfs: f32,
+        /// Peak amplitude in dBFS.
+        peak_dbfs: f32,
+    },
+
+    /// Wake-word triggered in streaming audio.
+    WakeWordTriggered {
+        /// Spotted keyword (e.g. "hey assistant").
+        keyword: String,
+        /// Confidence score [0.0, 1.0].
+        confidence: f32,
+    },
+
+    /// Speech-to-text transcript update.
+    TranscriptUpdated {
+        /// Transcript text.
+        text: String,
+        /// Whether the transcript is finalized (endpointed) or interim partial.
+        is_final: bool,
+        /// Language tag ("en", "es", etc.).
+        language: String,
+        /// Confidence score [0.0, 1.0].
+        confidence: f32,
+    },
+
+    /// Voice listening state or mode changed.
+    VoiceStateChanged {
+        /// Whether microphone is actively listening.
+        is_listening: bool,
+        /// Active listening mode ("push_to_talk", "wake_word", "idle").
+        mode: String,
     },
 }
 

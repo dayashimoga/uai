@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
 
 use aissistant_core::{AuditEntryId, Capability, CapabilityRegistry, CapabilityStatus, SkillId};
@@ -20,6 +20,7 @@ use crate::events::{BridgeEvent, EventStreamSink};
 use crate::lifecycle::{
     CancellationToken, CoreRuntime, LifecycleState, MemoryPressureLevel, ShutdownReason,
 };
+use crate::voice_bridge::{VoiceListeningMode, VoicePipelineSupervisor};
 
 /// Overall health tier of the runtime engine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -136,6 +137,7 @@ pub struct CoreBridge {
     event_sink: Arc<EventStreamSink>,
     runtime: Arc<CoreRuntime>,
     identity: DeviceIdentity,
+    voice_supervisor: Arc<Mutex<VoicePipelineSupervisor>>,
     data_dir: Option<PathBuf>,
 }
 
@@ -169,6 +171,9 @@ impl CoreBridge {
         let capability_registry = RwLock::new(CapabilityRegistry::for_current_host());
         let policy_engine = RwLock::new(PolicyEngine::new());
         let identity = DeviceIdentity::generate();
+        let voice_supervisor = Arc::new(Mutex::new(VoicePipelineSupervisor::new(
+            event_sink.clone(),
+        )?));
 
         runtime.transition_to(LifecycleState::Running, Some("ready"))?;
 
@@ -182,6 +187,7 @@ impl CoreBridge {
             event_sink,
             runtime,
             identity,
+            voice_supervisor,
             data_dir: None,
         })
     }
@@ -217,6 +223,9 @@ impl CoreBridge {
         let capability_registry = RwLock::new(CapabilityRegistry::for_current_host());
         let policy_engine = RwLock::new(PolicyEngine::new());
         let identity = DeviceIdentity::generate();
+        let voice_supervisor = Arc::new(Mutex::new(VoicePipelineSupervisor::new(
+            event_sink.clone(),
+        )?));
 
         runtime.transition_to(LifecycleState::Running, Some("ready"))?;
 
@@ -230,6 +239,7 @@ impl CoreBridge {
             event_sink,
             runtime,
             identity,
+            voice_supervisor,
             data_dir: Some(path.to_path_buf()),
         })
     }
@@ -651,6 +661,69 @@ impl CoreBridge {
             .map(|id| id.to_string())
             .unwrap_or_else(|_| "unknown_device".to_string())
     }
+
+    /// Starts voice listening in the requested mode (PushToTalk or WakeWord).
+    pub fn voice_start_listening(&self, mode: VoiceListeningMode) -> FfiResult<()> {
+        let mut supervisor = self
+            .voice_supervisor
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        supervisor.start_listening(mode)
+    }
+
+    /// Stops voice listening and returns to idle.
+    pub fn voice_stop_listening(&self) -> FfiResult<()> {
+        let mut supervisor = self
+            .voice_supervisor
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        supervisor.stop_listening()
+    }
+
+    /// Sets the active voice listening mode.
+    pub fn voice_set_mode(&self, mode: VoiceListeningMode) -> FfiResult<()> {
+        let mut supervisor = self
+            .voice_supervisor
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        supervisor.set_mode(mode)
+    }
+
+    /// Updates active wake-word keywords.
+    pub fn voice_set_keywords(&self, keywords: &[String]) -> FfiResult<()> {
+        let mut supervisor = self
+            .voice_supervisor
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        supervisor.set_keywords(keywords)
+    }
+
+    /// Ingests streaming audio samples into the voice pipeline.
+    pub fn voice_inject_audio(&self, samples: &[f32]) -> FfiResult<()> {
+        let mut supervisor = self
+            .voice_supervisor
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        supervisor.process_audio_chunk(samples)
+    }
+
+    /// Returns whether the voice pipeline is actively listening.
+    pub fn voice_is_listening(&self) -> bool {
+        if let Ok(supervisor) = self.voice_supervisor.lock() {
+            supervisor.is_listening()
+        } else {
+            false
+        }
+    }
+
+    /// Returns the active voice listening mode.
+    pub fn voice_mode(&self) -> VoiceListeningMode {
+        if let Ok(supervisor) = self.voice_supervisor.lock() {
+            supervisor.mode()
+        } else {
+            VoiceListeningMode::PushToTalk
+        }
+    }
 }
 
 // Global Singleton Bridge Management
@@ -767,6 +840,38 @@ pub fn bridge_request_shutdown(reason: ShutdownReason) -> FfiResult<()> {
 pub fn bridge_notify_memory_pressure(level: MemoryPressureLevel) -> FfiResult<()> {
     let bridge = get_bridge()?;
     bridge.notify_memory_pressure(level)
+}
+
+/// Convenience entry point: starts voice listening on the global bridge.
+pub fn bridge_voice_start_listening(mode: u32) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.voice_start_listening(VoiceListeningMode::from(mode))
+}
+
+/// Convenience entry point: stops voice listening on the global bridge.
+pub fn bridge_voice_stop_listening() -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.voice_stop_listening()
+}
+
+/// Convenience entry point: sets voice listening mode on the global bridge.
+pub fn bridge_voice_set_mode(mode: u32) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.voice_set_mode(VoiceListeningMode::from(mode))
+}
+
+/// Convenience entry point: sets active wake-word keywords from a JSON string on the global bridge.
+pub fn bridge_voice_set_keywords(keywords_json: &str) -> FfiResult<()> {
+    let keywords: Vec<String> = serde_json::from_str(keywords_json)
+        .map_err(|e| FfiError::Serialization(format!("Invalid keywords JSON: {e}")))?;
+    let bridge = get_bridge()?;
+    bridge.voice_set_keywords(&keywords)
+}
+
+/// Convenience entry point: injects audio samples into the global bridge voice pipeline.
+pub fn bridge_voice_inject_audio(samples: &[f32]) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.voice_inject_audio(samples)
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

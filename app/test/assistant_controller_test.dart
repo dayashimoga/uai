@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:aissistant/core/assistant_controller.dart';
 import 'package:aissistant/core/ffi_bridge.dart';
 import 'package:aissistant/core/models/health_report.dart';
+import 'package:aissistant/core/models/voice_state.dart';
 
 void main() {
   group('AssistantController State Management Tests', () {
@@ -79,6 +80,47 @@ void main() {
 
       controller.triggerShutdown();
       expect(controller.health?.lifecycleState, 'terminated');
+    });
+
+    test('manages voice listening state, modes and keywords', () async {
+      await controller.initialize();
+      expect(controller.voiceState.isListening, isFalse);
+      expect(controller.voiceState.mode, VoiceMode.pushToTalk);
+
+      // Start listening in push-to-talk mode
+      controller.startVoiceListening(mode: VoiceMode.pushToTalk);
+      expect(controller.voiceState.isListening, isTrue);
+      expect(controller.voiceState.mode, VoiceMode.pushToTalk);
+
+      // Stop listening
+      controller.stopVoiceListening();
+      expect(controller.voiceState.isListening, isFalse);
+
+      // Switch mode to wake-word
+      controller.setVoiceMode(VoiceMode.wakeWord);
+      expect(controller.voiceState.mode, VoiceMode.wakeWord);
+
+      // Update keywords
+      controller.setVoiceKeywords(<String>['hey assistant', 'computer']);
+      expect(controller.voiceState.activeKeywords, <String>['hey assistant', 'computer']);
+    });
+
+    test('updates voice state from bridge events and clears transcript', () async {
+      await controller.initialize();
+
+      // Audio level update
+      controller.injectVoiceAudio(<double>[0.1, -0.2, 0.3, -0.1]);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.voiceState.rmsDbfs, greaterThan(-96.0));
+
+      // Wake word event simulated
+      bridge.setVoiceKeywords(<String>['hey assistant']);
+      expect(controller.voiceState.lastSpottedKeyword, isNull);
+
+      // Transcript streaming and clearing
+      controller.clearTranscript();
+      expect(controller.voiceState.partialTranscript, isEmpty);
+      expect(controller.voiceState.finalTranscript, isEmpty);
     });
   });
 }

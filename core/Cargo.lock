@@ -58,8 +58,10 @@ dependencies = [
 name = "aissistant-ffi"
 version = "0.1.0"
 dependencies = [
+ "aissistant-audio",
  "aissistant-core",
  "aissistant-security",
+ "aissistant-speech",
  "aissistant-storage",
  "serde",
  "serde_json",

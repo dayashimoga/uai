@@ -3,6 +3,7 @@ import 'package:aissistant/core/models/audit_item.dart';
 import 'package:aissistant/core/models/bridge_event.dart';
 import 'package:aissistant/core/models/capability_item.dart';
 import 'package:aissistant/core/models/health_report.dart';
+import 'package:aissistant/core/models/voice_state.dart';
 
 void main() {
   group('HealthReport Model Tests', () {
@@ -207,6 +208,100 @@ void main() {
       expect(event, isA<MemoryPressureEvent>());
       final typed = event as MemoryPressureEvent;
       expect(typed.level, 'critical');
+    });
+
+    test('parses voice bridge events correctly', () {
+      // Voice level event
+      final levelEvent = BridgeEvent.fromJson(<String, dynamic>{
+        'type': 'voice_level_updated',
+        'payload': <String, dynamic>{
+          'rms_dbfs': -18.5,
+          'peak_dbfs': -6.2,
+        },
+      });
+      expect(levelEvent, isA<VoiceLevelUpdatedEvent>());
+      final typedLevel = levelEvent as VoiceLevelUpdatedEvent;
+      expect(typedLevel.rmsDbfs, -18.5);
+      expect(typedLevel.peakDbfs, -6.2);
+
+      // Wake word event
+      final wakeEvent = BridgeEvent.fromJson(<String, dynamic>{
+        'type': 'wake_word_triggered',
+        'payload': <String, dynamic>{
+          'keyword': 'hey assistant',
+          'confidence': 0.95,
+        },
+      });
+      expect(wakeEvent, isA<WakeWordTriggeredEvent>());
+      final typedWake = wakeEvent as WakeWordTriggeredEvent;
+      expect(typedWake.keyword, 'hey assistant');
+      expect(typedWake.confidence, 0.95);
+
+      // Transcript event
+      final transcriptEvent = BridgeEvent.fromJson(<String, dynamic>{
+        'type': 'transcript_updated',
+        'payload': <String, dynamic>{
+          'text': 'turn on the lights',
+          'is_final': true,
+          'language': 'en',
+          'confidence': 0.92,
+        },
+      });
+      expect(transcriptEvent, isA<TranscriptUpdatedEvent>());
+      final typedTranscript = transcriptEvent as TranscriptUpdatedEvent;
+      expect(typedTranscript.text, 'turn on the lights');
+      expect(typedTranscript.isFinal, isTrue);
+      expect(typedTranscript.language, 'en');
+
+      // Voice state changed event
+      final stateEvent = BridgeEvent.fromJson(<String, dynamic>{
+        'type': 'voice_state_changed',
+        'payload': <String, dynamic>{
+          'is_listening': true,
+          'mode': 'WakeWord',
+        },
+      });
+      expect(stateEvent, isA<VoiceStateChangedEvent>());
+      final typedState = stateEvent as VoiceStateChangedEvent;
+      expect(typedState.isListening, isTrue);
+      expect(typedState.mode, 'WakeWord');
+    });
+  });
+
+  group('VoiceState Model Tests', () {
+    test('verifies default initial state and copyWith behavior', () {
+      const initial = VoiceState();
+      expect(initial.isListening, isFalse);
+      expect(initial.mode, VoiceMode.pushToTalk);
+      expect(initial.rmsDbfs, -96.0);
+      expect(initial.peakDbfs, -96.0);
+      expect(initial.partialTranscript, isEmpty);
+      expect(initial.finalTranscript, isEmpty);
+      expect(initial.activeKeywords, contains('hey assistant'));
+
+      final modified = initial.copyWith(
+        isListening: true,
+        mode: VoiceMode.wakeWord,
+        rmsDbfs: -24.0,
+        peakDbfs: -12.0,
+        partialTranscript: 'hello',
+        finalTranscript: 'hello world',
+        language: 'es',
+        activeKeywords: <String>['computer'],
+        lastSpottedKeyword: 'computer',
+        lastConfidence: 0.98,
+      );
+
+      expect(modified.isListening, isTrue);
+      expect(modified.mode, VoiceMode.wakeWord);
+      expect(modified.rmsDbfs, -24.0);
+      expect(modified.peakDbfs, -12.0);
+      expect(modified.partialTranscript, 'hello');
+      expect(modified.finalTranscript, 'hello world');
+      expect(modified.language, 'es');
+      expect(modified.activeKeywords, <String>['computer']);
+      expect(modified.lastSpottedKeyword, 'computer');
+      expect(modified.lastConfidence, 0.98);
     });
   });
 }

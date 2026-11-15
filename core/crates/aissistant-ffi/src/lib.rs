@@ -5,18 +5,22 @@ pub mod c_abi;
 pub mod error;
 pub mod events;
 pub mod lifecycle;
+pub mod voice_bridge;
 
 pub use api::{
     bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state, bridge_get_setting,
     bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
-    bridge_update_permission, bridge_verify_audit, get_bridge, init_bridge, shutdown_bridge,
-    AuditIntegrityReport, AuditItem, CapabilityItem, CoreBridge, HealthReport, HealthStatus,
+    bridge_update_permission, bridge_verify_audit, bridge_voice_inject_audio,
+    bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
+    bridge_voice_stop_listening, get_bridge, init_bridge, shutdown_bridge, AuditIntegrityReport,
+    AuditItem, CapabilityItem, CoreBridge, HealthReport, HealthStatus,
 };
 pub use error::{FfiError, FfiResult};
 pub use events::{BridgeEvent, EventStreamSink};
 pub use lifecycle::{
     CancellationToken, CoreRuntime, LifecycleState, MemoryPressureLevel, ShutdownReason,
 };
+pub use voice_bridge::{VoiceListeningMode, VoicePipelineSupervisor};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
@@ -591,6 +595,89 @@ mod tests {
         unsafe { c_abi::bridge_c_free_string(post_state_ptr) };
 
         // Clean up global singleton
+        let cleanup = c_abi::bridge_c_shutdown();
+        assert_eq!(cleanup, 0);
+    }
+
+    #[test]
+    fn test_voice_bridge_listening_and_level_metering() {
+        use std::time::Duration;
+
+        let bridge = CoreBridge::new_in_memory().unwrap();
+        let (_id, receiver) = bridge.event_sink().subscribe(32);
+
+        assert!(!bridge.voice_is_listening());
+        assert_eq!(bridge.voice_mode(), VoiceListeningMode::PushToTalk);
+
+        // Start listening in PushToTalk mode
+        bridge
+            .voice_start_listening(VoiceListeningMode::PushToTalk)
+            .unwrap();
+        assert!(bridge.voice_is_listening());
+
+        let ev1 = receiver.recv_timeout(Duration::from_millis(500)).unwrap();
+        assert!(matches!(
+            ev1,
+            BridgeEvent::VoiceStateChanged {
+                is_listening: true,
+                ..
+            }
+        ));
+
+        // Inject audio samples (16 kHz sine wave)
+        let sine_samples: Vec<f32> = (0..512)
+            .map(|t| (2.0 * std::f32::consts::PI * 440.0 * (t as f32) / 16_000.0).sin() * 0.5)
+            .collect();
+        bridge.voice_inject_audio(&sine_samples).unwrap();
+
+        // Level meter event must be broadcast
+        let ev2 = receiver.recv_timeout(Duration::from_millis(500)).unwrap();
+        assert!(matches!(ev2, BridgeEvent::VoiceLevelUpdated { .. }));
+
+        // Stop listening
+        bridge.voice_stop_listening().unwrap();
+        assert!(!bridge.voice_is_listening());
+
+        let ev3 = receiver.recv_timeout(Duration::from_millis(500)).unwrap();
+        assert!(matches!(
+            ev3,
+            BridgeEvent::VoiceStateChanged {
+                is_listening: false,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_c_abi_voice_control_round_trip() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap();
+
+        let init_res = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
+        assert_eq!(init_res, 0);
+
+        // Start listening
+        let start_res = c_abi::bridge_c_voice_start_listening(1); // 1 = WakeWord
+        assert_eq!(start_res, 0);
+
+        // Switch mode to PushToTalk (0)
+        let mode_res = c_abi::bridge_c_voice_set_mode(0);
+        assert_eq!(mode_res, 0);
+
+        // Set keywords
+        let kw_json = CString::new("[\"hey assistant\", \"computer\"]").unwrap();
+        let kw_res = unsafe { c_abi::bridge_c_voice_set_keywords(kw_json.as_ptr()) };
+        assert_eq!(kw_res, 0);
+
+        // Inject audio
+        let samples = [0.1f32; 512];
+        let inject_res =
+            unsafe { c_abi::bridge_c_voice_inject_audio(samples.as_ptr(), samples.len()) };
+        assert_eq!(inject_res, 0);
+
+        // Stop listening
+        let stop_res = c_abi::bridge_c_voice_stop_listening();
+        assert_eq!(stop_res, 0);
+
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);
     }

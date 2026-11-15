@@ -14,7 +14,9 @@ use aissistant_core::ErrorDescriptor;
 use crate::api::{
     bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state, bridge_get_setting,
     bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
-    bridge_update_permission, bridge_verify_audit, init_bridge, shutdown_bridge,
+    bridge_update_permission, bridge_verify_audit, bridge_voice_inject_audio,
+    bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
+    bridge_voice_stop_listening, init_bridge, shutdown_bridge,
 };
 use crate::error::FfiError;
 use crate::lifecycle::{MemoryPressureLevel, ShutdownReason};
@@ -292,6 +294,78 @@ pub extern "C" fn bridge_c_notify_memory_pressure(level: i32) -> i32 {
             MemoryPressureLevel::Moderate
         };
         bridge_notify_memory_pressure(p_level)
+    }));
+
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Starts voice listening (mode: 0 = PushToTalk, 1 = WakeWord).
+/// Returns 0 on success, negative on error.
+#[no_mangle]
+pub extern "C" fn bridge_c_voice_start_listening(mode: u32) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| bridge_voice_start_listening(mode)));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Stops voice listening and returns to idle.
+/// Returns 0 on success, negative on error.
+#[no_mangle]
+pub extern "C" fn bridge_c_voice_stop_listening() -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(bridge_voice_stop_listening));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Sets active voice listening mode (mode: 0 = PushToTalk, 1 = WakeWord).
+/// Returns 0 on success, negative on error.
+#[no_mangle]
+pub extern "C" fn bridge_c_voice_set_mode(mode: u32) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| bridge_voice_set_mode(mode)));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Sets active wake-word keywords from a JSON array string.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `keywords_json` must be a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_voice_set_keywords(keywords_json: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let json_str = unsafe { c_char_to_str(keywords_json) }?;
+        bridge_voice_set_keywords(json_str)
+    }));
+
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Injects audio samples into the voice pipeline for processing.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `samples` must point to a valid slice of `len` 32-bit floats.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_voice_inject_audio(samples: *const f32, len: usize) -> i32 {
+    if samples.is_null() || len == 0 {
+        return -1;
+    }
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let slice = unsafe { std::slice::from_raw_parts(samples, len) };
+        bridge_voice_inject_audio(slice)
     }));
 
     match result {

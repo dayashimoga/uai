@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:ffi/ffi.dart';
 
@@ -9,6 +10,7 @@ import 'models/audit_item.dart';
 import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
 import 'models/health_report.dart';
+import 'models/voice_state.dart';
 
 /// Abstract interface for Universal AI Assistant Rust Core communication.
 abstract class AissistantBridge {
@@ -24,6 +26,11 @@ abstract class AissistantBridge {
   String getLifecycleState();
   void requestShutdown(String reason);
   void notifyMemoryPressure(int level);
+  void startVoiceListening({VoiceMode mode = VoiceMode.pushToTalk});
+  void stopVoiceListening();
+  void setVoiceMode(VoiceMode mode);
+  void setVoiceKeywords(List<String> keywords);
+  void injectVoiceAudio(List<double> samples);
   Stream<BridgeEvent> get eventStream;
 }
 
@@ -55,6 +62,21 @@ typedef _BridgeReqShutdownDart = int Function(Pointer<Utf8> reason);
 typedef _BridgeNotifyMemC = Int32 Function(Int32 level);
 typedef _BridgeNotifyMemDart = int Function(int level);
 
+typedef _BridgeVoiceStartC = Int32 Function(Uint32 mode);
+typedef _BridgeVoiceStartDart = int Function(int mode);
+
+typedef _BridgeVoiceStopC = Int32 Function();
+typedef _BridgeVoiceStopDart = int Function();
+
+typedef _BridgeVoiceSetModeC = Int32 Function(Uint32 mode);
+typedef _BridgeVoiceSetModeDart = int Function(int mode);
+
+typedef _BridgeVoiceSetKeywordsC = Int32 Function(Pointer<Utf8> keywordsJson);
+typedef _BridgeVoiceSetKeywordsDart = int Function(Pointer<Utf8> keywordsJson);
+
+typedef _BridgeVoiceInjectC = Int32 Function(Pointer<Float> samples, IntPtr len);
+typedef _BridgeVoiceInjectDart = int Function(Pointer<Float> samples, int len);
+
 typedef _BridgeFreeStringC = Void Function(Pointer<Utf8> ptr);
 typedef _BridgeFreeStringDart = void Function(Pointer<Utf8> ptr);
 
@@ -76,6 +98,11 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeGetStringDart _getLifecycleState;
   late final _BridgeReqShutdownDart _requestShutdown;
   late final _BridgeNotifyMemDart _notifyMemoryPressure;
+  late final _BridgeVoiceStartDart _voiceStart;
+  late final _BridgeVoiceStopDart _voiceStop;
+  late final _BridgeVoiceSetModeDart _voiceSetMode;
+  late final _BridgeVoiceSetKeywordsDart _voiceSetKeywords;
+  late final _BridgeVoiceInjectDart _voiceInject;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -91,6 +118,11 @@ class NativeFfiBridge implements AissistantBridge {
     _getLifecycleState = _lib.lookupFunction<_BridgeGetStringC, _BridgeGetStringDart>('bridge_c_get_lifecycle_state');
     _requestShutdown = _lib.lookupFunction<_BridgeReqShutdownC, _BridgeReqShutdownDart>('bridge_c_request_shutdown');
     _notifyMemoryPressure = _lib.lookupFunction<_BridgeNotifyMemC, _BridgeNotifyMemDart>('bridge_c_notify_memory_pressure');
+    _voiceStart = _lib.lookupFunction<_BridgeVoiceStartC, _BridgeVoiceStartDart>('bridge_c_voice_start_listening');
+    _voiceStop = _lib.lookupFunction<_BridgeVoiceStopC, _BridgeVoiceStopDart>('bridge_c_voice_stop_listening');
+    _voiceSetMode = _lib.lookupFunction<_BridgeVoiceSetModeC, _BridgeVoiceSetModeDart>('bridge_c_voice_set_mode');
+    _voiceSetKeywords = _lib.lookupFunction<_BridgeVoiceSetKeywordsC, _BridgeVoiceSetKeywordsDart>('bridge_c_voice_set_keywords');
+    _voiceInject = _lib.lookupFunction<_BridgeVoiceInjectC, _BridgeVoiceInjectDart>('bridge_c_voice_inject_audio');
     _freeString = _lib.lookupFunction<_BridgeFreeStringC, _BridgeFreeStringDart>('bridge_c_free_string');
   }
 
@@ -252,6 +284,63 @@ class NativeFfiBridge implements AissistantBridge {
   @override
   void notifyMemoryPressure(int level) {
     _notifyMemoryPressure(level);
+  }
+
+  @override
+  void startVoiceListening({VoiceMode mode = VoiceMode.pushToTalk}) {
+    final modeCode = mode == VoiceMode.pushToTalk ? 0 : 1;
+    final res = _voiceStart(modeCode);
+    if (res != 0) {
+      throw StateError('Failed to start voice listening: code $res');
+    }
+  }
+
+  @override
+  void stopVoiceListening() {
+    final res = _voiceStop();
+    if (res != 0) {
+      throw StateError('Failed to stop voice listening: code $res');
+    }
+  }
+
+  @override
+  void setVoiceMode(VoiceMode mode) {
+    final modeCode = mode == VoiceMode.pushToTalk ? 0 : 1;
+    final res = _voiceSetMode(modeCode);
+    if (res != 0) {
+      throw StateError('Failed to set voice mode: code $res');
+    }
+  }
+
+  @override
+  void setVoiceKeywords(List<String> keywords) {
+    final jsonStr = jsonEncode(keywords);
+    final ptr = jsonStr.toNativeUtf8();
+    try {
+      final res = _voiceSetKeywords(ptr);
+      if (res != 0) {
+        throw StateError('Failed to set voice keywords: code $res');
+      }
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  @override
+  void injectVoiceAudio(List<double> samples) {
+    if (samples.isEmpty) return;
+    final ptr = malloc<Float>(samples.length);
+    try {
+      for (var i = 0; i < samples.length; i++) {
+        ptr[i] = samples[i];
+      }
+      final res = _voiceInject(ptr, samples.length);
+      if (res != 0) {
+        throw StateError('Failed to inject voice audio: code $res');
+      }
+    } finally {
+      malloc.free(ptr);
+    }
   }
 }
 
@@ -451,5 +540,70 @@ class TestHarnessBridge implements AissistantBridge {
       _status = HealthStatus.degraded;
     }
     _eventController.add(MemoryPressureEvent(level: level >= 1 ? 'critical' : 'moderate'));
+  }
+
+  bool _isVoiceListening = false;
+  VoiceMode _voiceMode = VoiceMode.pushToTalk;
+  List<String> _voiceKeywords = <String>['hey assistant'];
+
+  bool get isVoiceListening => _isVoiceListening;
+  VoiceMode get voiceMode => _voiceMode;
+  List<String> get voiceKeywords => List<String>.unmodifiable(_voiceKeywords);
+
+  void emitEvent(BridgeEvent event) {
+    _eventController.add(event);
+  }
+
+  @override
+  void startVoiceListening({VoiceMode mode = VoiceMode.pushToTalk}) {
+    _isVoiceListening = true;
+    _voiceMode = mode;
+    _eventController.add(VoiceStateChangedEvent(
+      isListening: true,
+      mode: mode == VoiceMode.pushToTalk ? 'PushToTalk' : 'WakeWord',
+    ));
+  }
+
+  @override
+  void stopVoiceListening() {
+    _isVoiceListening = false;
+    _eventController.add(VoiceStateChangedEvent(
+      isListening: false,
+      mode: _voiceMode == VoiceMode.pushToTalk ? 'PushToTalk' : 'WakeWord',
+    ));
+  }
+
+  @override
+  void setVoiceMode(VoiceMode mode) {
+    _voiceMode = mode;
+    _eventController.add(VoiceStateChangedEvent(
+      isListening: _isVoiceListening,
+      mode: mode == VoiceMode.pushToTalk ? 'PushToTalk' : 'WakeWord',
+    ));
+  }
+
+  @override
+  void setVoiceKeywords(List<String> keywords) {
+    _voiceKeywords = List<String>.from(keywords);
+  }
+
+  @override
+  void injectVoiceAudio(List<double> samples) {
+    if (samples.isEmpty) return;
+    var sumSq = 0.0;
+    var peak = 0.0;
+    for (final s in samples) {
+      final abs = s.abs();
+      if (abs > peak) peak = abs;
+      sumSq += s * s;
+    }
+    final rms = sumSq / samples.length;
+    final rmsDbfs = rms > 1e-9 ? 10.0 * (log(rms) / ln10) : -96.0;
+    final peakDbfs = peak > 1e-9 ? 20.0 * (log(peak) / ln10) : -96.0;
+
+    _eventController.add(VoiceLevelUpdatedEvent(
+      rmsDbfs: rmsDbfs.clamp(-96.0, 0.0),
+      peakDbfs: peakDbfs.clamp(-96.0, 0.0),
+    ));
   }
 }

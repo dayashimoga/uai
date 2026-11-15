@@ -61,6 +61,32 @@ abstract class BridgeEvent {
           level: payload['level'] as String? ?? 'moderate',
         );
 
+      case 'voice_level_updated':
+        return VoiceLevelUpdatedEvent(
+          rmsDbfs: (payload['rms_dbfs'] as num?)?.toDouble() ?? -96.0,
+          peakDbfs: (payload['peak_dbfs'] as num?)?.toDouble() ?? -96.0,
+        );
+
+      case 'wake_word_triggered':
+        return WakeWordTriggeredEvent(
+          keyword: payload['keyword'] as String? ?? '',
+          confidence: (payload['confidence'] as num?)?.toDouble() ?? 0.0,
+        );
+
+      case 'transcript_updated':
+        return TranscriptUpdatedEvent(
+          text: payload['text'] as String? ?? '',
+          isFinal: payload['is_final'] as bool? ?? false,
+          language: payload['language'] as String? ?? 'en',
+          confidence: (payload['confidence'] as num?)?.toDouble() ?? 0.0,
+        );
+
+      case 'voice_state_changed':
+        return VoiceStateChangedEvent(
+          isListening: payload['is_listening'] as bool? ?? false,
+          mode: payload['mode'] as String? ?? 'idle',
+        );
+
       default:
         return UnknownBridgeEvent(type: type, payload: payload);
     }
@@ -147,6 +173,50 @@ class MemoryPressureEvent extends BridgeEvent {
   const MemoryPressureEvent({
     required this.level,
   }) : super('memory_pressure');
+}
+
+class VoiceLevelUpdatedEvent extends BridgeEvent {
+  final double rmsDbfs;
+  final double peakDbfs;
+
+  const VoiceLevelUpdatedEvent({
+    required this.rmsDbfs,
+    required this.peakDbfs,
+  }) : super('voice_level_updated');
+}
+
+class WakeWordTriggeredEvent extends BridgeEvent {
+  final String keyword;
+  final double confidence;
+
+  const WakeWordTriggeredEvent({
+    required this.keyword,
+    required this.confidence,
+  }) : super('wake_word_triggered');
+}
+
+class TranscriptUpdatedEvent extends BridgeEvent {
+  final String text;
+  final bool isFinal;
+  final String language;
+  final double confidence;
+
+  const TranscriptUpdatedEvent({
+    required this.text,
+    required this.isFinal,
+    required this.language,
+    required this.confidence,
+  }) : super('transcript_updated');
+}
+
+class VoiceStateChangedEvent extends BridgeEvent {
+  final bool isListening;
+  final String mode;
+
+  const VoiceStateChangedEvent({
+    required this.isListening,
+    required this.mode,
+  }) : super('voice_state_changed');
 }
 
 class UnknownBridgeEvent extends BridgeEvent {
