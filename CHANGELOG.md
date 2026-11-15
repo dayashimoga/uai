@@ -652,3 +652,38 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 159 unit and integration tests (0 failures; 18 in `aissistant-llm`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 37 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+---
+
+## [2026-11-15] — Stage 3 Phase 2 Subphase 2 (`S3.P2.2`)
+
+### Added
+- `core/crates/aissistant-llm/src/grammar/gbnf.rs`:
+  - `GbnfRule` — Representation of production rules in GGML BNF grammar notation (`name ::= expression`).
+  - `GbnfGrammar` — Production grammar builder with built-in JSON primitives (`ws`, `string`, `number`, `integer`, `boolean`, `null`, `json_array`, `json_object`, `json_value`, `json_member`), validation for `root` entrypoint and identifier syntax, and string literal escaping (`escape_literal`).
+  - Pre-compiled static grammars for zero-overhead invocation: `arbitrary_json_object()`, `arbitrary_json_array()`, and `boolean_response()`.
+- `core/crates/aissistant-llm/src/grammar/schema_compiler.rs`:
+  - `SchemaCompiler` — Schema-to-GBNF compiler transforming standard JSON Schema definitions into strict context-free grammars.
+  - Translation of primitive types, constrained `enum` values (`"opt1" | "opt2"`), arrays with element schemas, and objects with required and optional property rules.
+  - `compile_tool` — Compiles a single tool definition into a constrained invocation schema: `{"name": "<tool_name>", "arguments": <schema>}`.
+  - `compile_tools` — Multi-tool union compiler generating branching `root` expressions (`tool_a | tool_b | ...`) with optional conversational fallback for mixed-mode conversations.
+- `core/crates/aissistant-llm/src/grammar/tool_call.rs`:
+  - `ToolDefinition` — Strong specification for tools including name, description, and JSON Schema parameters.
+  - `ToolCall` — Parsed model invocation request containing target tool name and validated arguments.
+  - `ToolCallValidator` — Structural validator verifying that generated outputs are valid JSON, contain required arguments, match property types, conform to enum restrictions, and match known tool declarations.
+- `core/crates/aissistant-llm/src/grammar/mod.rs`:
+  - Public module exports for grammar AST, schema compiler, and tool-calling validation.
+- `core/crates/aissistant-llm/src/lib.rs`:
+  - Added 5 new unit and integration tests (bringing `aissistant-llm` total to 23, and workspace total to 164):
+    - `test_gbnf_grammar_rule_formatting_and_validation`: rule formatting, missing root rejection, arbitrary JSON object and boolean grammars, and literal escaping.
+    - `test_schema_compiler_primitive_and_enum_types`: string enum compilation with GBNF alternatives.
+    - `test_schema_compiler_nested_object_and_array`: nested objects with required properties and array items.
+    - `test_schema_compiler_single_and_multi_tool`: single tool schema compilation and multi-tool union with conversational fallback.
+    - `test_tool_call_validator_success_and_failures`: successful invocation parsing, missing required arguments rejection, type mismatches, enum deviations, unknown tools, and malformed JSON.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 164 unit and integration tests (0 failures; 23 in `aissistant-llm`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 37 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.

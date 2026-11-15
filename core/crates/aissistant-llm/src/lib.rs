@@ -1,5 +1,6 @@
 pub mod engine;
 pub mod error;
+pub mod grammar;
 pub mod hardware;
 pub mod models;
 
@@ -8,6 +9,9 @@ pub use engine::{
     LocalLlmEngine, SamplingParams, TokenChunk,
 };
 pub use error::{LlmError, Result};
+pub use grammar::{
+    GbnfGrammar, GbnfRule, SchemaCompiler, ToolCall, ToolCallValidator, ToolDefinition,
+};
 pub use hardware::{
     CpuFeatures, GpuBackend, GpuDevice, GpuProfile, HardwareProfile, HardwareProfiler,
     HardwareRecommendation, MemoryProfile, ModelTier, SystemHardwareProfiler,
@@ -656,5 +660,193 @@ mod tests {
         // Critical pressure triggers immediate unload
         engine.on_memory_pressure(true);
         assert!(!engine.is_loaded());
+    }
+
+    #[test]
+    fn test_gbnf_grammar_rule_formatting_and_validation() {
+        let mut grammar = GbnfGrammar::new();
+        assert!(grammar.validate().is_err()); // Missing root
+
+        grammar.set_root("ws item ws");
+        grammar.add_rule("item", "\"apple\" | \"orange\"");
+        grammar.add_rule("ws", "[ \\t]*");
+
+        assert!(grammar.validate().is_ok());
+        let gbnf_str = grammar.to_gbnf_string();
+        assert!(gbnf_str.starts_with("root ::= ws item ws\n"));
+        assert!(gbnf_str.contains("item ::= \"apple\" | \"orange\"\n"));
+
+        // Built-in arbitrary JSON objects & booleans
+        let obj_grammar = GbnfGrammar::arbitrary_json_object();
+        assert!(obj_grammar.validate().is_ok());
+        assert!(obj_grammar.has_rule("json_object"));
+        assert!(obj_grammar.has_rule("root"));
+
+        let bool_grammar = GbnfGrammar::boolean_response();
+        assert!(bool_grammar.validate().is_ok());
+
+        // Escape helper
+        assert_eq!(
+            GbnfGrammar::escape_literal("hello \"world\"\n"),
+            "\"hello \\\"world\\\"\\n\""
+        );
+    }
+
+    #[test]
+    fn test_schema_compiler_primitive_and_enum_types() {
+        let mut compiler = SchemaCompiler::new();
+
+        // Enum string schema
+        let enum_schema = serde_json::json!({
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+        });
+
+        let grammar = compiler.compile_schema(&enum_schema).unwrap();
+        assert!(grammar.validate().is_ok());
+        let gbnf = grammar.to_gbnf_string();
+        assert!(gbnf.contains("\"high\" | \"medium\" | \"low\""));
+    }
+
+    #[test]
+    fn test_schema_compiler_nested_object_and_array() {
+        let mut compiler = SchemaCompiler::new();
+
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "user_id": { "type": "integer" },
+                "tags": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                },
+                "active": { "type": "boolean" }
+            },
+            "required": ["user_id", "tags"]
+        });
+
+        let grammar = compiler.compile_schema(&schema).unwrap();
+        assert!(grammar.validate().is_ok());
+        let gbnf = grammar.to_gbnf_string();
+        assert!(gbnf.contains("root ::="));
+        assert!(gbnf.contains("\"user_id\""));
+        assert!(gbnf.contains("\"tags\""));
+        assert!(gbnf.contains("\"active\""));
+    }
+
+    #[test]
+    fn test_schema_compiler_single_and_multi_tool() {
+        let mut compiler = SchemaCompiler::new();
+
+        let tool1 = ToolDefinition::new(
+            "get_battery_level",
+            "Queries host device battery level",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "refresh": { "type": "boolean" }
+                },
+                "required": ["refresh"]
+            }),
+        );
+
+        let tool2 = ToolDefinition::new(
+            "file_read",
+            "Reads a file securely",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"]
+            }),
+        );
+
+        // Single tool compilation
+        let single_grammar = compiler.compile_tool(&tool1).unwrap();
+        assert!(single_grammar.validate().is_ok());
+        let gbnf_single = single_grammar.to_gbnf_string();
+        assert!(gbnf_single.contains("get_battery_level"));
+        assert!(gbnf_single.contains(r#"\"arguments\":"#));
+
+        // Multi tool with conversational fallback
+        let multi_grammar = compiler.compile_tools(&[tool1, tool2], true).unwrap();
+        assert!(multi_grammar.validate().is_ok());
+        let gbnf_multi = multi_grammar.to_gbnf_string();
+        assert!(gbnf_multi.contains("tool_get_battery_level"));
+        assert!(gbnf_multi.contains("tool_file_read"));
+        assert!(gbnf_multi.contains("conversational_text"));
+    }
+
+    #[test]
+    fn test_tool_call_validator_success_and_failures() {
+        let tools = vec![ToolDefinition::new(
+            "adjust_volume",
+            "Modifies system output volume",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "level": { "type": "integer" },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["mute", "unmute", "set"]
+                    }
+                },
+                "required": ["level", "mode"]
+            }),
+        )];
+
+        // Valid invocation
+        let valid_json = r#"{
+            "name": "adjust_volume",
+            "arguments": {
+                "level": 75,
+                "mode": "set"
+            }
+        }"#;
+        let call = ToolCallValidator::parse_and_validate(valid_json, &tools).unwrap();
+        assert_eq!(call.name, "adjust_volume");
+        assert_eq!(call.arguments["level"], 75);
+        assert_eq!(call.arguments["mode"], "set");
+
+        // Missing required property 'mode'
+        let missing_prop = r#"{
+            "name": "adjust_volume",
+            "arguments": {
+                "level": 50
+            }
+        }"#;
+        assert!(ToolCallValidator::parse_and_validate(missing_prop, &tools).is_err());
+
+        // Type mismatch ('level' as string instead of integer)
+        let type_mismatch = r#"{
+            "name": "adjust_volume",
+            "arguments": {
+                "level": "loud",
+                "mode": "set"
+            }
+        }"#;
+        assert!(ToolCallValidator::parse_and_validate(type_mismatch, &tools).is_err());
+
+        // Enum mismatch ('mode' not in ["mute", "unmute", "set"])
+        let enum_mismatch = r#"{
+            "name": "adjust_volume",
+            "arguments": {
+                "level": 50,
+                "mode": "blast"
+            }
+        }"#;
+        assert!(ToolCallValidator::parse_and_validate(enum_mismatch, &tools).is_err());
+
+        // Unknown tool
+        let unknown_tool = r#"{
+            "name": "non_existent_tool",
+            "arguments": {}
+        }"#;
+        assert!(ToolCallValidator::parse_and_validate(unknown_tool, &tools).is_err());
+
+        // Malformed JSON
+        let malformed = "not valid json";
+        assert!(ToolCallValidator::parse_and_validate(malformed, &tools).is_err());
     }
 }
