@@ -399,4 +399,4 @@ Status Legend:
   - `tests::test_acoustic_stt_custom_vocabulary_addition`: Verified runtime vocabulary registration allowing custom command phrases to be recognized dynamically.
   - `tests::test_sherpa_stt_engine_transducer_and_whisper_configs`: Verified configuration of `sherpa-onnx` streaming Transducer (Zipformer) and offline Whisper architectures, model path checks, and transparent fallback to acoustic decoding in test environments.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `c76ce0a`
