@@ -1,0 +1,23 @@
+[package]
+name = "aissistant-llm"
+description = "Hardware-aware local LLM engine, model management, and GBNF grammar tool-calling"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+aissistant-core = { path = "../aissistant-core" }
+serde.workspace = true
+serde_json.workspace = true
+sysinfo.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

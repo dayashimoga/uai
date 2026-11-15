@@ -7,6 +7,7 @@ members = [
     "crates/aissistant-ffi",
     "crates/aissistant-audio",
     "crates/aissistant-speech",
+    "crates/aissistant-llm",
 ]
 
 [workspace.package]
@@ -41,7 +42,9 @@ rusqlite = { version = "0.32", features = ["bundled", "modern_sqlite"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
+sysinfo = "0.33"
 tempfile = "3.17"
 thiserror = "2.0"
+tracing = "0.1"
 uuid = { version = "1.10", features = ["v4", "serde"] }
 zeroize = { version = "1.8", features = ["derive", "zeroize_derive"] }

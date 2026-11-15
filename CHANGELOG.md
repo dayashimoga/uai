@@ -549,3 +549,36 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 141 unit and integration tests (0 failures; 21 in `aissistant-ffi`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 37 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+---
+
+## [2026-11-15] — Stage 3 Phase 1 Subphase 1 (`S3.P1.1`)
+
+### Added
+- `core/crates/aissistant-llm/Cargo.toml`:
+  - Created `aissistant-llm` crate with workspace configuration and `sysinfo = "0.33"`.
+- `core/crates/aissistant-llm/src/error.rs`:
+  - `LlmError` taxonomy with typed variants for hardware probing, memory insufficiency, checksum mismatches, GGUF parsing, and inference cancellation.
+- `core/crates/aissistant-llm/src/hardware/cpu.rs`:
+  - `CpuFeatures` struct with runtime detection of CPU architecture, core counts, and SIMD instruction sets (AVX, AVX2, AVX-512, NEON, ARM FP16, FMA).
+  - Cache-aware SMT thread allocation algorithm bounded to avoid L1/L2 cache thrashing.
+- `core/crates/aissistant-llm/src/hardware/memory.rs`:
+  - `MemoryProfile` capturing total/available RAM, swap, and enforcing dynamic OS safety headroom (768MB to 4.0GB) with usable memory budget calculation.
+  - FP16 KV-cache memory estimator based on context tokens, layer count, and embedding dimensions.
+- `core/crates/aissistant-llm/src/hardware/gpu.rs`:
+  - `GpuBackend` (`Metal`, `Cuda`, `Vulkan`, `CpuOnly`), `GpuDevice`, and `GpuProfile` with platform-specific adapter detection on Windows, macOS/iOS, and Linux.
+- `core/crates/aissistant-llm/src/hardware/recommendation.rs`:
+  - `ModelTier` classification: `Unsupported`, `Nano0_5B` (~0.5B), `Small1_5B_3B` (~1.5B–3B), `Medium7B_8B` (~7B–8B), and `Large14BPlus` (~14B+).
+  - `HardwareRecommendation` engine computing recommended model weights cap, context token ceiling, thread allocation, GPU offload layers, and throughput estimation.
+- `core/crates/aissistant-llm/src/hardware/mod.rs`:
+  - `HardwareProfile` snapshot aggregation and `HardwareProfiler` trait with `SystemHardwareProfiler`.
+- `core/crates/aissistant-llm/src/lib.rs`:
+  - 7 unit tests verifying live hardware probing, thread scaling, dynamic headroom computation, model tier recommendations across 5 device tiers, GPU offloading, KV-cache math, and JSON serde roundtrips.
+  - Workspace tests total: 148 passed across 7 crates with 0 warnings.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 148 unit and integration tests (0 failures; 7 in `aissistant-llm`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 37 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.

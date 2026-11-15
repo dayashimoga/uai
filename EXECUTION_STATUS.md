@@ -1,8 +1,8 @@
 # EXECUTION_STATUS.md — Authoritative Live Completion Tracker
 
 **Last Updated:** 2026-11-15  
-**Current Project Phase:** Stage 2 Complete (100%) — Audio Pipeline, Speech Recognition, Wake-Word Spotting & Voice Synthesis  
-**Next Subphase in Queue:** `S3.P1.1` (CPU/RAM/GPU Hardware Profiler)
+**Current Project Phase:** Stage 3 — Local LLM Runtime & Model Management  
+**Next Subphase in Queue:** `S3.P1.2` (Resumable Model Downloader, SHA-256 Verifier & GGUF Inspector)
 
 ---
 
@@ -48,7 +48,7 @@ Status Legend:
 | **Stage 2** | `S2.P3.1` | Offline Multilingual Streaming Speech-to-Text | `S2.P2.2` | `COMPLETED` | Verified: 132 Rust workspace unit tests passing (21 in `aissistant-speech`), clippy zero warnings, fmt check passed, streaming partial transcripts, endpoint detection, multilingual language switching, dynamic vocabulary addition, and sherpa-onnx Zipformer/Whisper STT interface verified. |
 | **Stage 2** | `S2.P3.2` | Offline Neural Text-to-Speech & Sentence Streaming | `S2.P3.1` | `COMPLETED` | Verified: 139 Rust workspace unit tests passing (28 in `aissistant-speech`), clippy zero warnings, fmt check passed, sentence boundary chunking, abbreviation handling, speech synthesis, speaking rate / pitch modulation, barge-in cancellation, and sherpa-onnx VITS/Piper interface verified. |
 | **Stage 2** | `S2.P3.3` | Voice UI Integration, Waveform Feedback & Push-to-Talk/Wake Mode | `S2.P3.2` | `COMPLETED` | Verified: 141 Rust workspace unit tests passing (21 in `aissistant-ffi`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, `VoicePipelineSupervisor` FFI bridge, C-ABI functions, `VoiceScreen` adaptive UI, animated dynamic `WaveformVisualizer`, Push-to-Talk gesture control, wake-word mode switcher, customizable keyword chips, streaming live transcript card, and 100% offline privacy indicator verified. |
-| **Stage 3** | `S3.P1.1` | CPU/RAM/GPU Hardware Profiler (`aissistant-llm`) | `S2.P3.3` | `PENDING` | — |
+| **Stage 3** | `S3.P1.1` | CPU/RAM/GPU Hardware Profiler (`aissistant-llm`) | `S2.P3.3` | `COMPLETED` | Verified: 148 Rust workspace unit tests passing (7 in `aissistant-llm`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, `CpuFeatures` vector instruction detection (AVX, AVX2, AVX-512, NEON), `MemoryProfile` OS headroom reservation, `GpuProfile` backend probe (Metal, CUDA, Vulkan, CPU-only), and `HardwareRecommendation` tier determination verified. |
 | **Stage 3** | `S3.P1.2` | Resumable Model Downloader, SHA-256 Verifier & GGUF Inspector | `S3.P1.1` | `PENDING` | — |
 | **Stage 3** | `S3.P2.1` | `llama.cpp` Rust Bindings, Session Management & Token Streaming | `S3.P1.2` | `PENDING` | — |
 | **Stage 3** | `S3.P2.2` | GBNF Grammar Compiler for Structured JSON Tool Calling | `S3.P2.1` | `PENDING` | — |
@@ -437,4 +437,25 @@ Status Legend:
   - `BridgeEvent & VoiceState Model Tests`: Verified JSON deserialization of `VoiceLevelUpdatedEvent`, `WakeWordTriggeredEvent`, `TranscriptUpdatedEvent`, and `VoiceStateChangedEvent`, along with immutable `copyWith` methods.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `73e7360`
+
+### Verification Evidence — S3.P1.1 (CPU/RAM/GPU Hardware Profiler)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 7 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (148 passed across 7 crates; 7 in `aissistant-llm`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (37 passed across 6 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `tests::test_system_hardware_profiler_live_probe`: Verified live host platform probing (detecting x86_64 CPU cores, physical RAM, OS headroom, and recommended inference thread count).
+  - `tests::test_cpu_features_recommended_threads`: Verified SMT/hyperthreading scaling avoiding L1/L2 cache contention (dual-core: 2, quad-core: 3, 8-core: 7, 16-core: 8 threads).
+  - `tests::test_memory_profile_headroom_and_budget_scaling`: Verified dynamic OS memory headroom calculation (2GB: 768MB, 4GB: 1GB, 8GB: 1.5GB, 16GB: 2.5GB, 32GB: 4GB) and usable memory budget cap (at most 75% total RAM).
+  - `tests::test_model_tier_recommendations_across_devices`: Verified model tier classifications across low-memory edge devices (<900MB: `Unsupported`, 1.5GB: `Nano0_5B`, 4GB: `Small1_5B_3B`, 10GB: `Medium7B_8B`, 20GB: `Large14BPlus`).
+  - `tests::test_gpu_offload_recommendations`: Verified layer offload computation across Apple Metal (33 layers), Vulkan (33 layers), CUDA (33 layers), and CPU-only (0 layers) environments with throughput estimation.
+  - `tests::test_kv_cache_estimation`: Verified FP16 KV-cache estimation scaling linearly across context window lengths (2048 to 8192 tokens).
+  - `tests::test_hardware_profile_serde_roundtrip`: Verified complete JSON serialization and deserialization of live hardware profiles.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** `Pending`
+
 
