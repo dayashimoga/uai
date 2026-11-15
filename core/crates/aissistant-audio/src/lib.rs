@@ -1,12 +1,20 @@
+pub mod capture;
+pub mod device;
 pub mod error;
 pub mod meter;
+pub mod playback;
 pub mod resampler;
 pub mod ring_buffer;
+pub mod virtual_device;
 
+pub use capture::{AudioCaptureConfig, AudioCaptureStream};
+pub use device::{AudioDeviceInfo, AudioDeviceManager};
 pub use error::AudioError;
 pub use meter::{AudioLevelMeter, AudioLevelSnapshot};
+pub use playback::{AudioPlaybackConfig, AudioPlaybackStream};
 pub use resampler::{resample_batch, AudioResampler};
 pub use ring_buffer::{AudioRingBuffer, RingBufferConsumer, RingBufferMode, RingBufferProducer};
+pub use virtual_device::VirtualAudioDevice;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
@@ -340,5 +348,154 @@ mod tests {
         for &s in &out {
             assert!((s - 0.25).abs() < 1e-4);
         }
+    }
+
+    #[test]
+    fn test_device_manager_query_and_discovery() {
+        // Query devices on current system; must return Ok result even if headless/empty
+        let inputs = AudioDeviceManager::list_input_devices();
+        assert!(inputs.is_ok());
+
+        let outputs = AudioDeviceManager::list_output_devices();
+        assert!(outputs.is_ok());
+
+        let def_in = AudioDeviceManager::default_input_device();
+        assert!(def_in.is_ok());
+
+        let def_out = AudioDeviceManager::default_output_device();
+        assert!(def_out.is_ok());
+    }
+
+    #[test]
+    fn test_virtual_device_capture_and_metering() {
+        let vdev = VirtualAudioDevice::new(1024).expect("Init vdev failed");
+        assert!(!vdev.is_capturing());
+        assert!(!vdev.is_muted());
+
+        vdev.start_capture();
+        assert!(vdev.is_capturing());
+
+        // Ingest 160 samples of a full-scale tone
+        let tone = vec![0.8f32; 160];
+        let pushed = vdev
+            .inject_capture_samples(&tone, 16_000, 1)
+            .expect("Inject failed");
+        assert_eq!(pushed, 160);
+
+        // Consumer reads the samples
+        let consumer = vdev.capture_consumer();
+        let mut out = [0.0f32; 160];
+        let read = consumer.pop_slice(&mut out);
+        assert_eq!(read, 160);
+        assert_eq!(out[0], 0.8);
+
+        // Verify level meter reflects the active signal
+        let snapshot = vdev.get_level_snapshot();
+        assert!(!snapshot.is_silent);
+        assert!(snapshot.normalized_rms > 0.5);
+
+        vdev.pause_capture();
+        assert!(!vdev.is_capturing());
+    }
+
+    #[test]
+    fn test_virtual_device_software_mute() {
+        let vdev = VirtualAudioDevice::new(1024).expect("Init vdev failed");
+        vdev.start_capture();
+
+        // Enable software mute
+        vdev.set_muted(true);
+        assert!(vdev.is_muted());
+
+        // Inject active tone while muted
+        let tone = vec![0.9f32; 160];
+        vdev.inject_capture_samples(&tone, 16_000, 1)
+            .expect("Inject failed");
+
+        // Consumer receives silence (0.0)
+        let consumer = vdev.capture_consumer();
+        let mut out = [1.0f32; 160];
+        let read = consumer.pop_slice(&mut out);
+        assert_eq!(read, 160);
+        for &s in &out {
+            assert_eq!(s, 0.0);
+        }
+
+        // Unmute and verify non-zero passes through
+        vdev.set_muted(false);
+        assert!(!vdev.is_muted());
+
+        vdev.inject_capture_samples(&tone, 16_000, 1)
+            .expect("Inject failed");
+        let read2 = consumer.pop_slice(&mut out);
+        assert_eq!(read2, 160);
+        assert_eq!(out[0], 0.9);
+    }
+
+    #[test]
+    fn test_virtual_device_playback_and_instant_flush() {
+        let vdev = VirtualAudioDevice::new(1024).expect("Init vdev failed");
+        vdev.start_playback();
+        assert!(vdev.is_playing());
+
+        // Queue 200 samples
+        let samples = vec![0.5f32; 200];
+        let queued = vdev.queue_playback_samples(&samples);
+        assert_eq!(queued, 200);
+
+        // Read 50 samples
+        let mut out = [0.0f32; 50];
+        let read = vdev.read_playback_samples(&mut out);
+        assert_eq!(read, 50);
+
+        // Instant flush (barge-in interrupt)
+        vdev.flush_playback();
+
+        // After flush, buffer is immediately empty
+        let read_after = vdev.read_playback_samples(&mut out);
+        assert_eq!(read_after, 0);
+    }
+
+    #[test]
+    fn test_audio_capture_stream_virtual_lifecycle() {
+        let stream = AudioCaptureStream::new_virtual(2048).expect("Init virtual capture failed");
+        assert!(!stream.is_running());
+        assert!(!stream.is_muted());
+
+        assert!(stream.start().is_ok());
+        assert!(stream.is_running());
+
+        stream.set_muted(true);
+        assert!(stream.is_muted());
+
+        let snapshot = stream.get_level_snapshot();
+        assert!(snapshot.is_silent);
+
+        assert!(stream.pause().is_ok());
+        assert!(!stream.is_running());
+    }
+
+    #[test]
+    fn test_audio_playback_stream_virtual_lifecycle_and_volume() {
+        let stream = AudioPlaybackStream::new_virtual(2048).expect("Init virtual playback failed");
+        assert!(!stream.is_running());
+        assert_eq!(stream.get_volume(), 1.0);
+
+        assert!(stream.start().is_ok());
+        assert!(stream.is_running());
+
+        // Set volume to 0.75
+        stream.set_volume(0.75);
+        assert!((stream.get_volume() - 0.75).abs() < 1e-4);
+
+        // Play samples and instant flush
+        let samples = vec![0.4f32; 100];
+        let queued = stream.play_samples(&samples);
+        assert_eq!(queued, 100);
+
+        stream.flush();
+
+        assert!(stream.pause().is_ok());
+        assert!(!stream.is_running());
     }
 }

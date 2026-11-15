@@ -21,4 +21,19 @@ pub enum AudioError {
 
     #[error("Audio parameter error: {0}")]
     ParameterError(String),
+
+    #[error("Audio device not found: {0}")]
+    DeviceNotFound(String),
+
+    #[error("Audio device unavailable: {0}")]
+    DeviceUnavailable(String),
+
+    #[error("Audio stream build error: {0}")]
+    StreamBuildError(String),
+
+    #[error("Audio stream play error: {0}")]
+    StreamPlayError(String),
+
+    #[error("Audio backend error: {0}")]
+    BackendError(String),
 }

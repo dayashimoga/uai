@@ -347,3 +347,34 @@
 - `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 105 unit and integration tests (0 failures; 17 in `aissistant-audio`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit and widget tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 2 Phase 1 Subphase 2 (`S2.P1.2`)
+
+### Added
+- `core/crates/aissistant-audio/Cargo.toml` & `core/Cargo.toml`:
+  - Added `cpal = "0.15"` cross-platform audio I/O dependency.
+- `core/crates/aissistant-audio/src/error.rs`:
+  - Extended `AudioError` with I/O error taxonomy: `DeviceNotFound`, `DeviceUnavailable`, `StreamBuildError`, `StreamPlayError`, `BackendError`.
+- `core/crates/aissistant-audio/src/device.rs`:
+  - `AudioDeviceInfo` — Metadata representation for host microphones and speakers.
+  - `AudioDeviceManager` — Hardware device discovery, default input/output device detection, and supported configuration query with headless/container fallback.
+- `core/crates/aissistant-audio/src/capture.rs`:
+  - `AudioCaptureStream` — Real-time input stream running dedicated audio callback, auto-converting native input formats (`f32`, `i16`, `u16`) through `AudioResampler` into the lock-free 16 kHz mono `AudioRingBuffer`.
+  - Software and hardware mute enforcement (zero injection when muted).
+  - Continuous level meter telemetry updates.
+- `core/crates/aissistant-audio/src/playback.rs`:
+  - `AudioPlaybackStream` — Real-time output stream feeding synthesized speech to speakers.
+  - Linear volume scaling ($0.0 \dots 1.0$) via atomic bitcasts.
+  - Instant `flush()` clearing pending playback buffer within $< 10\text{ ms}$ for barge-in interruption.
+- `core/crates/aissistant-audio/src/virtual_device.rs`:
+  - `VirtualAudioDevice` — Deterministic in-memory headless audio driver enabling full integration tests of capture, resampling, ring buffer ingestion, software mute, level metering, and playback verification in CI without physical hardware.
+- `core/crates/aissistant-audio/src/lib.rs`:
+  - 6 new unit and integration tests verifying device enumeration, virtual capture with level metering, software mute enforcement, virtual playback queueing and instant flush, and capture/playback stream lifecycles. Total tests in crate increased from 17 to 23.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 111 unit and integration tests (0 failures; 23 in `aissistant-audio`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 28 unit and widget tests (0 failures).

@@ -32,6 +32,7 @@ needless_borrow = "warn"
 [workspace.dependencies]
 blake3 = "1.5"
 chacha20poly1305 = { version = "0.10", features = ["alloc"] }
+cpal = "0.15"
 ed25519-dalek = { version = "2.1", features = ["rand_core", "serde"] }
 hkdf = "0.12"
 rand = "0.8"

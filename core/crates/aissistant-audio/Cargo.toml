@@ -12,6 +12,7 @@ description = "Real-time safe audio ring buffer, multi-rate resampler, and audio
 workspace = true
 
 [dependencies]
+cpal = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

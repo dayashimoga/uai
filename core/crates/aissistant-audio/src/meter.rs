@@ -24,6 +24,7 @@ pub struct AudioLevelMeter {
     silence_threshold_dbfs: f32,
     decay_coeff: f32,
     smoothed_peak: f32,
+    last_snapshot: AudioLevelSnapshot,
 }
 
 impl Default for AudioLevelMeter {
@@ -35,12 +36,27 @@ impl Default for AudioLevelMeter {
 impl AudioLevelMeter {
     /// Create a new level meter with custom floor, silence threshold, and release decay.
     pub fn new(floor_dbfs: f32, silence_threshold_dbfs: f32, decay_coeff: f32) -> Self {
+        let initial_snap = AudioLevelSnapshot {
+            rms_dbfs: floor_dbfs,
+            peak_dbfs: floor_dbfs,
+            normalized_rms: 0.0,
+            normalized_peak: 0.0,
+            is_clipping: false,
+            is_silent: true,
+        };
+
         Self {
             floor_dbfs,
             silence_threshold_dbfs,
             decay_coeff: decay_coeff.clamp(0.0, 0.999),
             smoothed_peak: 0.0,
+            last_snapshot: initial_snap,
         }
+    }
+
+    /// Return the most recently calculated level snapshot.
+    pub fn current_snapshot(&self) -> AudioLevelSnapshot {
+        self.last_snapshot
     }
 
     /// Process a block of audio samples and compute the level metrics.
@@ -48,14 +64,7 @@ impl AudioLevelMeter {
     /// Real-time safe: Zero allocations, zero locks.
     pub fn process(&mut self, samples: &[f32]) -> AudioLevelSnapshot {
         if samples.is_empty() {
-            return AudioLevelSnapshot {
-                rms_dbfs: self.floor_dbfs,
-                peak_dbfs: self.floor_dbfs,
-                normalized_rms: 0.0,
-                normalized_peak: self.smoothed_peak,
-                is_clipping: false,
-                is_silent: true,
-            };
+            return self.last_snapshot;
         }
 
         let mut sum_sq = 0.0f32;
@@ -91,19 +100,30 @@ impl AudioLevelMeter {
         let is_clipping = peak_val >= 0.995;
         let is_silent = rms_dbfs < self.silence_threshold_dbfs;
 
-        AudioLevelSnapshot {
+        let snapshot = AudioLevelSnapshot {
             rms_dbfs,
             peak_dbfs,
             normalized_rms: norm_rms,
             normalized_peak: self.smoothed_peak,
             is_clipping,
             is_silent,
-        }
+        };
+
+        self.last_snapshot = snapshot;
+        snapshot
     }
 
     /// Reset meter state.
     pub fn reset(&mut self) {
         self.smoothed_peak = 0.0;
+        self.last_snapshot = AudioLevelSnapshot {
+            rms_dbfs: self.floor_dbfs,
+            peak_dbfs: self.floor_dbfs,
+            normalized_rms: 0.0,
+            normalized_peak: 0.0,
+            is_clipping: false,
+            is_silent: true,
+        };
     }
 
     #[inline]
