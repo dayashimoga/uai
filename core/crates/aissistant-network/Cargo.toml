@@ -1,0 +1,23 @@
+[package]
+name = "aissistant-network"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Universal AI Assistant peer-to-peer network discovery and mDNS-SD protocol engine"
+
+[lints]
+workspace = true
+
+[dependencies]
+aissistant-core = { path = "../aissistant-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
