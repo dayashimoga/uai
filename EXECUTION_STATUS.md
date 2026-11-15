@@ -642,7 +642,7 @@ Status Legend:
   - `registry::tests::test_builtin_skills_registration`: Verified that `SkillRegistry` automatically wraps all 5 built-in tools in `SandboxedSkill` and registers them into `ToolDispatcher`.
   - `tests::test_skill_registry_all_builtins_registration_and_execution`: Verified end-to-end dispatch and schema validation of all 5 built-in tools through `ToolDispatcher`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `bb434fb`
 
 
 
