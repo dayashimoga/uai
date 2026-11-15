@@ -13,6 +13,7 @@ use aissistant_core::ErrorDescriptor;
 
 use crate::api::{
     bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state, bridge_get_setting,
+    bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
     bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
     bridge_update_permission, bridge_verify_audit, bridge_voice_inject_audio,
     bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
@@ -372,6 +373,64 @@ pub unsafe extern "C" fn bridge_c_voice_inject_audio(samples: *const f32, len: u
         Ok(Ok(())) => 0,
         _ => -1,
     }
+}
+
+/// Returns a JSON string representing the model catalog snapshot and detected hardware parameters.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+#[no_mangle]
+pub extern "C" fn bridge_c_model_snapshot() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_model_snapshot));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_model_snapshot".into(),
+        ))
+    }))
+}
+
+/// Loads a model into memory by ID.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `model_id` must point to a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_model_load(model_id: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(model_id) }?;
+        bridge_model_load(id_str)
+    }));
+
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Unloads the active model from memory.
+/// Returns 0 on success, negative on error.
+#[no_mangle]
+pub extern "C" fn bridge_c_model_unload() -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(bridge_model_unload));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Executes an on-device inference benchmark and returns JSON metrics report.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+#[no_mangle]
+pub extern "C" fn bridge_c_model_benchmark_run(
+    prompt_tokens: usize,
+    generate_tokens: usize,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        bridge_model_benchmark_run(prompt_tokens, generate_tokens)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_model_benchmark_run".into(),
+        ))
+    }))
 }
 
 /// Frees a C string previously allocated by `aissistant-ffi`.

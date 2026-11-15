@@ -10,6 +10,7 @@ import 'models/audit_item.dart';
 import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
 import 'models/health_report.dart';
+import 'models/model_item.dart';
 import 'models/voice_state.dart';
 
 /// Abstract interface for Universal AI Assistant Rust Core communication.
@@ -31,6 +32,10 @@ abstract class AissistantBridge {
   void setVoiceMode(VoiceMode mode);
   void setVoiceKeywords(List<String> keywords);
   void injectVoiceAudio(List<double> samples);
+  ModelManagerSnapshot getModelSnapshot();
+  void loadModel(String modelId);
+  void unloadModel();
+  BenchmarkResult runModelBenchmark({int promptTokens = 32, int generateTokens = 16});
   Stream<BridgeEvent> get eventStream;
 }
 
@@ -77,6 +82,18 @@ typedef _BridgeVoiceSetKeywordsDart = int Function(Pointer<Utf8> keywordsJson);
 typedef _BridgeVoiceInjectC = Int32 Function(Pointer<Float> samples, IntPtr len);
 typedef _BridgeVoiceInjectDart = int Function(Pointer<Float> samples, int len);
 
+typedef _BridgeModelSnapC = Pointer<Utf8> Function();
+typedef _BridgeModelSnapDart = Pointer<Utf8> Function();
+
+typedef _BridgeModelLoadC = Int32 Function(Pointer<Utf8> modelId);
+typedef _BridgeModelLoadDart = int Function(Pointer<Utf8> modelId);
+
+typedef _BridgeModelUnloadC = Int32 Function();
+typedef _BridgeModelUnloadDart = int Function();
+
+typedef _BridgeModelBenchC = Pointer<Utf8> Function(IntPtr promptTokens, IntPtr generateTokens);
+typedef _BridgeModelBenchDart = Pointer<Utf8> Function(int promptTokens, int generateTokens);
+
 typedef _BridgeFreeStringC = Void Function(Pointer<Utf8> ptr);
 typedef _BridgeFreeStringDart = void Function(Pointer<Utf8> ptr);
 
@@ -103,6 +120,10 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeVoiceSetModeDart _voiceSetMode;
   late final _BridgeVoiceSetKeywordsDart _voiceSetKeywords;
   late final _BridgeVoiceInjectDart _voiceInject;
+  late final _BridgeModelSnapDart _modelSnapshot;
+  late final _BridgeModelLoadDart _modelLoad;
+  late final _BridgeModelUnloadDart _modelUnload;
+  late final _BridgeModelBenchDart _modelBenchmarkRun;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -123,6 +144,10 @@ class NativeFfiBridge implements AissistantBridge {
     _voiceSetMode = _lib.lookupFunction<_BridgeVoiceSetModeC, _BridgeVoiceSetModeDart>('bridge_c_voice_set_mode');
     _voiceSetKeywords = _lib.lookupFunction<_BridgeVoiceSetKeywordsC, _BridgeVoiceSetKeywordsDart>('bridge_c_voice_set_keywords');
     _voiceInject = _lib.lookupFunction<_BridgeVoiceInjectC, _BridgeVoiceInjectDart>('bridge_c_voice_inject_audio');
+    _modelSnapshot = _lib.lookupFunction<_BridgeModelSnapC, _BridgeModelSnapDart>('bridge_c_model_snapshot');
+    _modelLoad = _lib.lookupFunction<_BridgeModelLoadC, _BridgeModelLoadDart>('bridge_c_model_load');
+    _modelUnload = _lib.lookupFunction<_BridgeModelUnloadC, _BridgeModelUnloadDart>('bridge_c_model_unload');
+    _modelBenchmarkRun = _lib.lookupFunction<_BridgeModelBenchC, _BridgeModelBenchDart>('bridge_c_model_benchmark_run');
     _freeString = _lib.lookupFunction<_BridgeFreeStringC, _BridgeFreeStringDart>('bridge_c_free_string');
   }
 
@@ -340,6 +365,57 @@ class NativeFfiBridge implements AissistantBridge {
       }
     } finally {
       malloc.free(ptr);
+    }
+  }
+
+  @override
+  ModelManagerSnapshot getModelSnapshot() {
+    final ptr = _modelSnapshot();
+    if (ptr == nullptr) {
+      throw StateError('Failed to read model snapshot: null pointer');
+    }
+    try {
+      final jsonStr = ptr.toDartString();
+      final decoded = json.decode(jsonStr) as Map<String, dynamic>;
+      return ModelManagerSnapshot.fromJson(decoded);
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  void loadModel(String modelId) {
+    final ptr = modelId.toNativeUtf8();
+    try {
+      final res = _modelLoad(ptr);
+      if (res != 0) {
+        throw StateError('Failed to load model $modelId: code $res');
+      }
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  @override
+  void unloadModel() {
+    final res = _modelUnload();
+    if (res != 0) {
+      throw StateError('Failed to unload model: code $res');
+    }
+  }
+
+  @override
+  BenchmarkResult runModelBenchmark({int promptTokens = 32, int generateTokens = 16}) {
+    final ptr = _modelBenchmarkRun(promptTokens, generateTokens);
+    if (ptr == nullptr) {
+      throw StateError('Failed to execute benchmark: null pointer');
+    }
+    try {
+      final jsonStr = ptr.toDartString();
+      final decoded = json.decode(jsonStr) as Map<String, dynamic>;
+      return BenchmarkResult.fromJson(decoded);
+    } finally {
+      _freeString(ptr);
     }
   }
 }
@@ -605,5 +681,102 @@ class TestHarnessBridge implements AissistantBridge {
       rmsDbfs: rmsDbfs.clamp(-96.0, 0.0),
       peakDbfs: peakDbfs.clamp(-96.0, 0.0),
     ));
+  }
+
+  String? _activeModelId;
+  final List<ModelItem> _models = <ModelItem>[
+    const ModelItem(
+      id: 'qwen2.5-0.5b-instruct-q4_k_m',
+      name: 'Qwen 2.5 0.5B Instruct',
+      tier: 'Nano0_5B',
+      parameterCount: '0.49B',
+      quantization: 'Q4_K_M',
+      fileSizeBytes: 417333248,
+      sha256: 'b14f828a2b53b8f2c6e7d6a5d9a8c7b6e5f4d3c2b1a09f8e7d6c5b4a39281701',
+      defaultContextWindow: 4096,
+      license: 'Apache-2.0',
+      description: 'Ultra-fast, compact multilingual assistant model suited for phones and embedded devices.',
+      isRecommended: true,
+    ),
+    const ModelItem(
+      id: 'smollm2-360m-instruct-q4_k_m',
+      name: 'SmolLM2 360M Instruct',
+      tier: 'Nano0_5B',
+      parameterCount: '0.36B',
+      quantization: 'Q4_K_M',
+      fileSizeBytes: 239075328,
+      sha256: 'a25e939b3c64c9f3d7e8e7b6e0b9d8c7f6a5e4d3c2b1a09f8e7d6c5b4a392802',
+      defaultContextWindow: 2048,
+      license: 'Apache-2.0',
+      description: 'Extremely lightweight model optimized for low-power offline edge voice devices.',
+    ),
+    const ModelItem(
+      id: 'llama-3.2-3b-instruct-q4_k_m',
+      name: 'Llama 3.2 3B Instruct',
+      tier: 'Small1_5B_3B',
+      parameterCount: '3.21B',
+      quantization: 'Q4_K_M',
+      fileSizeBytes: 2168995840,
+      sha256: 'd47b151d5e86e1b5f90a09d8a2dbf0e9b8c7a6f5e4d3c2b1a09f8e7d6c5b4a04',
+      defaultContextWindow: 4096,
+      license: 'Llama-3.2-Community',
+      description: 'State of the art 3B instruction tuned model with excellent reasoning and tool use.',
+    ),
+  ];
+
+  @override
+  ModelManagerSnapshot getModelSnapshot() {
+    return ModelManagerSnapshot(
+      hardware: const HardwareOverview(
+        cpuArchitecture: 'x86_64',
+        cpuCores: 8,
+        simdFeatures: <String>['AVX2', 'FMA'],
+        totalRamBytes: 16 * 1024 * 1024 * 1024,
+        usableBudgetBytes: 10 * 1024 * 1024 * 1024,
+        recommendedTier: 'Nano0_5B',
+        recommendedContext: 4096,
+        recommendedThreads: 6,
+      ),
+      activeModelId: _activeModelId,
+      models: _models.map((m) => m.copyWith(isActive: m.id == _activeModelId)).toList(),
+    );
+  }
+
+  @override
+  void loadModel(String modelId) {
+    _activeModelId = modelId;
+    _eventController.add(ModelLoadedEvent(modelId: modelId));
+  }
+
+  @override
+  void unloadModel() {
+    if (_activeModelId != null) {
+      final prev = _activeModelId!;
+      _activeModelId = null;
+      _eventController.add(ModelUnloadedEvent(modelId: prev));
+    }
+  }
+
+  @override
+  BenchmarkResult runModelBenchmark({int promptTokens = 32, int generateTokens = 16}) {
+    final report = BenchmarkResult(
+      promptTokens: promptTokens,
+      generatedTokens: generateTokens,
+      ttftMs: 42,
+      totalElapsedMs: 380,
+      tokensPerSecond: (generateTokens / 0.38),
+      memoryUsedBytes: 420 * 1024 * 1024,
+    );
+    _eventController.add(BenchmarkCompletedEvent(
+      metricsJson: json.encode(<String, dynamic>{
+        'prompt_tokens': report.promptTokens,
+        'generated_tokens': report.generatedTokens,
+        'ttft_ms': report.ttftMs,
+        'total_elapsed_ms': report.totalElapsedMs,
+        'tokens_per_second': report.tokensPerSecond,
+        'memory_used_bytes': report.memoryUsedBytes,
+      }),
+    ));
+    return report;
   }
 }

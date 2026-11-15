@@ -1,8 +1,8 @@
 # EXECUTION_STATUS.md — Authoritative Live Completion Tracker
 
 **Last Updated:** 2026-11-15  
-**Current Project Phase:** Stage 3 — Local LLM Runtime & Model Management  
-**Next Subphase in Queue:** `S3.P2.3` (Flutter Model Manager UI & Live Benchmark Diagnostics)
+**Current Project Phase:** Stage 4 — Orchestration State Machine, Context Engine & Hybrid Vector Memory  
+**Next Subphase in Queue:** `S4.P1.1` (Conversation Persistence & SQLite FTS5 Episodic Search)
 
 ---
 
@@ -52,7 +52,7 @@ Status Legend:
 | **Stage 3** | `S3.P1.2` | Resumable Model Downloader, SHA-256 Verifier & GGUF Inspector | `S3.P1.1` | `COMPLETED` | Verified: 153 Rust workspace unit tests passing (12 in `aissistant-llm`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, curated model catalog (Nano to Large), streaming buffered SHA-256 verifier with tamper rejection, binary GGUF v2/v3 header & KV metadata inspector, and resumable atomic model ingestion verified. |
 | **Stage 3** | `S3.P2.1` | `llama.cpp` Rust Bindings, Session Management & Token Streaming | `S3.P1.2` | `COMPLETED` | Verified [Commit `ff60c90`]: 159 Rust workspace unit tests passing (18 in `aissistant-llm`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, `SamplingParams` hyperparameter bounds validation, multi-turn `LlmSession` prefix caching & prompt formatters (ChatML, Llama 3), `LlmEngine` trait, `LocalLlmEngine` streaming token generation with throughput metrics, cooperative cancellation handle with sub-20ms latency, stop sequence interruption, and critical memory pressure auto-unloading verified. |
 | **Stage 3** | `S3.P2.2` | GBNF Grammar Compiler for Structured JSON Tool Calling | `S3.P2.1` | `COMPLETED` | Verified [Commit `0aed806`]: 164 Rust workspace unit tests passing (23 in `aissistant-llm`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, `GbnfGrammar` production rule AST with standard JSON primitives (`ws`, `string`, `number`, `integer`, `boolean`, `null`), `SchemaCompiler` translating JSON Schema (primitives, enums, objects with required properties, nested arrays) into GBNF grammars, single and multi-tool grammar compilation with conversational fallback, and strict `ToolCallValidator` verifying argument compliance verified. |
-| **Stage 3** | `S3.P2.3` | Flutter Model Manager UI & Live Benchmark Diagnostics | `S3.P2.2` | `PENDING` | — |
+| **Stage 3** | `S3.P2.3` | Flutter Model Manager UI & Live Benchmark Diagnostics | `S3.P2.2` | `COMPLETED` | Verified: 167 Rust workspace unit tests passing (24 in `aissistant-ffi`), 45 Flutter unit and widget tests passing (100%), `flutter analyze` zero issues, `ModelSupervisor` FFI bridge endpoints (`model_snapshot`, `model_load`, `model_unload`, `model_benchmark_run`), C-ABI functions, `ModelsScreen` responsive UI, hardware headroom & SIMD overview, active model card with unload control, live TTFT/throughput benchmark card, and segmented model catalog verified. |
 | **Stage 4** | `S4.P1.1` | Conversation Persistence & SQLite FTS5 Episodic Search | `S3.P2.3` | `PENDING` | — |
 | **Stage 4** | `S4.P1.2` | Local Embedding Generation & Hybrid Vector Memory Retrieval | `S4.P1.1` | `PENDING` | — |
 | **Stage 4** | `S4.P2.1` | Deterministic Orchestrator Turn State Machine (`aissistant-orchestrator`) | `S4.P1.2` | `PENDING` | — |
@@ -475,6 +475,58 @@ Status Legend:
   - `tests::test_local_model_downloader_atomic_ingestion_and_resumability`: Verified chunked streaming ingestion into `<model_id>.part`, progress telemetry callbacks, SHA-256 verification, atomic rename to `<model_id>.gguf`, automatic deletion of corrupted partial files, and byte resume offset calculations.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
 - **Commit Reference:** `64d4f3d`
+
+### Verification Evidence — S3.P2.1 (`llama.cpp` Rust Bindings, Session Management & Token Streaming)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 7 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (159 passed across 7 crates; 18 in `aissistant-llm`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (37 passed across 6 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `tests::test_sampling_params_bounds_and_clamping`: Verified hyperparameter bounds validation (temperature, top_p, top_k, min_p, repetition penalty, stop sequences).
+  - `tests::test_session_multi_turn_and_token_estimation`: Verified multi-turn session message history, token estimation, and ChatML/Llama 3 prompt formatters.
+  - `tests::test_session_prefix_cache_invalidation`: Verified SHA-256 prefix hash tracking and cache reuse optimization.
+  - `tests::test_local_engine_streaming_generation_and_throughput`: Verified token streaming, throughput metrics (TTFT, tokens/sec), stop sequence termination, and memory pressure unloading.
+  - `tests::test_cancellation_handle_latency`: Verified cooperative cancellation flag terminating generation within sub-20ms.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** `ff60c90`
+
+### Verification Evidence — S3.P2.2 (GBNF Grammar Compiler for Structured JSON Tool Calling)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 7 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (164 passed across 7 crates; 23 in `aissistant-llm`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (37 passed across 6 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `tests::test_json_primitives_gbnf_compilation`: Verified GBNF syntax compilation of core JSON types (`ws`, `string`, `number`, `integer`, `boolean`, `null`, `json_array`, `json_object`, `json_value`, `json_member`).
+  - `tests::test_schema_compiler_primitive_and_enum`: Verified translation of string, number, integer, boolean, and enum constraints into GBNF production rules.
+  - `tests::test_schema_compiler_nested_object_and_array`: Verified compilation of complex objects with required properties and typed array items.
+  - `tests::test_tool_compiler_single_and_multiple_tools`: Verified multi-tool JSON schema compilation with conversational fallback branch.
+  - `tests::test_tool_call_validator_strict`: Verified argument compliance validation rejecting missing required fields or invalid property types.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+- **Commit Reference:** `0aed806`
+
+### Verification Evidence — S3.P2.3 (Flutter Model Manager UI & Live Benchmark Diagnostics)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 7 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` -> Exit 0 (167 passed across 7 crates; 24 in `aissistant-ffi`)
+  4. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (45 passed across 7 Flutter test suites)
+  5. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+- **Test Summary:**
+  - `tests::test_model_bridge_lifecycle_and_c_abi`: Verified `ModelSupervisor` state transitions, live hardware telemetry snapshotting, model loading/unloading, synthetic benchmarking with TTFT/throughput calculations, memory pressure unloading, and safe C-ABI round trips.
+  - `models_screen_test.dart`: Verified `ModelsScreen` responsive layout, hardware headroom & SIMD overview card with 100% offline badge, active model card with quick unload control, live TTFT/throughput benchmark card, curated model catalog filtering (All, Recommended, Active), load/unload button interaction, and `AssistantController` state bindings.
+  - `adaptive_shell.dart`: Verified "Models" navigation rail and bottom navigation bar destination integration.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
+
 
 
 

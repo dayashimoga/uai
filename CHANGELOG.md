@@ -687,3 +687,46 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 164 unit and integration tests (0 failures; 23 in `aissistant-llm`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 37 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+---
+
+## [2026-11-15] — Stage 3 Phase 2 Subphase 3 (`S3.P2.3`)
+
+### Added
+- `core/crates/aissistant-ffi/src/model_bridge.rs`:
+  - `ModelSupervisor` — Runtime controller for local LLM model catalog queries, loading, unloading, and synthetic hardware benchmarking.
+  - Data transfer structures: `ModelCatalogItem`, `HardwareOverview`, `ModelManagerSnapshot`, `BenchmarkReport`.
+  - Automatic model unloading upon receiving critical OS memory pressure events.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Bridge methods: `model_snapshot()`, `model_load()`, `model_unload()`, `model_benchmark_run()`.
+  - Top-level C-ABI convenience functions: `bridge_model_snapshot()`, `bridge_model_load()`, `bridge_model_unload()`, `bridge_model_benchmark_run()`.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Exported C functions: `bridge_c_model_snapshot()`, `bridge_c_model_load()`, `bridge_c_model_unload()`, `bridge_c_model_benchmark_run()`.
+- `core/crates/aissistant-ffi/src/events.rs`:
+  - Events: `BridgeEvent::ModelLoaded`, `BridgeEvent::ModelUnloaded`, `BridgeEvent::BenchmarkCompleted`.
+- `app/lib/core/models/model_item.dart`:
+  - Dart representations: `ModelItem`, `HardwareOverview`, `ModelManagerSnapshot`, `BenchmarkResult`.
+- `app/lib/core/models/bridge_event.dart`:
+  - Dart event models: `ModelLoadedEvent`, `ModelUnloadedEvent`, `BenchmarkCompletedEvent`.
+- `app/lib/core/ffi_bridge.dart`:
+  - Added model methods to `AissistantBridge`, `NativeFfiBridge`, and `TestHarnessBridge`.
+- `app/lib/core/assistant_controller.dart`:
+  - State observables: `modelSnapshot`, `lastBenchmark`, `isBenchmarking`, `activeModelId`, `models`, `hardware`.
+  - Methods: `refreshModelSnapshot()`, `loadModel()`, `unloadModel()`, `runBenchmark()`.
+- `app/lib/ui/screens/models_screen.dart`:
+  - Adaptive responsive screen featuring:
+    - Host hardware headroom & SIMD instruction overview card with 100% offline badge.
+    - Active model card with quick unload control and memory metrics.
+    - Live benchmark runner card measuring TTFT, tokens/second throughput, elapsed ms, and memory footprint.
+    - Curated model catalog with filter tabs (All, Recommended, Active), SHA-256 verified badges, parameter counts, and quantization details.
+- `app/lib/ui/adaptive_shell.dart`:
+  - Added "Models" destination to navigation shell (`Icons.memory`).
+- `app/test/models_screen_test.dart`:
+  - 8 new unit and widget tests covering hardware overview rendering, model catalog display, model load/unload interactions, live benchmark execution, filter tabs, and controller state management.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 167 unit and integration tests (0 failures; 24 in `aissistant-ffi`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 45 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.

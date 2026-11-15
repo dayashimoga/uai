@@ -87,6 +87,21 @@ abstract class BridgeEvent {
           mode: payload['mode'] as String? ?? 'idle',
         );
 
+      case 'model_loaded':
+        return ModelLoadedEvent(
+          modelId: payload['model_id'] as String? ?? '',
+        );
+
+      case 'model_unloaded':
+        return ModelUnloadedEvent(
+          modelId: payload['model_id'] as String? ?? '',
+        );
+
+      case 'benchmark_completed':
+        return BenchmarkCompletedEvent(
+          metricsJson: payload['metrics_json'] as String? ?? '{}',
+        );
+
       default:
         return UnknownBridgeEvent(type: type, payload: payload);
     }
@@ -217,6 +232,30 @@ class VoiceStateChangedEvent extends BridgeEvent {
     required this.isListening,
     required this.mode,
   }) : super('voice_state_changed');
+}
+
+class ModelLoadedEvent extends BridgeEvent {
+  final String modelId;
+
+  const ModelLoadedEvent({
+    required this.modelId,
+  }) : super('model_loaded');
+}
+
+class ModelUnloadedEvent extends BridgeEvent {
+  final String modelId;
+
+  const ModelUnloadedEvent({
+    required this.modelId,
+  }) : super('model_unloaded');
+}
+
+class BenchmarkCompletedEvent extends BridgeEvent {
+  final String metricsJson;
+
+  const BenchmarkCompletedEvent({
+    required this.metricsJson,
+  }) : super('benchmark_completed');
 }
 
 class UnknownBridgeEvent extends BridgeEvent {

@@ -20,6 +20,9 @@ use crate::events::{BridgeEvent, EventStreamSink};
 use crate::lifecycle::{
     CancellationToken, CoreRuntime, LifecycleState, MemoryPressureLevel, ShutdownReason,
 };
+use crate::model_bridge::{
+    BenchmarkReport, HardwareOverview, ModelManagerSnapshot, ModelSupervisor,
+};
 use crate::voice_bridge::{VoiceListeningMode, VoicePipelineSupervisor};
 
 /// Overall health tier of the runtime engine.
@@ -138,6 +141,7 @@ pub struct CoreBridge {
     runtime: Arc<CoreRuntime>,
     identity: DeviceIdentity,
     voice_supervisor: Arc<Mutex<VoicePipelineSupervisor>>,
+    model_supervisor: Arc<Mutex<ModelSupervisor>>,
     data_dir: Option<PathBuf>,
 }
 
@@ -174,6 +178,7 @@ impl CoreBridge {
         let voice_supervisor = Arc::new(Mutex::new(VoicePipelineSupervisor::new(
             event_sink.clone(),
         )?));
+        let model_supervisor = Arc::new(Mutex::new(ModelSupervisor::new(event_sink.clone())));
 
         runtime.transition_to(LifecycleState::Running, Some("ready"))?;
 
@@ -188,6 +193,7 @@ impl CoreBridge {
             runtime,
             identity,
             voice_supervisor,
+            model_supervisor,
             data_dir: None,
         })
     }
@@ -226,6 +232,7 @@ impl CoreBridge {
         let voice_supervisor = Arc::new(Mutex::new(VoicePipelineSupervisor::new(
             event_sink.clone(),
         )?));
+        let model_supervisor = Arc::new(Mutex::new(ModelSupervisor::new(event_sink.clone())));
 
         runtime.transition_to(LifecycleState::Running, Some("ready"))?;
 
@@ -240,6 +247,7 @@ impl CoreBridge {
             runtime,
             identity,
             voice_supervisor,
+            model_supervisor,
             data_dir: Some(path.to_path_buf()),
         })
     }
@@ -650,6 +658,9 @@ impl CoreBridge {
 
     /// Delivers an operating system memory pressure notification.
     pub fn notify_memory_pressure(&self, level: MemoryPressureLevel) -> FfiResult<()> {
+        if let Ok(mut sup) = self.model_supervisor.lock() {
+            sup.on_memory_pressure(matches!(level, MemoryPressureLevel::Critical));
+        }
         self.runtime.notify_memory_pressure(level, Some(&self.db))
     }
 
@@ -723,6 +734,59 @@ impl CoreBridge {
         } else {
             VoiceListeningMode::PushToTalk
         }
+    }
+
+    /// Returns a live model catalog snapshot and detected hardware parameters.
+    pub fn model_snapshot(&self) -> ModelManagerSnapshot {
+        if let Ok(sup) = self.model_supervisor.lock() {
+            sup.snapshot()
+        } else {
+            ModelManagerSnapshot {
+                hardware: HardwareOverview {
+                    cpu_architecture: "unknown".to_string(),
+                    cpu_cores: 1,
+                    simd_features: vec![],
+                    total_ram_bytes: 0,
+                    usable_budget_bytes: 0,
+                    recommended_tier: "Unsupported".to_string(),
+                    recommended_context: 0,
+                    recommended_threads: 1,
+                },
+                active_model_id: None,
+                models: vec![],
+            }
+        }
+    }
+
+    /// Loads a model into memory by ID.
+    pub fn model_load(&self, model_id: &str) -> FfiResult<()> {
+        let mut sup = self
+            .model_supervisor
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        sup.load_model(model_id)
+    }
+
+    /// Unloads the active model from memory.
+    pub fn model_unload(&self) -> FfiResult<()> {
+        let mut sup = self
+            .model_supervisor
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        sup.unload_model()
+    }
+
+    /// Executes an on-device inference benchmark.
+    pub fn model_benchmark_run(
+        &self,
+        prompt_tokens: usize,
+        generate_tokens: usize,
+    ) -> FfiResult<BenchmarkReport> {
+        let mut sup = self
+            .model_supervisor
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        sup.run_benchmark(prompt_tokens, generate_tokens)
     }
 }
 
@@ -872,6 +936,33 @@ pub fn bridge_voice_set_keywords(keywords_json: &str) -> FfiResult<()> {
 pub fn bridge_voice_inject_audio(samples: &[f32]) -> FfiResult<()> {
     let bridge = get_bridge()?;
     bridge.voice_inject_audio(samples)
+}
+
+/// Convenience entry point: returns a snapshot of model catalog and hardware capabilities.
+pub fn bridge_model_snapshot() -> FfiResult<ModelManagerSnapshot> {
+    let bridge = get_bridge()?;
+    Ok(bridge.model_snapshot())
+}
+
+/// Convenience entry point: loads a model by ID on the global bridge.
+pub fn bridge_model_load(model_id: &str) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.model_load(model_id)
+}
+
+/// Convenience entry point: unloads the active model on the global bridge.
+pub fn bridge_model_unload() -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.model_unload()
+}
+
+/// Convenience entry point: runs a benchmark on the global bridge.
+pub fn bridge_model_benchmark_run(
+    prompt_tokens: usize,
+    generate_tokens: usize,
+) -> FfiResult<BenchmarkReport> {
+    let bridge = get_bridge()?;
+    bridge.model_benchmark_run(prompt_tokens, generate_tokens)
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

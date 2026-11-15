@@ -7,6 +7,7 @@ import 'models/audit_item.dart';
 import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
 import 'models/health_report.dart';
+import 'models/model_item.dart';
 import 'models/voice_state.dart';
 
 /// Reactive application state controller coordinating live Rust core states and the UI shell.
@@ -20,6 +21,9 @@ class AssistantController extends ChangeNotifier {
   AuditIntegrityReport? _auditIntegrity;
   String _themeMode = 'system';
   VoiceState _voiceState = const VoiceState();
+  ModelManagerSnapshot? _modelSnapshot;
+  BenchmarkResult? _lastBenchmark;
+  bool _isBenchmarking = false;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -31,6 +35,12 @@ class AssistantController extends ChangeNotifier {
   AuditIntegrityReport? get auditIntegrity => _auditIntegrity;
   String get themeMode => _themeMode;
   VoiceState get voiceState => _voiceState;
+  ModelManagerSnapshot? get modelSnapshot => _modelSnapshot;
+  BenchmarkResult? get lastBenchmark => _lastBenchmark;
+  bool get isBenchmarking => _isBenchmarking;
+  String? get activeModelId => _modelSnapshot?.activeModelId;
+  List<ModelItem> get models => _modelSnapshot?.models ?? const <ModelItem>[];
+  HardwareOverview? get hardware => _modelSnapshot?.hardware;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -50,6 +60,7 @@ class AssistantController extends ChangeNotifier {
       _capabilities = List<CapabilityItem>.from(_bridge.getCapabilities());
       _auditLogs = List<AuditItem>.from(_bridge.queryAuditLog(limit: 20, offset: 0));
       _auditIntegrity = _bridge.verifyAudit();
+      _modelSnapshot = _bridge.getModelSnapshot();
 
       // Read persisted theme mode
       final savedTheme = _bridge.getSetting('assistant.theme_mode');
@@ -125,6 +136,13 @@ class AssistantController extends ChangeNotifier {
         isListening: event.isListening,
         mode: mode,
       );
+    } else if (event is ModelLoadedEvent || event is ModelUnloadedEvent) {
+      refreshModelSnapshot();
+    } else if (event is BenchmarkCompletedEvent) {
+      try {
+        final decoded = jsonDecode(event.metricsJson) as Map<String, dynamic>;
+        _lastBenchmark = BenchmarkResult.fromJson(decoded);
+      } catch (_) {}
     }
     notifyListeners();
   }
@@ -275,6 +293,60 @@ class AssistantController extends ChangeNotifier {
       _bridge.injectVoiceAudio(samples);
     } catch (e) {
       _errorMessage = 'Failed to inject audio: $e';
+      notifyListeners();
+    }
+  }
+
+  void refreshModelSnapshot() {
+    try {
+      _modelSnapshot = _bridge.getModelSnapshot();
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to refresh model snapshot: $e';
+      notifyListeners();
+    }
+  }
+
+  void loadModel(String modelId) {
+    try {
+      _bridge.loadModel(modelId);
+      refreshModelSnapshot();
+    } catch (e) {
+      _errorMessage = 'Failed to load model "$modelId": $e';
+      notifyListeners();
+    }
+  }
+
+  void unloadModel() {
+    try {
+      _bridge.unloadModel();
+      refreshModelSnapshot();
+    } catch (e) {
+      _errorMessage = 'Failed to unload model: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<BenchmarkResult?> runBenchmark({
+    int promptTokens = 32,
+    int generateTokens = 16,
+  }) async {
+    _isBenchmarking = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final res = _bridge.runModelBenchmark(
+        promptTokens: promptTokens,
+        generateTokens: generateTokens,
+      );
+      _lastBenchmark = res;
+      return res;
+    } catch (e) {
+      _errorMessage = 'Benchmark run failed: $e';
+      return null;
+    } finally {
+      _isBenchmarking = false;
       notifyListeners();
     }
   }

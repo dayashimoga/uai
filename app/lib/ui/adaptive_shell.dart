@@ -4,6 +4,7 @@ import '../core/assistant_controller.dart';
 import 'screens/audit_log_screen.dart';
 import 'screens/capabilities_screen.dart';
 import 'screens/diagnostics_screen.dart';
+import 'screens/models_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/voice_screen.dart';
 
@@ -28,6 +29,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
     final screens = <Widget>[
       DiagnosticsScreen(controller: widget.controller),
       VoiceScreen(controller: widget.controller),
+      ModelsScreen(controller: widget.controller),
       CapabilitiesScreen(controller: widget.controller),
       AuditLogScreen(controller: widget.controller),
       SettingsScreen(controller: widget.controller),
@@ -43,6 +45,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         icon: Icon(Icons.mic_none_outlined),
         selectedIcon: Icon(Icons.mic),
         label: 'Voice',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.memory_outlined),
+        selectedIcon: Icon(Icons.memory),
+        label: 'Models',
       ),
       NavigationDestination(
         icon: Icon(Icons.grid_view_outlined),
@@ -101,6 +108,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                   icon: Icon(Icons.mic_none_outlined),
                   selectedIcon: Icon(Icons.mic),
                   label: Text('Voice'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.memory_outlined),
+                  selectedIcon: Icon(Icons.memory),
+                  label: Text('Models'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.grid_view_outlined),

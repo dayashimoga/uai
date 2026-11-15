@@ -114,6 +114,24 @@ pub enum BridgeEvent {
         /// Active listening mode ("push_to_talk", "wake_word", "idle").
         mode: String,
     },
+
+    /// Local LLM model loaded into memory.
+    ModelLoaded {
+        /// Loaded model identifier.
+        model_id: String,
+    },
+
+    /// Local LLM model unloaded from memory.
+    ModelUnloaded {
+        /// Unloaded model identifier.
+        model_id: String,
+    },
+
+    /// On-device LLM benchmark finished.
+    BenchmarkCompleted {
+        /// Serialized benchmark metrics.
+        metrics_json: String,
+    },
 }
 
 type CallbackFn = Box<dyn Fn(&BridgeEvent) + Send + Sync + 'static>;

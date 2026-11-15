@@ -17,6 +17,7 @@ workspace = true
 [dependencies]
 aissistant-audio = { path = "../aissistant-audio" }
 aissistant-core = { path = "../aissistant-core" }
+aissistant-llm = { path = "../aissistant-llm" }
 aissistant-security = { path = "../aissistant-security" }
 aissistant-speech = { path = "../aissistant-speech" }
 aissistant-storage = { path = "../aissistant-storage" }

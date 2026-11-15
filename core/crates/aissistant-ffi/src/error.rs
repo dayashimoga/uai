@@ -43,6 +43,10 @@ pub enum FfiError {
     #[error("Voice processing error: {0}")]
     Voice(String),
 
+    /// Local LLM inference or model management failure.
+    #[error("Local LLM model error: {0}")]
+    Model(String),
+
     /// Caught an unexpected panic during FFI execution.
     #[error("Unexpected panic caught across FFI: {0}")]
     PanicCaught(String),
@@ -131,14 +135,15 @@ impl From<FfiError> for ErrorDescriptor {
                 err.to_string(),
                 false,
             ),
-            FfiError::LockPoisoned(msg) | FfiError::PanicCaught(msg) | FfiError::Voice(msg) => {
-                ErrorDescriptor::new(
-                    ErrorCode::CoreInternalError,
-                    ErrorCategory::Internal,
-                    msg,
-                    false,
-                )
-            }
+            FfiError::LockPoisoned(msg)
+            | FfiError::PanicCaught(msg)
+            | FfiError::Voice(msg)
+            | FfiError::Model(msg) => ErrorDescriptor::new(
+                ErrorCode::CoreInternalError,
+                ErrorCategory::Internal,
+                msg,
+                false,
+            ),
         }
     }
 }

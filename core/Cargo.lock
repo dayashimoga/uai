@@ -60,6 +60,7 @@ version = "0.1.0"
 dependencies = [
  "aissistant-audio",
  "aissistant-core",
+ "aissistant-llm",
  "aissistant-security",
  "aissistant-speech",
  "aissistant-storage",

@@ -5,10 +5,12 @@ pub mod c_abi;
 pub mod error;
 pub mod events;
 pub mod lifecycle;
+pub mod model_bridge;
 pub mod voice_bridge;
 
 pub use api::{
     bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state, bridge_get_setting,
+    bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
     bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
     bridge_update_permission, bridge_verify_audit, bridge_voice_inject_audio,
     bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
@@ -19,6 +21,9 @@ pub use error::{FfiError, FfiResult};
 pub use events::{BridgeEvent, EventStreamSink};
 pub use lifecycle::{
     CancellationToken, CoreRuntime, LifecycleState, MemoryPressureLevel, ShutdownReason,
+};
+pub use model_bridge::{
+    BenchmarkReport, HardwareOverview, ModelCatalogItem, ModelManagerSnapshot, ModelSupervisor,
 };
 pub use voice_bridge::{VoiceListeningMode, VoicePipelineSupervisor};
 
@@ -677,6 +682,67 @@ mod tests {
         // Stop listening
         let stop_res = c_abi::bridge_c_voice_stop_listening();
         assert_eq!(stop_res, 0);
+
+        let cleanup = c_abi::bridge_c_shutdown();
+        assert_eq!(cleanup, 0);
+    }
+
+    #[test]
+    fn test_model_bridge_snapshot_and_lifecycle() {
+        let bridge = CoreBridge::new_in_memory().unwrap();
+        let snapshot = bridge.model_snapshot();
+
+        assert!(!snapshot.hardware.cpu_architecture.is_empty());
+        assert!(snapshot.hardware.total_ram_bytes > 0);
+        assert!(!snapshot.models.is_empty());
+        assert_eq!(snapshot.active_model_id, None);
+
+        let first_model = &snapshot.models[0];
+        let model_id = first_model.id.clone();
+
+        // Load model
+        assert!(bridge.model_load(&model_id).is_ok());
+        let updated_snapshot = bridge.model_snapshot();
+        assert_eq!(updated_snapshot.active_model_id, Some(model_id.clone()));
+
+        // Unload model
+        assert!(bridge.model_unload().is_ok());
+        let unloaded_snapshot = bridge.model_snapshot();
+        assert_eq!(unloaded_snapshot.active_model_id, None);
+    }
+
+    #[test]
+    fn test_model_bridge_benchmark_execution() {
+        let bridge = CoreBridge::new_in_memory().unwrap();
+        let report = bridge.model_benchmark_run(32, 16).unwrap();
+
+        assert!(report.prompt_tokens >= 1);
+        assert!(report.generated_tokens >= 1);
+        assert!(report.total_elapsed_ms >= 1);
+        assert!(report.tokens_per_second >= 0.0);
+    }
+
+    #[test]
+    fn test_model_bridge_c_abi() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap();
+
+        let init_res = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
+        assert_eq!(init_res, 0);
+
+        // Get snapshot
+        let snap_ptr = c_abi::bridge_c_model_snapshot();
+        assert!(!snap_ptr.is_null());
+        let snap_str = unsafe { CStr::from_ptr(snap_ptr) }.to_str().unwrap();
+        assert!(snap_str.contains("hardware"));
+        assert!(snap_str.contains("models"));
+        unsafe { c_abi::bridge_c_free_string(snap_ptr) };
+
+        // Run benchmark via C-ABI
+        let bench_ptr = c_abi::bridge_c_model_benchmark_run(16, 8);
+        assert!(!bench_ptr.is_null());
+        let bench_str = unsafe { CStr::from_ptr(bench_ptr) }.to_str().unwrap();
+        assert!(bench_str.contains("tokens_per_second"));
+        unsafe { c_abi::bridge_c_free_string(bench_ptr) };
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);

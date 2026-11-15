@@ -77,6 +77,13 @@ void main() {
     expect(find.text('100% Offline'), findsOneWidget);
     expect(find.text('Push-to-Talk'), findsOneWidget);
 
+    // Navigate to Models
+    await tester.tap(find.text('Models'));
+    await tester.pumpAndSettle();
+    expect(find.text('Local Models & Benchmarks'), findsOneWidget);
+    expect(find.text('Host Hardware & Inference Budget'), findsOneWidget);
+    expect(find.text('Curated Models Catalog'), findsOneWidget);
+
     // Navigate to Capabilities
     await tester.tap(find.text('Capabilities'));
     await tester.pumpAndSettle();
