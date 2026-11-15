@@ -92,8 +92,10 @@ version = "0.1.0"
 dependencies = [
  "aissistant-core",
  "aissistant-orchestrator",
+ "aissistant-platform",
  "aissistant-security",
  "aissistant-storage",
+ "blake3",
  "ed25519-dalek",
  "quinn",
  "rand 0.8.8",

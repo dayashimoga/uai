@@ -146,6 +146,8 @@ pub fn resolve_capability_for_skill(skill_id: &str) -> &'static str {
         "application_management"
     } else if skill_id.starts_with("volume.") || skill_id.starts_with("media.") {
         "system_media_control"
+    } else if skill_id.starts_with("clipboard.") {
+        "clipboard"
     } else if skill_id.starts_with("llm.") {
         "local_llm"
     } else if skill_id.starts_with("screen.") {

@@ -1376,3 +1376,35 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 299 unit and integration tests (0 failures; 27 in `aissistant-network`).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).
+
+
+---
+
+## [2026-11-15] — Stage 7 Phase 1 Subphase 2 (`S7.P1.2`)
+
+### Added
+- `core/crates/aissistant-network/src/clipboard.rs`:
+  - Defined clipboard wire types: `ClipboardPayload`, `ClipboardContentType` (`PlainText`, `PngImage`, `JsonData`), and `ClipboardSyncMode` (`Disabled`, `ManualOnly`, `AutoSync`).
+  - Implemented boundary caps: `MAX_CLIPBOARD_TEXT_BYTES` (1 MB) and `MAX_CLIPBOARD_IMAGE_BYTES` (16 MB).
+  - Implemented BLAKE3 cryptographic digest validation in `ClipboardPayload::validate()` to detect tampering in transit.
+  - Implemented `ClipboardLoopGuard` with configurable capacity ring-buffer LRU tracking of recently processed content digests, suppressing echo bounce-backs and cyclic cross-device reflections.
+  - Implemented `ClipboardSyncEngine`:
+    - Strict TLS 1.3 Ed25519 public key caller verification.
+    - Persistent `DeviceRegistry` peer trust state validation (`DeviceTrustState::Trusted`).
+    - Granular capability ACL checks (`"clipboard"` with fallback to `"lan_peer_networking"`).
+    - Platform clipboard ingestion via `DesktopPlatformAdapter::write_clipboard`.
+    - BLAKE3 hash-chained cryptographic audit trail appending with sensitive preview redaction.
+    - Streaming RPC over QUIC (`sync_quic`) and Virtual Sessions (`sync_virtual`).
+
+### Modified
+- `core/crates/aissistant-network/Cargo.toml`: Added workspace dependencies on `blake3` and `aissistant-platform`.
+- `core/crates/aissistant-network/src/lib.rs`: Exposed and re-exported `clipboard` module types and constants.
+- `core/crates/aissistant-network/src/rpc.rs`: Added mapping for `clipboard.*` skills to `"clipboard"` capability.
+- `core/crates/aissistant-network/src/pairing.rs`: Derived `Default` on `PairingSessionManager`.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 306 unit and integration tests (0 failures; 34 in `aissistant-network`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).

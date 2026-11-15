@@ -14,8 +14,10 @@ workspace = true
 [dependencies]
 aissistant-core = { path = "../aissistant-core" }
 aissistant-orchestrator = { path = "../aissistant-orchestrator" }
+aissistant-platform = { path = "../aissistant-platform" }
 aissistant-security = { path = "../aissistant-security" }
 aissistant-storage = { path = "../aissistant-storage" }
+blake3 = { workspace = true }
 ed25519-dalek = { workspace = true }
 quinn = { workspace = true }
 rand = { workspace = true }

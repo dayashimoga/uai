@@ -6,6 +6,7 @@
 //! network discovery.
 
 pub mod cert;
+pub mod clipboard;
 pub mod discovery;
 pub mod dns;
 pub mod error;
@@ -16,6 +17,11 @@ pub mod types;
 
 pub use cert::{
     extract_ed25519_public_key, generate_tls_cert, PinnedEd25519Verifier, ED25519_SPKI_PREFIX,
+};
+pub use clipboard::{
+    ClipboardContentType, ClipboardLoopGuard, ClipboardPayload, ClipboardSyncDecision,
+    ClipboardSyncEngine, ClipboardSyncMode, ClipboardSyncResponse, MAX_CLIPBOARD_IMAGE_BYTES,
+    MAX_CLIPBOARD_TEXT_BYTES,
 };
 pub use discovery::{
     build_announcement_packet, build_query_packet, current_time_ms, format_fingerprint,
