@@ -42,6 +42,25 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<!-- Custom URL Schemes for Siri Shortcuts and external invocation -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.aissistant.aissistant</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>aissistant</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Siri Shortcuts and Spotlight Activity Support -->
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>com.aissistant.askAssistant</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
