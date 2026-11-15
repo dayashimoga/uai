@@ -10,6 +10,7 @@ pub mod discovery;
 pub mod dns;
 pub mod error;
 pub mod pairing;
+pub mod rpc;
 pub mod transport;
 pub mod types;
 
@@ -26,6 +27,11 @@ pub use error::{NetworkError, Result};
 pub use pairing::{
     derive_sas_code, PairingQrPayload, PairingRateLimiter, PairingSessionInfo,
     PairingSessionManager, MAX_FAILED_PAIRING_ATTEMPTS, PAIRING_LOCKOUT_DURATION_SECS,
+};
+pub use rpc::{
+    read_framed_message, resolve_capability_for_skill, write_framed_message, RemoteRpcRequest,
+    RemoteRpcResponse, RemoteRpcStatus, RemoteSkillRpcClient, RemoteSkillRpcServer,
+    MAX_RPC_MESSAGE_BYTES,
 };
 pub use transport::{
     build_quic_client_config, build_quic_server_config, create_virtual_session_pair,

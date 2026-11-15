@@ -1,8 +1,8 @@
 # EXECUTION_STATUS.md — Authoritative Live Completion Tracker
 
 **Last Updated:** 2026-11-15  
-**Current Project Phase:** Stage 6 — Device Agents, Pairing & Device Registry  
-**Next Subphase in Queue:** `S6.P2.2` (Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI)
+**Current Project Phase:** Stage 7 — Peer-to-Peer Agent Mesh & Cross-Device Synchronization  
+**Next Subphase in Queue:** `S7.P1.2` (End-to-End Encrypted Clipboard Synchronization)
 
 ---
 
@@ -67,7 +67,7 @@ Status Legend:
 | **Stage 6** | `S6.P1.2` | mDNS-SD Local Network Discovery (`aissistant-network`) | `S6.P1.1` | `COMPLETED` | Verified: 285 Rust workspace unit tests passing (9 in `aissistant-network`), clippy zero warnings, fmt check passed, 64 Flutter tests passing, RFC 1035/6762/6763 DNS wire-format builder/parser, privacy-preserving TXT metadata, VirtualDiscoveryEngine deterministic simulation, and MdnsDiscoveryEngine dual-stack UDP multicast verified. |
 | **Stage 6** | `S6.P2.1` | QUIC/TLS 1.3 Mutual-Authenticated Transport (`quinn` + `rustls`) | `S6.P1.2` | `COMPLETED` | Verified: 292 Rust workspace unit tests passing (16 in `aissistant-network`), clippy zero warnings, fmt check passed, 64 Flutter tests passing, self-signed X.509 Ed25519 cert generation (`rcgen`), RFC 8410 SPKI key extraction, PinnedEd25519Verifier for client & server mTLS, bi-directional QUIC stream multiplexing, and untrusted peer rejection verified. |
 | **Stage 6** | `S6.P2.2` | Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI | `S6.P2.1` | `COMPLETED` | Verified: 292 Rust workspace unit tests passing (20 in `aissistant-network`, 26 in `aissistant-ffi`), 72 Flutter tests passing (100%), `flutter analyze` zero issues, symmetrical 6-digit SAS derivation (`derive_sas_code`), QR payload serialization, brute-force rate limiting (5m lockout after 3 fails), `PairingSessionManager`, `DeviceSupervisor` FFI bridge, C-ABI functions, `DevicesScreen` UI, SAS display/input dialog, and capability ACL editor verified. |
-| **Stage 7** | `S7.P1.1` | Authenticated Remote Skill RPC & Target Peer Policy Enforcement | `S6.P2.2` | `PENDING` | — |
+| **Stage 7** | `S7.P1.1` | Authenticated Remote Skill RPC & Target Peer Policy Enforcement | `S6.P2.2` | `COMPLETED` | Verified: 299 Rust workspace unit tests passing (27 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, length-delimited framing (4MB cap), TLS caller public key vs DeviceId binding, DeviceRegistry trust verification, peer capability ACL evaluation, PolicyEngine integration, and BLAKE3 hash-chained audit logging verified. |
 | **Stage 7** | `S7.P1.2` | End-to-End Encrypted Clipboard Synchronization | `S7.P1.1` | `PENDING` | — |
 | **Stage 7** | `S7.P2.1` | Chunked, BLAKE3/SHA-256 Verified Resumable File Transfer | `S7.P1.2` | `PENDING` | — |
 | **Stage 7** | `S7.P2.2` | Low-Latency Cross-Device Screen Capture & Streaming | `S7.P2.1` | `PENDING` | — |
@@ -827,6 +827,26 @@ Status Legend:
   - `app/test/widget_test.dart`: Verified `AdaptiveShell` desktop NavigationRail and mobile NavigationBar with the new `Devices` navigation tab.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `4166d42`
+
+### Verification Evidence — S7.P1.1 (Authenticated Remote Skill RPC & Target Peer Policy Enforcement)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 11 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (299 passed across 11 crates; 27 in `aissistant-network`)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (72 passed across 10 Flutter test suites)
+- **Test Summary:**
+  - `rpc::tests::test_rpc_framing_roundtrip`: Verified length-delimited JSON RPC message framing (`write_framed_message`, `read_framed_message`) with 4-byte big-endian header over bidirectional tokio duplex stream.
+  - `rpc::tests::test_rpc_framing_payload_exceeds_max_bytes`: Verified that incoming payloads exceeding `MAX_RPC_MESSAGE_BYTES` (4 MB) fail closed immediately to prevent memory-exhaustion DoS attacks.
+  - `rpc::tests::test_rpc_end_to_end_authorized_skill_execution`: Verified end-to-end authorized skill execution with `RemoteSkillRpcServer` and `RemoteSkillRpcClient`: authenticated caller ID check, trusted registry state, `AlwaysAllow` ACL grant, `PolicyEngine` evaluation, `ToolDispatcher` execution, and BLAKE3 cryptographic hash-chained audit logging.
+  - `rpc::tests::test_rpc_rejects_untrusted_and_denied_peers`: Verified that requests are rejected with `PermissionDenied` when caller is unregistered, blocked, has capability ACL set to `Deny`, or provides a spoofed `caller_device_id` mismatched with the mTLS public key.
+  - `rpc::tests::test_rpc_handles_skill_failure_cleanly`: Verified that execution failures inside the target skill logic return `RemoteRpcStatus::SkillFailed` with error details and record an audit log with status `Failed`.
+  - `rpc::tests::test_rpc_virtual_session_invocation`: Verified client invocation and server execution over simulated `VirtualSession` pairs without network dependencies.
+  - `rpc::tests::test_rpc_over_quic_mtls_loopback`: Verified client invocation and server execution over dual Quinn `QuicTransportEngine` endpoints using self-signed Ed25519 mTLS certificates across loopback UDP sockets.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** Pending commit
 
 
 

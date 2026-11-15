@@ -89,7 +89,7 @@
 ---
 
 ## Stage 7 Queue (Remote Skills, Clipboard Sync, Screen Streaming & File Transfer)
-- [ ] `[S7.P1.1]` Authenticated Remote Skill RPC & Target Peer Policy Enforcement
+- [x] `[S7.P1.1]` Authenticated Remote Skill RPC & Target Peer Policy Enforcement *(Completed 2026-11-15)*
 - [ ] `[S7.P1.2]` End-to-End Encrypted Clipboard Synchronization
 - [ ] `[S7.P2.1]` Chunked, BLAKE3/SHA-256 Verified Resumable File Transfer
 - [ ] `[S7.P2.2]` Low-Latency Cross-Device Screen Capture & Streaming

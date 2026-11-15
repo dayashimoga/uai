@@ -1341,3 +1341,38 @@
 
 
 
+
+
+---
+
+## [2026-11-15] — Stage 7 Phase 1 Subphase 1 (`S7.P1.1`)
+
+### Added
+- `core/crates/aissistant-network/src/rpc.rs`:
+  - Wire protocol types: `RemoteRpcRequest` (`rpc_id`, `caller_device_id`, `skill_id`, `params`, `timestamp_ms`) and `RemoteRpcResponse` (`rpc_id`, `status`, `result`, `error`, `execution_ms`).
+  - Status enum `RemoteRpcStatus` (`Success`, `PermissionDenied`, `SkillFailed`, `TimedOut`, `InvalidRequest`).
+  - Length-delimited framing utilities: `write_framed_message` and `read_framed_message` enforcing `MAX_RPC_MESSAGE_BYTES` (4 MB) buffer boundaries.
+  - Skill to capability mapping: `resolve_capability_for_skill` mapping skill names to capability IDs (`file.*` -> `file_system`, `app.*`/`process.*`/`window.*` -> `application_management`, `volume.*`/`media.*` -> `system_media_control`, `llm.*` -> `local_llm`, `screen.*` -> `screen_streaming_host`, `input.*` -> `remote_input_injection_host`, default -> `lan_peer_networking`).
+  - `RemoteSkillRpcServer`:
+    - Strict cryptographic authentication verifying caller `DeviceId` against peer's TLS 1.3 Ed25519 public key.
+    - Peer trust verification against persistent `DeviceRegistry` (`DeviceTrustState::Trusted`).
+    - Granular capability ACL checks rejecting `Deny` and `AskEachTime` (unattended RPCs).
+    - Local security policy engine evaluation (`PolicyEngine`) with `Actor::RemotePeer`.
+    - Secure tool execution via `ToolDispatcher` with duration tracking.
+    - BLAKE3 hash-chained cryptographic audit trail appending with sensitive parameter redaction.
+    - Bidirectional async stream handling via `handle_stream`.
+  - `RemoteSkillRpcClient`:
+    - Generic stream invocation via `invoke_stream`.
+    - QUIC session invocation with configurable timeout via `invoke_quic`.
+    - Virtual session invocation for offline/test environments via `invoke_virtual`.
+
+### Modified
+- `core/crates/aissistant-network/Cargo.toml`: Added workspace dependencies on `aissistant-orchestrator` and `uuid`.
+- `core/crates/aissistant-network/src/lib.rs`: Exposed and re-exported `rpc` module types and functions.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 299 unit and integration tests (0 failures; 27 in `aissistant-network`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).

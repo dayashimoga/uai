@@ -13,6 +13,7 @@ workspace = true
 
 [dependencies]
 aissistant-core = { path = "../aissistant-core" }
+aissistant-orchestrator = { path = "../aissistant-orchestrator" }
 aissistant-security = { path = "../aissistant-security" }
 aissistant-storage = { path = "../aissistant-storage" }
 ed25519-dalek = { workspace = true }
@@ -27,6 +28,7 @@ sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
