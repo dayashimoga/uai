@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 8 — Vision, Knowledge, Translation & Advanced Intelligence  
-**Next Subphase in Queue:** `S8.P1.2` (Citation-Grounded Offline RAG & Knowledge Explorer UI)
+**Next Subphase in Queue:** `S8.P2.1` (Offline OCR & Multimodal Vision Model Integration)
 
 ---
 
@@ -73,7 +73,7 @@ Status Legend:
 | **Stage 7** | `S7.P2.2` | Low-Latency Cross-Device Screen Capture & Streaming | `S7.P2.1` | `COMPLETED` | Verified: 307 Rust workspace unit tests passing (43 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, length-delimited streaming framing, BLAKE3 per-frame integrity digests, caller TLS public key vs DeviceId binding, peer trust and `screen_streaming_host` ACL validation, active host streaming indicator, and BLAKE3 hash-chained audit logging verified. |
 | **Stage 7** | `S7.P2.3` | Permission-Gated Remote Input Control & Session Overlay | `S7.P2.2` | `COMPLETED` | Verified: 312 Rust workspace unit tests passing (48 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, normalized coordinate clamping, TLS caller public key vs DeviceId binding, peer trust and `remote_input_injection_host` ACL validation (`AlwaysAllow`), host emergency escape preemption (`terminate_session`), and BLAKE3 hash-chained audit logging verified. |
 | **Stage 8** | `S8.P1.1` | Local Document Ingestion, Chunking & Indexing Pipeline | `S7.P2.3` | `COMPLETED` | Verified: 318 Rust workspace unit tests passing (38 in `aissistant-storage`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, Migration 6 schema runner, boundary-aware document chunking, BLAKE3 incremental skip and update, cascading deletion purging FTS and vector records, and SQLite FTS5 BM25 search verified. |
-| **Stage 8** | `S8.P1.2` | Citation-Grounded Offline RAG & Knowledge Explorer UI | `S8.P1.1` | `PENDING` | — |
+| **Stage 8** | `S8.P1.2` | Citation-Grounded Offline RAG & Knowledge Explorer UI | `S8.P1.1` | `COMPLETED` | Verified: 343 Rust workspace unit tests passing (40 in `aissistant-storage`, 27 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 77 Flutter tests passing, KnowledgeRetriever RRF hybrid search fusing BM25 lexical and dense vector signals, grounded citation generation with token budget limits, safe FFI and C-ABI exports, reactive AssistantController knowledge state, and responsive KnowledgeExplorer UI verified. |
 | **Stage 8** | `S8.P2.1` | Offline OCR & Multimodal Vision Model Integration | `S8.P1.2` | `PENDING` | — |
 | **Stage 8** | `S8.P2.2` | Offline Multilingual Translation & Live Voice Interpreter Mode | `S8.P2.1` | `PENDING` | — |
 | **Stage 9** | `S9.P1.1` | User Persona, Voice Profile & Explicit Preference Manager | `S8.P2.2` | `PENDING` | — |
@@ -940,6 +940,28 @@ Status Legend:
   - `migration::tests::test_migration_runner_applies_v1_and_is_idempotent`: Verified `Migration 6` DDL idempotency and table count across 13 core SQLite tables.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `7f935c9`
+
+### Verification Evidence — S8.P1.2 (Citation-Grounded Offline RAG & Knowledge Explorer UI)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 11 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (343 passed across 11 crates; 40 in `aissistant-storage`, 27 in `aissistant-ffi`)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (77 passed across 11 Flutter test suites)
+- **Test Summary:**
+  - `knowledge_retriever::tests::test_knowledge_retriever_hybrid_and_rag_prompt`: Verified Reciprocal Rank Fusion (RRF) hybrid search combining SQLite FTS5 BM25 keyword rankings with dense vector cosine similarity, snippet generation with `<mark>` tags, and prompt formatting bounded by token budget.
+  - `knowledge_retriever::tests::test_knowledge_retriever_vector_only_candidate`: Verified retrieval of semantic matches when lexical keyword query does not match SQLite FTS5 index but dense embedding matches.
+  - `vector_store::tests::test_search_vector_similarity_by_entity`: Verified dense vector k-NN search filtered by entity type (`doc_chunk`).
+  - `tests::test_knowledge_bridge_and_c_abi_lifecycle`: Verified C-ABI functions (`bridge_c_knowledge_index`, `bridge_c_knowledge_list`, `bridge_c_knowledge_search`, `bridge_c_knowledge_delete`), JSON serialization, and memory freeing via `bridge_c_free_string`.
+  - `knowledge_screen_test::renders KnowledgeScreen with search bar and tabs`: Verified responsive UI shell, search bar, and TabBar with Citations and Documents views.
+  - `knowledge_screen_test::switches to documents tab and displays indexed documents`: Verified display of ingested documents with path, chunk counts, and file size formatting.
+  - `knowledge_screen_test::performs search and displays grounded citation cards`: Verified live search, citation card generation, RRF score badge, chunk indicator, and highlight snippet rendering.
+  - `knowledge_screen_test::indexes a new document via dialog and shows in catalog`: Verified manual document ingestion dialog and reactive document list updating.
+  - `knowledge_screen_test::deletes an indexed document after confirmation`: Verified deletion confirmation dialog and cascading purge of document and chunks.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** Pending commit
 
 
 

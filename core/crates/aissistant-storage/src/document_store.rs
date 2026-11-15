@@ -576,6 +576,51 @@ impl DocumentStore {
             Ok(results)
         })
     }
+
+    /// Retrieves a chunk along with its parent document metadata by chunk ID.
+    pub fn get_chunk_with_document(
+        &self,
+        chunk_id: &str,
+    ) -> Result<Option<(DocumentChunk, DocumentRecord)>, StorageError> {
+        self.db.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT c.id, c.document_id, c.chunk_index, c.content,
+                        c.token_count, c.byte_offset_start, c.byte_offset_end,
+                        d.id, d.path, d.file_name, d.mime_type, d.content_hash,
+                        d.file_size_bytes, d.chunk_count, d.indexed_at_ms, d.updated_at_ms
+                 FROM document_chunks c
+                 JOIN documents d ON d.id = c.document_id
+                 WHERE c.id = ?1;",
+            )?;
+
+            let mut rows = stmt.query(params![chunk_id])?;
+            if let Some(row) = rows.next()? {
+                let chunk = DocumentChunk {
+                    id: row.get(0)?,
+                    document_id: row.get(1)?,
+                    chunk_index: row.get::<_, i64>(2)? as usize,
+                    content: row.get(3)?,
+                    token_count: row.get::<_, i64>(4)? as usize,
+                    byte_offset_start: row.get::<_, i64>(5)? as usize,
+                    byte_offset_end: row.get::<_, i64>(6)? as usize,
+                };
+                let doc = DocumentRecord {
+                    id: row.get(7)?,
+                    path: row.get(8)?,
+                    file_name: row.get(9)?,
+                    mime_type: row.get(10)?,
+                    content_hash: row.get(11)?,
+                    file_size_bytes: row.get::<_, i64>(12)? as u64,
+                    chunk_count: row.get::<_, i64>(13)? as usize,
+                    indexed_at_ms: row.get(14)?,
+                    updated_at_ms: row.get(15)?,
+                };
+                Ok(Some((chunk, doc)))
+            } else {
+                Ok(None)
+            }
+        })
+    }
 }
 
 fn row_to_document(row: &rusqlite::Row<'_>) -> rusqlite::Result<DocumentRecord> {

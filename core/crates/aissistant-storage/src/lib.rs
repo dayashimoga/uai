@@ -9,6 +9,7 @@ pub mod document_store;
 pub mod error;
 pub mod hybrid_search;
 pub mod keystore;
+pub mod knowledge_retriever;
 pub mod migration;
 pub mod pool;
 pub mod secret_store;
@@ -30,6 +31,7 @@ pub use hybrid_search::{HybridSearchEngine, HybridSearchResult, RrfConfig};
 pub use keystore::{
     derive_key_from_secret, FileBoundKeystore, InMemoryKeystore, KeystoreProvider, OsKeystore,
 };
+pub use knowledge_retriever::{KnowledgeCitation, KnowledgeRagPromptContext, KnowledgeRetriever};
 pub use migration::{Migration, MigrationRunner};
 pub use pool::SqliteDb;
 pub use secret_store::SecretStore;
@@ -107,7 +109,7 @@ mod tests {
         assert!(search[0].snippet.contains("<mark>milk</mark>"));
 
         // Store vector embedding and run hybrid search
-        let vectors = VectorMemoryStore::new(db);
+        let vectors = VectorMemoryStore::new(db.clone());
         vectors
             .store_embedding(&VectorRecord {
                 id: "vec_integ_01".to_string(),
@@ -121,11 +123,34 @@ mod tests {
             })
             .unwrap();
 
-        let hybrid = HybridSearchEngine::new(conversations, vectors);
+        let hybrid = HybridSearchEngine::new(conversations, vectors.clone());
         let hybrid_results = hybrid.search("milk", &[1.0, 0.0], 5, None, None).unwrap();
         assert_eq!(hybrid_results.len(), 1);
         assert_eq!(hybrid_results[0].turn_id, turn.id);
         assert!(hybrid_results[0].bm25_rank.is_some());
         assert!(hybrid_results[0].vector_rank.is_some());
+
+        // Ingest document and run citation-grounded RAG retriever
+        let doc_store = DocumentStore::new(db.clone());
+        doc_store
+            .index_document(
+                "knowledge/offline_ai.txt",
+                "offline_ai.txt",
+                "text/plain",
+                "AIssistant operates 100% offline without remote telemetry or cloud APIs.",
+                Some(|_: &str| Ok(vec![1.0, 0.0])),
+            )
+            .unwrap();
+
+        let knowledge = KnowledgeRetriever::new(doc_store, vectors);
+        let citations = knowledge
+            .search("offline", Some(&[1.0, 0.0]), 5, None)
+            .unwrap();
+        assert_eq!(citations.len(), 1);
+        assert_eq!(citations[0].file_name, "offline_ai.txt");
+
+        let rag_prompt = knowledge.format_rag_prompt(&citations, 500);
+        assert!(rag_prompt.prompt_block.contains("offline_ai.txt"));
+        assert!(rag_prompt.prompt_block.contains("100% offline"));
     }
 }

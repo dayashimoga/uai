@@ -15,11 +15,13 @@ use crate::api::{
     bridge_device_cancel_pairing, bridge_device_confirm_pairing, bridge_device_discovered_peers,
     bridge_device_paired_list, bridge_device_set_permission, bridge_device_simulate_peer,
     bridge_device_start_pairing, bridge_device_unpair, bridge_get_capabilities, bridge_get_health,
-    bridge_get_lifecycle_state, bridge_get_setting, bridge_model_benchmark_run, bridge_model_load,
-    bridge_model_snapshot, bridge_model_unload, bridge_notify_memory_pressure, bridge_query_audit,
-    bridge_request_shutdown, bridge_set_setting, bridge_update_permission, bridge_verify_audit,
-    bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
-    bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge, shutdown_bridge,
+    bridge_get_lifecycle_state, bridge_get_setting, bridge_knowledge_delete_document,
+    bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
+    bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
+    bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
+    bridge_update_permission, bridge_verify_audit, bridge_voice_inject_audio,
+    bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
+    bridge_voice_stop_listening, init_bridge, shutdown_bridge,
 };
 use crate::device_bridge::DiscoveredPeerItem;
 use crate::error::FfiError;
@@ -566,6 +568,82 @@ pub unsafe extern "C" fn bridge_c_device_simulate_peer(peer_json: *const c_char)
         Ok(Ok(())) => 0,
         _ => -1,
     }
+}
+
+/// Returns all indexed documents as a JSON array.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+#[no_mangle]
+pub extern "C" fn bridge_c_knowledge_list() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_knowledge_list_documents));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_knowledge_list".into(),
+        ))
+    }))
+}
+
+/// Ingests and chunks a local document text. Returns the created document ID string.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `path`, `file_name`, `mime_type`, and `content` must point to valid null-terminated UTF-8 C strings.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_knowledge_index(
+    path: *const c_char,
+    file_name: *const c_char,
+    mime_type: *const c_char,
+    content: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let path_str = unsafe { c_char_to_str(path) }?;
+        let name_str = unsafe { c_char_to_str(file_name) }?;
+        let mime_str = unsafe { c_char_to_str(mime_type) }?;
+        let content_str = unsafe { c_char_to_str(content) }?;
+        bridge_knowledge_index_document(path_str, name_str, mime_str, content_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_knowledge_index".into(),
+        ))
+    }))
+}
+
+/// Deletes an indexed document by ID.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `doc_id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_knowledge_delete(doc_id: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(doc_id) }?;
+        bridge_knowledge_delete_document(id_str)
+    }));
+    match result {
+        Ok(Ok(true)) => 0,
+        _ => -1,
+    }
+}
+
+/// Performs hybrid search over document chunks and returns grounded citations as a JSON array.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `query` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_knowledge_search(
+    query: *const c_char,
+    limit: usize,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let q_str = unsafe { c_char_to_str(query) }?;
+        bridge_knowledge_search(q_str, limit)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_knowledge_search".into(),
+        ))
+    }))
 }
 
 /// Frees a C string previously allocated by `aissistant-ffi`.

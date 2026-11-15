@@ -1557,3 +1557,47 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 318 unit and integration tests (0 failures; 38 in `aissistant-storage`).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 8 Phase 1 Subphase 2 (`S8.P1.2`)
+
+### Added
+- `core/crates/aissistant-storage/src/knowledge_retriever.rs`:
+  - `KnowledgeCitation`: Grounded knowledge citation struct tracking chunk ID, document ID, path, filename, chunk index, RRF score, BM25 rank, vector rank, cosine similarity, content, and `<mark>` snippet.
+  - `KnowledgeRagPromptContext`: Structured RAG prompt context with bounded citations, prompt block, and estimated token counts.
+  - `KnowledgeRetriever`: Reciprocal Rank Fusion (RRF) hybrid search combining SQLite FTS5 BM25 lexical candidates with dense vector k-NN candidates (`search_vector_similarity_by_entity`), and prompt context formatting bounded by token budget.
+- `app/lib/core/models/knowledge_models.dart`:
+  - `DocumentRecordItem` and `KnowledgeCitationItem` immutable Dart models with JSON serialization.
+- `app/lib/ui/screens/knowledge_screen.dart`:
+  - Responsive Knowledge Explorer screen featuring search bar with clear/submit, TabBar for Citations and Document catalog, grounded citation cards with RRF badges and `<mark>` highlight snippets, document deletion with confirmation dialog, and manual document ingestion dialog.
+- `app/test/knowledge_screen_test.dart`:
+  - 5 comprehensive widget and interaction tests verifying UI rendering, search query execution, document indexing, and document deletion.
+
+### Modified
+- `core/crates/aissistant-storage/src/vector_store.rs`:
+  - Added `search_vector_similarity_by_entity` to perform dense vector k-NN search filtered by entity type (`doc_chunk`).
+- `core/crates/aissistant-storage/src/document_store.rs`:
+  - Added `get_chunk_with_document` to look up document metadata for vector-only candidates.
+- `core/crates/aissistant-storage/src/lib.rs`:
+  - Exposed and re-exported `knowledge_retriever` module and types.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Added `DocumentRecordItem` and `KnowledgeCitationItem` FFI types.
+  - Added `knowledge_list_documents`, `knowledge_index_document`, `knowledge_delete_document`, and `knowledge_search` methods to `CoreBridge` and convenience wrappers.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Added safe C-ABI functions: `bridge_c_knowledge_list`, `bridge_c_knowledge_index`, `bridge_c_knowledge_delete`, and `bridge_c_knowledge_search`.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Re-exported knowledge types and added `test_knowledge_bridge_and_c_abi_lifecycle` integration test.
+- `app/lib/core/ffi_bridge.dart`:
+  - Added knowledge operations to `AissistantBridge`, `NativeFfiBridge` (C-ABI bindings), and `TestHarnessBridge` (in-memory test mock).
+- `app/lib/core/assistant_controller.dart`:
+  - Added reactive knowledge state (`documents`, `citationSearchResults`, `isSearchingKnowledge`, `knowledgeSearchQuery`) and methods (`refreshKnowledgeDocuments`, `searchKnowledge`, `clearKnowledgeSearch`, `indexKnowledgeDocument`, `deleteKnowledgeDocument`).
+- `app/lib/ui/adaptive_shell.dart`:
+  - Added `KnowledgeScreen` navigation destination to desktop `NavigationRail` and mobile `NavigationBar`.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 11 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 343 unit and integration tests (0 failures; 40 in `aissistant-storage`, 27 in `aissistant-ffi`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 77 unit and widget tests (0 failures).

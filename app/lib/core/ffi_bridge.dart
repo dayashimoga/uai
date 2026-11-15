@@ -11,6 +11,7 @@ import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
 import 'models/device_models.dart';
 import 'models/health_report.dart';
+import 'models/knowledge_models.dart';
 import 'models/model_item.dart';
 import 'models/voice_state.dart';
 
@@ -45,6 +46,15 @@ abstract class AissistantBridge {
   void setPeerPermission(String deviceId, String capability, String level);
   void unpairDevice(String deviceId);
   void simulateDiscoveredPeer(DiscoveredPeerItem item);
+  List<DocumentRecordItem> getKnowledgeDocuments();
+  String indexKnowledgeDocument({
+    required String path,
+    required String fileName,
+    required String mimeType,
+    required String content,
+  });
+  bool deleteKnowledgeDocument(String documentId);
+  List<KnowledgeCitationItem> searchKnowledge(String query, {int limit = 10});
   Stream<BridgeEvent> get eventStream;
 }
 
@@ -138,6 +148,28 @@ typedef _BridgeDeviceUnpairDart = int Function(Pointer<Utf8> deviceId);
 typedef _BridgeDeviceSimPeerC = Int32 Function(Pointer<Utf8> peerJson);
 typedef _BridgeDeviceSimPeerDart = int Function(Pointer<Utf8> peerJson);
 
+typedef _BridgeKnowledgeListC = Pointer<Utf8> Function();
+typedef _BridgeKnowledgeListDart = Pointer<Utf8> Function();
+
+typedef _BridgeKnowledgeIndexC = Pointer<Utf8> Function(
+  Pointer<Utf8> path,
+  Pointer<Utf8> fileName,
+  Pointer<Utf8> mimeType,
+  Pointer<Utf8> content,
+);
+typedef _BridgeKnowledgeIndexDart = Pointer<Utf8> Function(
+  Pointer<Utf8> path,
+  Pointer<Utf8> fileName,
+  Pointer<Utf8> mimeType,
+  Pointer<Utf8> content,
+);
+
+typedef _BridgeKnowledgeDeleteC = Int32 Function(Pointer<Utf8> docId);
+typedef _BridgeKnowledgeDeleteDart = int Function(Pointer<Utf8> docId);
+
+typedef _BridgeKnowledgeSearchC = Pointer<Utf8> Function(Pointer<Utf8> query, IntPtr limit);
+typedef _BridgeKnowledgeSearchDart = Pointer<Utf8> Function(Pointer<Utf8> query, int limit);
+
 /// Native FFI implementation driving aissistant-ffi C-ABI entry points.
 class NativeFfiBridge implements AissistantBridge {
   final DynamicLibrary _lib;
@@ -173,6 +205,10 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeDeviceSetPermDart _deviceSetPermission;
   late final _BridgeDeviceUnpairDart _deviceUnpair;
   late final _BridgeDeviceSimPeerDart _deviceSimulatePeer;
+  late final _BridgeKnowledgeListDart _knowledgeList;
+  late final _BridgeKnowledgeIndexDart _knowledgeIndex;
+  late final _BridgeKnowledgeDeleteDart _knowledgeDelete;
+  late final _BridgeKnowledgeSearchDart _knowledgeSearch;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -205,6 +241,10 @@ class NativeFfiBridge implements AissistantBridge {
     _deviceSetPermission = _lib.lookupFunction<_BridgeDeviceSetPermC, _BridgeDeviceSetPermDart>('bridge_c_device_set_permission');
     _deviceUnpair = _lib.lookupFunction<_BridgeDeviceUnpairC, _BridgeDeviceUnpairDart>('bridge_c_device_unpair');
     _deviceSimulatePeer = _lib.lookupFunction<_BridgeDeviceSimPeerC, _BridgeDeviceSimPeerDart>('bridge_c_device_simulate_peer');
+    _knowledgeList = _lib.lookupFunction<_BridgeKnowledgeListC, _BridgeKnowledgeListDart>('bridge_c_knowledge_list');
+    _knowledgeIndex = _lib.lookupFunction<_BridgeKnowledgeIndexC, _BridgeKnowledgeIndexDart>('bridge_c_knowledge_index');
+    _knowledgeDelete = _lib.lookupFunction<_BridgeKnowledgeDeleteC, _BridgeKnowledgeDeleteDart>('bridge_c_knowledge_delete');
+    _knowledgeSearch = _lib.lookupFunction<_BridgeKnowledgeSearchC, _BridgeKnowledgeSearchDart>('bridge_c_knowledge_search');
     _freeString = _lib.lookupFunction<_BridgeFreeStringC, _BridgeFreeStringDart>('bridge_c_free_string');
   }
 
@@ -564,6 +604,82 @@ class NativeFfiBridge implements AissistantBridge {
       }
     } finally {
       malloc.free(ptr);
+    }
+  }
+
+  @override
+  List<DocumentRecordItem> getKnowledgeDocuments() {
+    final ptr = _knowledgeList();
+    if (ptr == nullptr) return <DocumentRecordItem>[];
+    try {
+      final jsonStr = ptr.toDartString();
+      final list = jsonDecode(jsonStr) as List<dynamic>? ?? <dynamic>[];
+      return list
+          .map((item) => DocumentRecordItem.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  String indexKnowledgeDocument({
+    required String path,
+    required String fileName,
+    required String mimeType,
+    required String content,
+  }) {
+    final pathPtr = path.toNativeUtf8();
+    final namePtr = fileName.toNativeUtf8();
+    final mimePtr = mimeType.toNativeUtf8();
+    final contentPtr = content.toNativeUtf8();
+    try {
+      final resPtr = _knowledgeIndex(pathPtr, namePtr, mimePtr, contentPtr);
+      if (resPtr == nullptr) {
+        throw StateError('Failed to index document: returned null');
+      }
+      try {
+        final jsonStr = resPtr.toDartString();
+        return jsonDecode(jsonStr) as String? ?? '';
+      } finally {
+        _freeString(resPtr);
+      }
+    } finally {
+      malloc.free(pathPtr);
+      malloc.free(namePtr);
+      malloc.free(mimePtr);
+      malloc.free(contentPtr);
+    }
+  }
+
+  @override
+  bool deleteKnowledgeDocument(String documentId) {
+    final idPtr = documentId.toNativeUtf8();
+    try {
+      final res = _knowledgeDelete(idPtr);
+      return res == 0;
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  List<KnowledgeCitationItem> searchKnowledge(String query, {int limit = 10}) {
+    final queryPtr = query.toNativeUtf8();
+    try {
+      final ptr = _knowledgeSearch(queryPtr, limit);
+      if (ptr == nullptr) return <KnowledgeCitationItem>[];
+      try {
+        final jsonStr = ptr.toDartString();
+        final list = jsonDecode(jsonStr) as List<dynamic>? ?? <dynamic>[];
+        return list
+            .map((item) => KnowledgeCitationItem.fromJson(item as Map<String, dynamic>))
+            .toList();
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(queryPtr);
     }
   }
 }
@@ -1070,5 +1186,84 @@ class TestHarnessBridge implements AissistantBridge {
       endpoint: item.addresses.isNotEmpty ? '${item.addresses.first}:${item.port}' : null,
       fingerprint: item.fingerprint,
     ));
+  }
+
+  final List<DocumentRecordItem> _documents = <DocumentRecordItem>[
+    DocumentRecordItem(
+      id: 'doc_sample_01',
+      path: 'knowledge/offline_architecture.md',
+      fileName: 'offline_architecture.md',
+      mimeType: 'text/markdown',
+      contentHash: 'a1b2c3d4e5f6',
+      fileSizeBytes: 2048,
+      chunkCount: 3,
+      indexedAtMs: DateTime.now().subtract(const Duration(hours: 2)).millisecondsSinceEpoch,
+      updatedAtMs: DateTime.now().subtract(const Duration(hours: 2)).millisecondsSinceEpoch,
+    ),
+  ];
+
+  @override
+  List<DocumentRecordItem> getKnowledgeDocuments() {
+    return List<DocumentRecordItem>.from(_documents);
+  }
+
+  @override
+  String indexKnowledgeDocument({
+    required String path,
+    required String fileName,
+    required String mimeType,
+    required String content,
+  }) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final docId = 'doc_${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}';
+    final doc = DocumentRecordItem(
+      id: docId,
+      path: path,
+      fileName: fileName,
+      mimeType: mimeType,
+      contentHash: 'hash_${content.hashCode}',
+      fileSizeBytes: content.length,
+      chunkCount: (content.length / 200).ceil().clamp(1, 10),
+      indexedAtMs: now,
+      updatedAtMs: now,
+    );
+    _documents.removeWhere((d) => d.path == path);
+    _documents.insert(0, doc);
+    return docId;
+  }
+
+  @override
+  bool deleteKnowledgeDocument(String documentId) {
+    final initialLen = _documents.length;
+    _documents.removeWhere((d) => d.id == documentId);
+    return _documents.length < initialLen;
+  }
+
+  @override
+  List<KnowledgeCitationItem> searchKnowledge(String query, {int limit = 10}) {
+    final lowerQ = query.toLowerCase();
+    final results = <KnowledgeCitationItem>[];
+    for (final doc in _documents) {
+      if (doc.fileName.toLowerCase().contains(lowerQ) ||
+          doc.path.toLowerCase().contains(lowerQ) ||
+          lowerQ.contains('offline') ||
+          lowerQ.contains('flutter') ||
+          lowerQ.contains('rust')) {
+        results.add(KnowledgeCitationItem(
+          chunkId: 'chk_${doc.id}_0',
+          documentId: doc.id,
+          path: doc.path,
+          fileName: doc.fileName,
+          chunkIndex: 0,
+          rrfScore: 0.032,
+          bm25Rank: 1,
+          vectorRank: 1,
+          cosineSimilarity: 0.88,
+          content: 'Offline knowledge base snippet for ${doc.fileName}. Contains relevant context matching "$query".',
+          snippet: 'Offline knowledge base snippet matching <mark>$query</mark> in ${doc.fileName}.',
+        ));
+      }
+    }
+    return results.take(limit).toList();
   }
 }

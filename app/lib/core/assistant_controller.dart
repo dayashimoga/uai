@@ -8,6 +8,7 @@ import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
 import 'models/device_models.dart';
 import 'models/health_report.dart';
+import 'models/knowledge_models.dart';
 import 'models/model_item.dart';
 import 'models/voice_state.dart';
 
@@ -30,6 +31,10 @@ class AssistantController extends ChangeNotifier {
   PairingSessionInfo? _activePairingSession;
   bool _isPairing = false;
   String? _pairingError;
+  List<DocumentRecordItem> _documents = <DocumentRecordItem>[];
+  List<KnowledgeCitationItem> _citationSearchResults = <KnowledgeCitationItem>[];
+  bool _isSearchingKnowledge = false;
+  String? _knowledgeSearchQuery;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -52,6 +57,11 @@ class AssistantController extends ChangeNotifier {
   PairingSessionInfo? get activePairingSession => _activePairingSession;
   bool get isPairing => _isPairing;
   String? get pairingError => _pairingError;
+  List<DocumentRecordItem> get documents => List<DocumentRecordItem>.unmodifiable(_documents);
+  List<KnowledgeCitationItem> get citationSearchResults =>
+      List<KnowledgeCitationItem>.unmodifiable(_citationSearchResults);
+  bool get isSearchingKnowledge => _isSearchingKnowledge;
+  String? get knowledgeSearchQuery => _knowledgeSearchQuery;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -74,6 +84,7 @@ class AssistantController extends ChangeNotifier {
       _modelSnapshot = _bridge.getModelSnapshot();
       _discoveredPeers = List<DiscoveredPeerItem>.from(_bridge.getDiscoveredPeers());
       _pairedDevices = List<PairedDeviceItem>.from(_bridge.getPairedDevices());
+      _documents = List<DocumentRecordItem>.from(_bridge.getKnowledgeDocuments());
 
       // Read persisted theme mode
       final savedTheme = _bridge.getSetting('assistant.theme_mode');
@@ -479,6 +490,91 @@ class AssistantController extends ChangeNotifier {
     } catch (e) {
       _errorMessage = 'Failed to simulate discovered peer: $e';
       notifyListeners();
+    }
+  }
+
+  Future<void> refreshKnowledgeDocuments() async {
+    try {
+      _documents = List<DocumentRecordItem>.from(_bridge.getKnowledgeDocuments());
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to refresh documents: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> searchKnowledge(String query, {int limit = 10}) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      _citationSearchResults = <KnowledgeCitationItem>[];
+      _knowledgeSearchQuery = null;
+      _isSearchingKnowledge = false;
+      notifyListeners();
+      return;
+    }
+
+    _isSearchingKnowledge = true;
+    _knowledgeSearchQuery = trimmed;
+    notifyListeners();
+
+    try {
+      _citationSearchResults = List<KnowledgeCitationItem>.from(
+        _bridge.searchKnowledge(trimmed, limit: limit),
+      );
+    } catch (e) {
+      _errorMessage = 'Failed to search knowledge base: $e';
+    } finally {
+      _isSearchingKnowledge = false;
+      notifyListeners();
+    }
+  }
+
+  void clearKnowledgeSearch() {
+    _citationSearchResults = <KnowledgeCitationItem>[];
+    _knowledgeSearchQuery = null;
+    _isSearchingKnowledge = false;
+    notifyListeners();
+  }
+
+  Future<String?> indexKnowledgeDocument({
+    required String path,
+    required String fileName,
+    required String mimeType,
+    required String content,
+  }) async {
+    try {
+      final docId = _bridge.indexKnowledgeDocument(
+        path: path,
+        fileName: fileName,
+        mimeType: mimeType,
+        content: content,
+      );
+      await refreshKnowledgeDocuments();
+      if (_knowledgeSearchQuery != null && _knowledgeSearchQuery!.isNotEmpty) {
+        await searchKnowledge(_knowledgeSearchQuery!);
+      }
+      return docId;
+    } catch (e) {
+      _errorMessage = 'Failed to index document: $e';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<bool> deleteKnowledgeDocument(String documentId) async {
+    try {
+      final deleted = _bridge.deleteKnowledgeDocument(documentId);
+      if (deleted) {
+        await refreshKnowledgeDocuments();
+        if (_knowledgeSearchQuery != null && _knowledgeSearchQuery!.isNotEmpty) {
+          await searchKnowledge(_knowledgeSearchQuery!);
+        }
+      }
+      return deleted;
+    } catch (e) {
+      _errorMessage = 'Failed to delete document: $e';
+      notifyListeners();
+      return false;
     }
   }
 

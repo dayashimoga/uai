@@ -289,6 +289,58 @@ impl VectorMemoryStore {
         scored.truncate(limit);
         Ok(scored)
     }
+
+    /// Performs a dense vector k-NN search across stored embeddings filtered by `entity_type`.
+    pub fn search_vector_similarity_by_entity(
+        &self,
+        query_embedding: &[f32],
+        limit: usize,
+        min_similarity: f32,
+        entity_type: &str,
+    ) -> Result<Vec<VectorSearchResult>, StorageError> {
+        if query_embedding.is_empty() || limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let records = self.db.with_conn(|conn| {
+            let mut s = conn.prepare(
+                "SELECT id, entity_type, entity_id, conversation_id,
+                        dimension, embedding_blob, content_snippet, created_at_ms
+                 FROM semantic_embeddings
+                 WHERE entity_type = ?1;",
+            )?;
+            let rows = s.query_map(params![entity_type], row_to_record_tuple)?;
+            let mut recs = Vec::new();
+            for r in rows {
+                recs.push(tuple_to_record(r?)?);
+            }
+            Ok(recs)
+        })?;
+
+        let mut scored: Vec<VectorSearchResult> = records
+            .into_iter()
+            .filter_map(|record| {
+                if record.dimension != query_embedding.len() {
+                    return None;
+                }
+                let similarity = cosine_similarity(&record.embedding, query_embedding);
+                if similarity >= min_similarity {
+                    Some(VectorSearchResult { record, similarity })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        scored.sort_by(|a, b| {
+            b.similarity
+                .partial_cmp(&a.similarity)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        scored.truncate(limit);
+        Ok(scored)
+    }
 }
 
 type RecordTuple = (

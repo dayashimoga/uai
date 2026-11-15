@@ -13,13 +13,15 @@ pub use api::{
     bridge_device_cancel_pairing, bridge_device_confirm_pairing, bridge_device_discovered_peers,
     bridge_device_paired_list, bridge_device_set_permission, bridge_device_simulate_peer,
     bridge_device_start_pairing, bridge_device_unpair, bridge_get_capabilities, bridge_get_health,
-    bridge_get_lifecycle_state, bridge_get_setting, bridge_model_benchmark_run, bridge_model_load,
-    bridge_model_snapshot, bridge_model_unload, bridge_notify_memory_pressure, bridge_query_audit,
-    bridge_request_shutdown, bridge_set_setting, bridge_update_permission, bridge_verify_audit,
-    bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
-    bridge_voice_start_listening, bridge_voice_stop_listening, get_bridge, init_bridge,
-    shutdown_bridge, AuditIntegrityReport, AuditItem, CapabilityItem, CoreBridge, HealthReport,
-    HealthStatus,
+    bridge_get_lifecycle_state, bridge_get_setting, bridge_knowledge_delete_document,
+    bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
+    bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
+    bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
+    bridge_update_permission, bridge_verify_audit, bridge_voice_inject_audio,
+    bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
+    bridge_voice_stop_listening, get_bridge, init_bridge, shutdown_bridge, AuditIntegrityReport,
+    AuditItem, CapabilityItem, CoreBridge, DocumentRecordItem, HealthReport, HealthStatus,
+    KnowledgeCitationItem,
 };
 pub use device_bridge::{
     DeviceSupervisor, DiscoveredPeerItem, PairedDeviceItem, PairingSessionInfo,
@@ -827,6 +829,75 @@ mod tests {
         // Unpair device via C-ABI
         let unpair_res = unsafe { c_abi::bridge_c_device_unpair(dev_id_cstr.as_ptr()) };
         assert_eq!(unpair_res, 0);
+
+        let cleanup = c_abi::bridge_c_shutdown();
+        assert_eq!(cleanup, 0);
+    }
+
+    #[test]
+    fn test_knowledge_bridge_and_c_abi_lifecycle() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap();
+        let _ = c_abi::bridge_c_shutdown();
+
+        let init = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
+        assert_eq!(init, 0);
+
+        // 1. Index document via C-ABI
+        let path = CString::new("notes/architecture.md").unwrap();
+        let fname = CString::new("architecture.md").unwrap();
+        let mime = CString::new("text/markdown").unwrap();
+        let content = CString::new(
+            "Universal AI Assistant is built with Flutter and Rust core for total offline privacy.",
+        )
+        .unwrap();
+
+        let doc_id_ptr = unsafe {
+            c_abi::bridge_c_knowledge_index(
+                path.as_ptr(),
+                fname.as_ptr(),
+                mime.as_ptr(),
+                content.as_ptr(),
+            )
+        };
+        assert!(!doc_id_ptr.is_null());
+        let doc_id_json = unsafe { CStr::from_ptr(doc_id_ptr) }.to_str().unwrap();
+        let doc_id: String = serde_json::from_str(doc_id_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(doc_id_ptr) };
+        assert!(doc_id.starts_with("doc_"));
+
+        // 2. List documents via C-ABI
+        let list_ptr = c_abi::bridge_c_knowledge_list();
+        assert!(!list_ptr.is_null());
+        let list_json = unsafe { CStr::from_ptr(list_ptr) }.to_str().unwrap();
+        let docs: Vec<DocumentRecordItem> = serde_json::from_str(list_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(list_ptr) };
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].file_name, "architecture.md");
+        assert_eq!(docs[0].chunk_count, 1);
+
+        // 3. Search knowledge via C-ABI
+        let query = CString::new("Flutter Rust offline").unwrap();
+        let search_ptr = unsafe { c_abi::bridge_c_knowledge_search(query.as_ptr(), 5) };
+        assert!(!search_ptr.is_null());
+        let search_json = unsafe { CStr::from_ptr(search_ptr) }.to_str().unwrap();
+        let citations: Vec<KnowledgeCitationItem> = serde_json::from_str(search_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(search_ptr) };
+        assert_eq!(citations.len(), 1);
+        assert_eq!(citations[0].file_name, "architecture.md");
+        assert!(citations[0].snippet.contains("<mark>"));
+
+        // 4. Delete document via C-ABI
+        let del_id = CString::new(doc_id).unwrap();
+        let del_res = unsafe { c_abi::bridge_c_knowledge_delete(del_id.as_ptr()) };
+        assert_eq!(del_res, 0);
+
+        // 5. Verify empty list after deletion
+        let list_after_ptr = c_abi::bridge_c_knowledge_list();
+        assert!(!list_after_ptr.is_null());
+        let list_after_json = unsafe { CStr::from_ptr(list_after_ptr) }.to_str().unwrap();
+        let docs_after: Vec<DocumentRecordItem> = serde_json::from_str(list_after_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(list_after_ptr) };
+        assert!(docs_after.is_empty());
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);

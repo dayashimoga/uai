@@ -132,6 +132,56 @@ pub struct AuditIntegrityReport {
     pub error_message: Option<String>,
 }
 
+/// FFI view of an ingested document record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DocumentRecordItem {
+    /// Document unique identifier (`doc_<hex>`).
+    pub id: String,
+    /// Canonical resource path.
+    pub path: String,
+    /// Display file name.
+    pub file_name: String,
+    /// MIME type.
+    pub mime_type: String,
+    /// Content hash for change detection.
+    pub content_hash: String,
+    /// File size in bytes.
+    pub file_size_bytes: u64,
+    /// Number of semantic chunks.
+    pub chunk_count: usize,
+    /// Ingestion epoch timestamp in milliseconds.
+    pub indexed_at_ms: i64,
+    /// Last update epoch timestamp in milliseconds.
+    pub updated_at_ms: i64,
+}
+
+/// FFI view of a grounded knowledge citation resulting from hybrid search.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct KnowledgeCitationItem {
+    /// Unique chunk identifier.
+    pub chunk_id: String,
+    /// Parent document identifier.
+    pub document_id: String,
+    /// Canonical resource path.
+    pub path: String,
+    /// Display file name.
+    pub file_name: String,
+    /// Chunk index within document.
+    pub chunk_index: usize,
+    /// Reciprocal Rank Fusion combined score.
+    pub rrf_score: f64,
+    /// BM25 rank (if matched).
+    pub bm25_rank: Option<usize>,
+    /// Dense vector rank (if matched).
+    pub vector_rank: Option<usize>,
+    /// Cosine similarity score (if matched).
+    pub cosine_similarity: Option<f32>,
+    /// Chunk text content.
+    pub content: String,
+    /// Snippet excerpt with highlight marks.
+    pub snippet: String,
+}
+
 /// Core bridge orchestrating subsystem access and safe FFI dispatch.
 pub struct CoreBridge {
     db: SqliteDb,
@@ -857,6 +907,89 @@ impl CoreBridge {
     pub fn device_simulate_peer(&self, item: DiscoveredPeerItem) -> FfiResult<()> {
         self.device_supervisor.simulate_discovered_peer(item)
     }
+
+    /// Returns all indexed documents ordered by updated timestamp descending.
+    pub fn knowledge_list_documents(&self) -> FfiResult<Vec<DocumentRecordItem>> {
+        let store = aissistant_storage::DocumentStore::new(self.db.clone());
+        let docs = store.list_documents().map_err(FfiError::Storage)?;
+        Ok(docs
+            .into_iter()
+            .map(|d| DocumentRecordItem {
+                id: d.id,
+                path: d.path,
+                file_name: d.file_name,
+                mime_type: d.mime_type,
+                content_hash: d.content_hash,
+                file_size_bytes: d.file_size_bytes,
+                chunk_count: d.chunk_count,
+                indexed_at_ms: d.indexed_at_ms,
+                updated_at_ms: d.updated_at_ms,
+            })
+            .collect())
+    }
+
+    /// Ingests and chunks a local document text.
+    pub fn knowledge_index_document(
+        &self,
+        path: &str,
+        file_name: &str,
+        mime_type: &str,
+        content: &str,
+    ) -> FfiResult<String> {
+        let store = aissistant_storage::DocumentStore::new(self.db.clone());
+        let status = store
+            .index_document(
+                path,
+                file_name,
+                mime_type,
+                content,
+                None::<fn(&str) -> Result<Vec<f32>, aissistant_storage::StorageError>>,
+            )
+            .map_err(FfiError::Storage)?;
+
+        let doc_id = match status {
+            aissistant_storage::IndexingStatus::Indexed { document_id, .. }
+            | aissistant_storage::IndexingStatus::Updated { document_id, .. }
+            | aissistant_storage::IndexingStatus::SkippedUnchanged { document_id } => document_id,
+        };
+        Ok(doc_id)
+    }
+
+    /// Deletes an indexed document and its associated chunks and embeddings by ID.
+    pub fn knowledge_delete_document(&self, doc_id: &str) -> FfiResult<bool> {
+        let store = aissistant_storage::DocumentStore::new(self.db.clone());
+        store.delete_document(doc_id).map_err(FfiError::Storage)
+    }
+
+    /// Performs hybrid search over document chunks and returns grounded citations.
+    pub fn knowledge_search(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> FfiResult<Vec<KnowledgeCitationItem>> {
+        let doc_store = aissistant_storage::DocumentStore::new(self.db.clone());
+        let vec_store = aissistant_storage::VectorMemoryStore::new(self.db.clone());
+        let retriever = aissistant_storage::KnowledgeRetriever::new(doc_store, vec_store);
+        let citations = retriever
+            .search(query, None, limit, None)
+            .map_err(FfiError::Storage)?;
+        Ok(citations
+            .into_iter()
+            .map(|c| KnowledgeCitationItem {
+                chunk_id: c.chunk_id,
+                document_id: c.document_id,
+                path: c.path,
+                file_name: c.file_name,
+                chunk_index: c.chunk_index,
+                rrf_score: c.rrf_score,
+                bm25_rank: c.bm25_rank,
+                vector_rank: c.vector_rank,
+                cosine_similarity: c.cosine_similarity,
+                content: c.content,
+                snippet: c.snippet,
+            })
+            .collect())
+    }
 }
 
 // Global Singleton Bridge Management
@@ -1084,6 +1217,35 @@ pub fn bridge_device_unpair(device_id: &str) -> FfiResult<()> {
 pub fn bridge_device_simulate_peer(item: DiscoveredPeerItem) -> FfiResult<()> {
     let bridge = get_bridge()?;
     bridge.device_simulate_peer(item)
+}
+
+/// Convenience entry point: lists all indexed documents.
+pub fn bridge_knowledge_list_documents() -> FfiResult<Vec<DocumentRecordItem>> {
+    let bridge = get_bridge()?;
+    bridge.knowledge_list_documents()
+}
+
+/// Convenience entry point: indexes a document text.
+pub fn bridge_knowledge_index_document(
+    path: &str,
+    file_name: &str,
+    mime_type: &str,
+    content: &str,
+) -> FfiResult<String> {
+    let bridge = get_bridge()?;
+    bridge.knowledge_index_document(path, file_name, mime_type, content)
+}
+
+/// Convenience entry point: deletes an indexed document by ID.
+pub fn bridge_knowledge_delete_document(doc_id: &str) -> FfiResult<bool> {
+    let bridge = get_bridge()?;
+    bridge.knowledge_delete_document(doc_id)
+}
+
+/// Convenience entry point: performs hybrid knowledge search.
+pub fn bridge_knowledge_search(query: &str, limit: usize) -> FfiResult<Vec<KnowledgeCitationItem>> {
+    let bridge = get_bridge()?;
+    bridge.knowledge_search(query, limit)
 }
 
 fn hex_encode(bytes: &[u8]) -> String {
