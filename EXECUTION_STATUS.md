@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 7 — Peer-to-Peer Agent Mesh & Cross-Device Synchronization  
-**Next Subphase in Queue:** `S7.P2.1` (Chunked, BLAKE3/SHA-256 Verified Resumable File Transfer)
+**Next Subphase in Queue:** `S7.P2.2` (Low-Latency Cross-Device Screen Capture & Streaming)
 
 ---
 
@@ -69,7 +69,7 @@ Status Legend:
 | **Stage 6** | `S6.P2.2` | Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI | `S6.P2.1` | `COMPLETED` | Verified: 292 Rust workspace unit tests passing (20 in `aissistant-network`, 26 in `aissistant-ffi`), 72 Flutter tests passing (100%), `flutter analyze` zero issues, symmetrical 6-digit SAS derivation (`derive_sas_code`), QR payload serialization, brute-force rate limiting (5m lockout after 3 fails), `PairingSessionManager`, `DeviceSupervisor` FFI bridge, C-ABI functions, `DevicesScreen` UI, SAS display/input dialog, and capability ACL editor verified. |
 | **Stage 7** | `S7.P1.1` | Authenticated Remote Skill RPC & Target Peer Policy Enforcement | `S6.P2.2` | `COMPLETED` | Verified: 299 Rust workspace unit tests passing (27 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, length-delimited framing (4MB cap), TLS caller public key vs DeviceId binding, DeviceRegistry trust verification, peer capability ACL evaluation, PolicyEngine integration, and BLAKE3 hash-chained audit logging verified. |
 | **Stage 7** | `S7.P1.2` | End-to-End Encrypted Clipboard Synchronization | `S7.P1.1` | `COMPLETED` | Verified: 306 Rust workspace unit tests passing (34 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, BLAKE3 content-hash integrity, size boundary enforcement (1MB text / 16MB image), loop suppression cache (LRU echo prevention), peer ACL check, desktop platform clipboard dispatch, and BLAKE3 hash-chained audit logging verified. |
-| **Stage 7** | `S7.P2.1` | Chunked, BLAKE3/SHA-256 Verified Resumable File Transfer | `S7.P1.2` | `PENDING` | — |
+| **Stage 7** | `S7.P2.1` | Chunked, BLAKE3/SHA-256 Verified Resumable File Transfer | `S7.P1.2` | `COMPLETED` | Verified: 311 Rust workspace unit tests passing (39 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, 1 MB chunking, per-chunk and whole-file BLAKE3 digest verification, path traversal defenses (`sanitize_file_name`), `.part` + `.meta` crash consistency and interrupted resume, peer ACL checks, and BLAKE3 hash-chained audit logging verified. |
 | **Stage 7** | `S7.P2.2` | Low-Latency Cross-Device Screen Capture & Streaming | `S7.P2.1` | `PENDING` | — |
 | **Stage 7** | `S7.P2.3` | Permission-Gated Remote Input Control & Session Overlay | `S7.P2.2` | `PENDING` | — |
 | **Stage 8** | `S8.P1.1` | Local Document Ingestion, Chunking & Indexing Pipeline | `S7.P2.3` | `PENDING` | — |
@@ -867,6 +867,24 @@ Status Legend:
   - `clipboard::tests::test_clipboard_sync_over_quic_mtls_loopback`: Verified end-to-end clipboard sync across live Quinn endpoints over loopback UDP sockets with mutual Ed25519 authentication and virtual clipboard writing.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `1f03a54`
+
+### Verification Evidence — S7.P2.1 (Chunked, BLAKE3/SHA-256 Verified Resumable File Transfer)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 11 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (311 passed across 11 crates; 39 in `aissistant-network`)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (72 passed across 10 Flutter test suites)
+- **Test Summary:**
+  - `transfer::tests::test_filename_sanitization_defense`: Verified path traversal defense (`sanitize_file_name`) rejecting directory escapes (`../`, `..\`), root paths, drive letters, null bytes, and dot filenames.
+  - `transfer::tests::test_manifest_creation_and_hash_calculation`: Verified 1 MB chunk slicing, per-chunk BLAKE3 calculation, and whole-file hash computation on multi-chunk binary files.
+  - `transfer::tests::test_file_transfer_end_to_end_and_resumption`: Verified end-to-end file streaming over bidirectional streams, missing chunk bitmap negotiation, offset writes to pre-allocated `.part` file, atomic renaming upon whole-file BLAKE3 verification, and hash-chained audit logging.
+  - `transfer::tests::test_file_transfer_rejects_corrupted_chunk`: Verified that bit-corrupted chunks failing per-chunk BLAKE3 verification fail closed immediately, preventing corrupted data ingestion.
+  - `transfer::tests::test_file_transfer_over_quic_mtls_loopback`: Verified complete file transfer over dual Quinn QUIC endpoints using self-signed Ed25519 mTLS certificates across loopback UDP sockets.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** Pending commit
 
 
 

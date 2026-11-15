@@ -1408,3 +1408,41 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 306 unit and integration tests (0 failures; 34 in `aissistant-network`).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).
+
+
+---
+
+## [2026-11-15] — Stage 7 Phase 2 Subphase 1 (`S7.P2.1`)
+
+### Added
+- `core/crates/aissistant-network/src/transfer.rs`:
+  - Wire protocol messages: `TransferManifest`, `ChunkData`, `TransferResumeResponse`, `TransferStatus`, and `TransferMessage` envelope.
+  - Path traversal defense: `sanitize_file_name` stripping directory separators and rejecting directory traversal (`../`, `..\`), root paths, drive letters, and null bytes.
+  - Cryptographic chunking & integrity:
+    - 1 MB default chunk slicing (`DEFAULT_CHUNK_SIZE_BYTES = 1048576`).
+    - Per-chunk BLAKE3 256-bit hash computation and verification in transit.
+    - Whole-file BLAKE3 verification prior to finalization.
+  - Resumption & crash consistency:
+    - Pre-allocated `.part` temporary files with direct offset writes (`seek` + `write_all`).
+    - Staged `.meta` JSON state tracking completed chunk indices.
+    - Automatic resume negotiation skipping already received and verified chunks.
+    - Atomic rename from `.part` to final file path upon full verification.
+  - `FileTransferReceiver`:
+    - Strict TLS 1.3 Ed25519 caller public key authentication against `origin_device_id`.
+    - `DeviceRegistry` peer trust validation (`DeviceTrustState::Trusted`).
+    - Capability ACL enforcement for `file_system` (or `lan_peer_networking`).
+    - BLAKE3 hash-chained cryptographic audit trail appending with redacted manifest metadata.
+  - `FileTransferSender`:
+    - Manifest generation with per-chunk hashes.
+    - Resume response evaluation.
+    - Streaming chunks over QUIC (`send_file_quic`) and Virtual Sessions (`send_file_virtual`).
+
+### Modified
+- `core/crates/aissistant-network/src/lib.rs`: Exposed and re-exported `transfer` module types and constants.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 311 unit and integration tests (0 failures; 39 in `aissistant-network`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 72 unit and widget tests (0 failures).

@@ -12,6 +12,7 @@ pub mod dns;
 pub mod error;
 pub mod pairing;
 pub mod rpc;
+pub mod transfer;
 pub mod transport;
 pub mod types;
 
@@ -38,6 +39,11 @@ pub use rpc::{
     read_framed_message, resolve_capability_for_skill, write_framed_message, RemoteRpcRequest,
     RemoteRpcResponse, RemoteRpcStatus, RemoteSkillRpcClient, RemoteSkillRpcServer,
     MAX_RPC_MESSAGE_BYTES,
+};
+pub use transfer::{
+    sanitize_file_name, ChunkData, FileTransferReceiver, FileTransferSender, TransferManifest,
+    TransferMessage, TransferResumeResponse, TransferStatus, DEFAULT_CHUNK_SIZE_BYTES,
+    MAX_TRANSFER_FILE_BYTES,
 };
 pub use transport::{
     build_quic_client_config, build_quic_server_config, create_virtual_session_pair,
