@@ -1135,6 +1135,30 @@
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 64 unit and widget tests (0 failures).
 
+---
+
+## [2026-11-15] — Stage 6 Phase 1 Subphase 2 (`S6.P1.2`)
+
+### Added
+- `core/crates/aissistant-network/`:
+  - Created new workspace crate registered in `core/Cargo.toml` as 11th workspace crate.
+  - `src/error.rs`: Defined `NetworkError` taxonomy covering `SocketBindFailed`, `MulticastJoinFailed`, `PacketMalformed`, and I/O error variants.
+  - `src/dns.rs`: Implemented binary wire-format parser and builder conforming to RFC 1035, RFC 6762 (mDNS), and RFC 6763 (DNS-SD) supporting Question and Resource Record types (PTR, SRV, TXT, A, AAAA), length-prefixed domain label encoding, and pointer compression.
+  - `src/types.rs`: Defined domain discovery models: `ServiceConfig`, `DiscoveredPeer`, `DiscoveryEvent` (`PeerDiscovered`, `PeerUpdated`, `PeerLost`), and constants (`MDNS_SERVICE_TYPE = "_aissistant._udp.local"`, `MDNS_PORT = 5353`, `DEFAULT_QUIC_PORT = 51820`).
+  - `src/discovery.rs`:
+    - Implemented `DiscoveryEngine` core trait (`start_advertising`, `stop_advertising`, `is_advertising`, `active_peers`, `send_query`, `poll_events`).
+    - Implemented `VirtualDiscoveryEngine` with in-memory lock-protected peer table for deterministic CI/sandbox simulation, peer announcement injection, update detection, and TTL expiration pruning.
+    - Implemented `MdnsDiscoveryEngine` with live dual-stack UDP socket binding, multicast group join (`224.0.0.251:5353`), non-blocking packet reception, authoritative announcement packet generation, and privacy-preserving metadata handling (strictly broadcasting truncated 8-byte SHA-256 fingerprint, platform, and protocol version without personal identifiers).
+  - `src/lib.rs`: Re-exported public API and added multi-node virtual discovery mesh integration tests.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 11 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 285 unit and integration tests (0 failures; 9 in `aissistant-network`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 64 unit and widget tests (0 failures).
+
+
 
 
 

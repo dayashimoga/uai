@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 6 — Device Agents, Pairing & Device Registry  
-**Next Subphase in Queue:** `S6.P1.2` (mDNS-SD Local Network Discovery (`aissistant-network`))
+**Next Subphase in Queue:** `S6.P2.1` (QUIC/TLS 1.3 Mutual-Authenticated Transport (`quinn` + `rustls`))
 
 ---
 
@@ -64,7 +64,7 @@ Status Legend:
 | **Stage 5** | `S5.P3.1` | Android Native Bridge (Foreground Service, Intents, Media, Accessibility) | `S5.P2.2` | `COMPLETED` | Verified: 57 Flutter tests passing (100%), 270 Rust workspace tests passing, `flutter analyze` zero issues, `AssistantForegroundService` (microphone type, wake lock, low-priority notification), `MediaSessionManager` (hardware buttons, AudioFocus ducking), `AssistantAccessibilityService` (offline window inspection, node clicking), and `MobilePlatformBridge` MethodChannel verified. |
 | **Stage 5** | `S5.P3.2` | iOS Native Bridge (AVAudioSession, App Intents/Siri Shortcuts, Scoped Files) | `S5.P3.1` | `COMPLETED` | Verified: 64 Flutter tests passing (100%), 270 Rust workspace tests passing, `flutter analyze` zero issues, `AudioSessionManager` (AVAudioSession .playAndRecord, .spokenAudio, interruption & route change notifications), `AppDelegate` Siri Shortcuts / URL scheme routing, `startAccessingSecurityScopedResource` document bookmark access, and `IosPlatformBridge` MethodChannel verified. |
 | **Stage 6** | `S6.P1.1` | Persistent Device Registry & Peer ACL Store | `S5.P3.2` | `COMPLETED` | Verified: 276 Rust workspace unit tests passing (34 in `aissistant-core`, 32 in `aissistant-storage`), clippy zero warnings, fmt check passed, 64 Flutter tests passing, `Migration 5` schema (paired_devices & peer_permissions tables), cascading deletion, heartbeat updating, trust state transitions, default-deny ACL evaluation, and BLAKE3 hash-chained audit logging verified. |
-| **Stage 6** | `S6.P1.2` | mDNS-SD Local Network Discovery (`aissistant-network`) | `S6.P1.1` | `PENDING` | — |
+| **Stage 6** | `S6.P1.2` | mDNS-SD Local Network Discovery (`aissistant-network`) | `S6.P1.1` | `COMPLETED` | Verified: 285 Rust workspace unit tests passing (9 in `aissistant-network`), clippy zero warnings, fmt check passed, 64 Flutter tests passing, RFC 1035/6762/6763 DNS wire-format builder/parser, privacy-preserving TXT metadata, VirtualDiscoveryEngine deterministic simulation, and MdnsDiscoveryEngine dual-stack UDP multicast verified. |
 | **Stage 6** | `S6.P2.1` | QUIC/TLS 1.3 Mutual-Authenticated Transport (`quinn` + `rustls`) | `S6.P1.2` | `PENDING` | — |
 | **Stage 6** | `S6.P2.2` | Out-of-Band SAS / QR Code Pairing Ceremony & Device Management UI | `S6.P2.1` | `PENDING` | — |
 | **Stage 7** | `S7.P1.1` | Authenticated Remote Skill RPC & Target Peer Policy Enforcement | `S6.P2.2` | `PENDING` | — |
@@ -785,6 +785,27 @@ Status Legend:
   - `device_registry::tests::test_device_registry_audit_log_continuity`: Verified that device registrations, trust updates, permission modifications, and deletions append cryptographically sealed, hash-chained entries to the security audit log (`verify_integrity` passes).
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `c704073`
+
+### Verification Evidence — S6.P1.2 (mDNS-SD Local Network Discovery — aissistant-network)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 11 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (285 passed across 11 crates; 9 in `aissistant-network`)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (64 passed across 9 Flutter test suites)
+- **Test Summary:**
+  - `dns::tests::test_dns_packet_query_roundtrip`: Verified RFC 1035 wire encoding and decoding for standard PTR query packets (`_aissistant._udp.local.`).
+  - `dns::tests::test_dns_packet_response_roundtrip_with_srv_txt_a`: Verified RFC 6762 / RFC 6763 wire encoding and decoding for mDNS response packets containing SRV, TXT, and A resource records with length-prefixed domain labels and pointer compression.
+  - `discovery::tests::test_fingerprint_formatting_and_parsing`: Verified 8-byte public key fingerprint formatting to 16-hex characters and round-trip decoding with invalid character rejection.
+  - `discovery::tests::test_build_and_parse_announcement`: Verified constructing authoritative announcement packets (PTR, SRV, TXT, A) and decoding `DiscoveredPeer` with metadata (`proto_ver`, `platform`, `fp`, addresses).
+  - `discovery::tests::test_virtual_discovery_engine_lifecycle`: Verified `VirtualDiscoveryEngine` advertising lifecycle, peer discovery/update/expiration event dispatching, and deterministic pruning without OS socket dependencies.
+  - `discovery::tests::test_mdns_engine_loopback_datagram_exchange`: Verified `MdnsDiscoveryEngine` loopback datagram exchange between two live UDP sockets, announcement packet broadcast, and non-blocking packet ingestion.
+  - `tests::test_end_to_end_virtual_mesh_discovery`: Verified multi-node virtual discovery mesh simulating simultaneous bi-directional peer discovery across Windows and Linux nodes.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** `b5f7b01`
+
 
 
 
