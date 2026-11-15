@@ -341,4 +341,4 @@ Status Legend:
   - `tests::test_audio_capture_stream_virtual_lifecycle`: Verified capture stream start, pause, software mute, and real-time level snapshot querying.
   - `tests::test_audio_playback_stream_virtual_lifecycle_and_volume`: Verified playback stream start, pause, linear volume scaling ($0.0 \dots 1.0$), queueing, and flush.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `33b5dbc910ddd406e077aa9c4469ea7b895bea97`
