@@ -1601,3 +1601,58 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 343 unit and integration tests (0 failures; 40 in `aissistant-storage`, 27 in `aissistant-ffi`).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 77 unit and widget tests (0 failures).
+
+---
+
+## [2026-11-15] — Stage 8 Phase 2 Subphase 1 (`S8.P2.1`)
+
+### Added
+- `core/crates/aissistant-llm/src/vision.rs`:
+  - `ImageFormat`: Image format enumeration supporting PNG, JPEG, Grayscale, and RawRGB.
+  - `ImageMetadata`: Structural image properties (dimensions, channel count, byte count, format).
+  - `ImageBuffer`: Low-level pixel buffer supporting bilinear interpolation resizing, RGB luminosity downmixing, and PNG (`IHDR`) / JPEG (`SOF0`) binary header parsing without external runtime dependencies.
+  - `VisionPreprocessorConfig`: Model configuration for input dimensions, normalization means/stds, and patch extraction sizes.
+  - `ImagePatch`: Normalized vision transformer (`ViT`) patch representation with 2D grid coordinate tagging.
+  - `VisionPreprocessor`: Preprocessing engine implementing aspect-ratio-preserving letterboxing, ImageNet normalization, and patch extraction.
+- `core/crates/aissistant-llm/src/ocr.rs`:
+  - `OcrBoundingBox`: Normalized `[x, y, w, h]` bounding box in `[0.0, 1.0]` space with area, intersection, union, and Intersection over Union (IoU) calculation.
+  - `OcrWord`: Individual word segmentation with bounding box and confidence score.
+  - `OcrTextLine`: Grouped text line with ordered words and line-level bounding box.
+  - `OcrDocument`: Complete document extraction result with lines, full concatenated text, average confidence, and latency metrics.
+  - `OfflineOcrEngine`: Edge-based OCR engine using horizontal and vertical contrast projection profiling for line and word segmentation, embedded glyph analysis, and layout reconstruction.
+- `app/lib/core/models/vision_models.dart`:
+  - `OcrBoundingBoxItem`, `OcrWordItem`, `OcrTextLineItem`, and `OcrDocumentItem` immutable Dart models with full JSON serialization.
+- `app/lib/ui/screens/vision_screen.dart`:
+  - Responsive Vision & OCR screen featuring 100% offline edge notice, input sample selector chips (Invoice, Architecture Diagram, Terminal Diagnostics), extract OCR action button, extraction metrics banner (average confidence, lines detected, latency, dimensions), recognized full text card with copy to clipboard button, and line-by-line bounding box breakdown.
+- `app/test/vision_screen_test.dart`:
+  - 5 comprehensive widget and interaction tests verifying UI rendering, OCR extraction, metric chips, sample switching, clipboard copy, and adaptive shell navigation.
+
+### Modified
+- `core/crates/aissistant-core/src/capability.rs`:
+  - Added `Capability::VisionOcr` variant, string parsing, and 5-platform capability matrix mapping (`Supported` on Windows, Linux, macOS; `RequiresPermission(CAMERA)` on Android, iOS).
+- `core/crates/aissistant-llm/src/error.rs`:
+  - Added `LlmError::VisionError` and `LlmError::OcrError` error taxonomy variants.
+- `core/crates/aissistant-llm/src/lib.rs`:
+  - Exposed and re-exported `vision` and `ocr` modules, types, and engines.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Added `OcrBoundingBoxItem`, `OcrWordItem`, `OcrTextLineItem`, and `OcrDocumentItem` FFI types.
+  - Added `vision_ocr_extract` method to `CoreBridge` and convenience wrapper `bridge_vision_ocr_extract`.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Added safe C-ABI function: `bridge_c_vision_ocr_extract(image_ptr: *const u8, image_len: usize) -> *mut c_char`.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Re-exported OCR types and added `test_vision_ocr_bridge_and_c_abi` integration test.
+- `app/lib/core/ffi_bridge.dart`:
+  - Added `extractOcr` method to `AissistantBridge`, `NativeFfiBridge` (C-ABI binding), and `TestHarnessBridge` (mock with structured lines/words/bounding boxes), and added `vision_ocr` capability to test harness.
+- `app/lib/core/assistant_controller.dart`:
+  - Added reactive vision OCR state (`activeOcrResult`, `isProcessingOcr`, `ocrError`) and methods (`extractOcr`, `clearOcrResult`).
+- `app/lib/ui/adaptive_shell.dart`:
+  - Added `VisionScreen` navigation destination to desktop `NavigationRail` and mobile `NavigationBar`.
+- `app/test/assistant_controller_test.dart` and `app/test/capabilities_screen_test.dart`:
+  - Updated capability count expectations to reflect 10 active capabilities.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed cleanly.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across all 11 workspace crates.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 351 unit and integration tests (0 failures; 13 in `aissistant-llm`, 28 in `aissistant-ffi`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 82 unit and widget tests (0 failures).

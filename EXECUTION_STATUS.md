@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 8 — Vision, Knowledge, Translation & Advanced Intelligence  
-**Next Subphase in Queue:** `S8.P2.1` (Offline OCR & Multimodal Vision Model Integration)
+**Next Subphase in Queue:** `S8.P2.2` (Offline Multilingual Translation & Live Voice Interpreter Mode)
 
 ---
 
@@ -74,7 +74,7 @@ Status Legend:
 | **Stage 7** | `S7.P2.3` | Permission-Gated Remote Input Control & Session Overlay | `S7.P2.2` | `COMPLETED` | Verified: 312 Rust workspace unit tests passing (48 in `aissistant-network`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, normalized coordinate clamping, TLS caller public key vs DeviceId binding, peer trust and `remote_input_injection_host` ACL validation (`AlwaysAllow`), host emergency escape preemption (`terminate_session`), and BLAKE3 hash-chained audit logging verified. |
 | **Stage 8** | `S8.P1.1` | Local Document Ingestion, Chunking & Indexing Pipeline | `S7.P2.3` | `COMPLETED` | Verified: 318 Rust workspace unit tests passing (38 in `aissistant-storage`), clippy zero warnings, fmt check passed, 72 Flutter tests passing, Migration 6 schema runner, boundary-aware document chunking, BLAKE3 incremental skip and update, cascading deletion purging FTS and vector records, and SQLite FTS5 BM25 search verified. |
 | **Stage 8** | `S8.P1.2` | Citation-Grounded Offline RAG & Knowledge Explorer UI | `S8.P1.1` | `COMPLETED` | Verified: 343 Rust workspace unit tests passing (40 in `aissistant-storage`, 27 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 77 Flutter tests passing, KnowledgeRetriever RRF hybrid search fusing BM25 lexical and dense vector signals, grounded citation generation with token budget limits, safe FFI and C-ABI exports, reactive AssistantController knowledge state, and responsive KnowledgeExplorer UI verified. |
-| **Stage 8** | `S8.P2.1` | Offline OCR & Multimodal Vision Model Integration | `S8.P1.2` | `PENDING` | — |
+| **Stage 8** | `S8.P2.1` | Offline OCR & Multimodal Vision Model Integration | `S8.P1.2` | `COMPLETED` | Verified [Commit `23e6d9d`]: 351 Rust workspace unit tests passing (13 in `aissistant-llm`, 28 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 82 Flutter tests passing (100%), `flutter analyze` zero issues, offline `ImageBuffer` & `VisionPreprocessor` (PNG/JPEG headers, bilinear interpolation, aspect-ratio preservation, ImageNet normalization, patch extraction), `OfflineOcrEngine` (contrast projection profiling, bounding box IoU calculation, confidence scoring), safe FFI & C-ABI exports, reactive `AssistantController` vision state, and responsive `VisionScreen` UI with sample inspection, metrics, full text clipboard copy, and bounding box layout breakdown verified. |
 | **Stage 8** | `S8.P2.2` | Offline Multilingual Translation & Live Voice Interpreter Mode | `S8.P2.1` | `PENDING` | — |
 | **Stage 9** | `S9.P1.1` | User Persona, Voice Profile & Explicit Preference Manager | `S8.P2.2` | `PENDING` | — |
 | **Stage 9** | `S9.P1.2` | Cron, Event-Triggered & Cross-Device Workflow Automation Engine | `S9.P1.1` | `PENDING` | — |
@@ -962,6 +962,32 @@ Status Legend:
   - `knowledge_screen_test::deletes an indexed document after confirmation`: Verified deletion confirmation dialog and cascading purge of document and chunks.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `7cc68a6`
+
+### Verification Evidence — S8.P2.1 (Offline OCR & Multimodal Vision Model Integration)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `Flutter 3.44.6`, `Dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across all 11 workspace crates)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (351 passed across 11 crates; 13 in `aissistant-llm`, 28 in `aissistant-ffi`)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (82 passed across 12 Flutter test suites)
+- **Test Summary:**
+  - `vision::tests::test_image_buffer_resizing_bilinear`: Verified bilinear interpolation image scaling and RGB downsampling.
+  - `vision::tests::test_image_buffer_grayscale_conversion`: Verified perceptual luminosity grayscale conversion (`0.299 * R + 0.587 * G + 0.114 * B`).
+  - `vision::tests::test_vision_preprocessor_patch_extraction`: Verified square patch generation with coordinate tagging for Vision Transformers (`ViT`).
+  - `vision::tests::test_image_header_parser_png_and_jpeg`: Verified binary magic bytes and dimension extraction from PNG (`IHDR`) and JPEG (`SOF0`) headers.
+  - `ocr::tests::test_bounding_box_iou_and_union`: Verified 2D bounding box intersection, union, and Intersection over Union (IoU) calculation.
+  - `ocr::tests::test_ocr_engine_projection_profiling_and_extraction`: Verified horizontal and vertical contrast projection segmentation for text lines and word bounding boxes with confidence scoring.
+  - `tests::test_vision_ocr_bridge_and_c_abi`: Verified C-ABI binding `bridge_c_vision_ocr_extract`, JSON roundtrip serialization of `OcrDocumentItem`, and memory safety via `bridge_c_free_string`.
+  - `vision_screen_test::renders VisionScreen with offline header, sample selector, and empty state`: Verified responsive UI shell, offline notice badge, sample chips, and extract action button.
+  - `vision_screen_test::triggers OCR extraction and displays metrics, full text, and line breakdown`: Verified end-to-end OCR execution, latency metric, average confidence, dimension chip, full text view, and line-by-line bounding box breakdown.
+  - `vision_screen_test::switches sample chips, extracts OCR, and clears OCR result`: Verified input sample selection, execution, and state clearing.
+  - `vision_screen_test::copies recognized text to clipboard and shows confirmation snackbar`: Verified clipboard integration (`Clipboard.setData`) and notification snackbar.
+  - `vision_screen_test::adaptive shell displays Vision destination and navigates to it`: Verified responsive navigation via NavigationRail on desktop and NavigationBar on mobile.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** `23e6d9d`
+
 
 
 
