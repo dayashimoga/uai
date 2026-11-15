@@ -13,7 +13,8 @@ use aissistant_security::{
     GENESIS_PREV_HASH,
 };
 use aissistant_storage::{
-    AuditStore, FileBoundKeystore, KeystoreProvider, SecretStore, SettingsStore, SqliteDb,
+    AuditStore, FileBoundKeystore, KeystoreProvider, PersonaStore, PersonaTone, ResponseVerbosity,
+    SecretStore, SettingsStore, SqliteDb, UserPersona, UserPreference,
 };
 use serde::{Deserialize, Serialize};
 
@@ -258,12 +259,92 @@ pub struct InterpreterSessionStatusItem {
     pub turn_count: usize,
 }
 
+/// FFI view of a user persona.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UserPersonaItem {
+    pub id: String,
+    pub name: String,
+    pub tone: String,
+    pub verbosity: String,
+    pub voice_id: String,
+    pub speaking_rate: f32,
+    pub pitch: f32,
+    pub system_prompt_override: Option<String>,
+    pub is_active: bool,
+    pub created_at_ms: i64,
+    pub updated_at_ms: i64,
+}
+
+impl From<UserPersona> for UserPersonaItem {
+    fn from(p: UserPersona) -> Self {
+        Self {
+            id: p.id,
+            name: p.name,
+            tone: p.tone.as_str().to_string(),
+            verbosity: p.verbosity.as_str().to_string(),
+            voice_id: p.voice_id,
+            speaking_rate: p.speaking_rate,
+            pitch: p.pitch,
+            system_prompt_override: p.system_prompt_override,
+            is_active: p.is_active,
+            created_at_ms: p.created_at_ms,
+            updated_at_ms: p.updated_at_ms,
+        }
+    }
+}
+
+impl TryFrom<UserPersonaItem> for UserPersona {
+    type Error = FfiError;
+
+    fn try_from(item: UserPersonaItem) -> Result<Self, Self::Error> {
+        let tone = PersonaTone::from_str(&item.tone)
+            .map_err(|e| FfiError::InvalidParameter(e.to_string()))?;
+        let verbosity = ResponseVerbosity::from_str(&item.verbosity)
+            .map_err(|e| FfiError::InvalidParameter(e.to_string()))?;
+
+        Ok(Self {
+            id: item.id,
+            name: item.name,
+            tone,
+            verbosity,
+            voice_id: item.voice_id,
+            speaking_rate: item.speaking_rate,
+            pitch: item.pitch,
+            system_prompt_override: item.system_prompt_override,
+            is_active: item.is_active,
+            created_at_ms: item.created_at_ms,
+            updated_at_ms: item.updated_at_ms,
+        })
+    }
+}
+
+/// FFI view of an explicit user preference entry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UserPreferenceItem {
+    pub key: String,
+    pub value_json: String,
+    pub category: String,
+    pub updated_at_ms: i64,
+}
+
+impl From<UserPreference> for UserPreferenceItem {
+    fn from(pref: UserPreference) -> Self {
+        Self {
+            key: pref.key,
+            value_json: pref.value_json,
+            category: pref.category,
+            updated_at_ms: pref.updated_at_ms,
+        }
+    }
+}
+
 /// Core bridge orchestrating subsystem access and safe FFI dispatch.
 pub struct CoreBridge {
     db: SqliteDb,
     audit_store: AuditStore,
     settings_store: SettingsStore,
     secret_store: SecretStore,
+    persona_store: PersonaStore,
     capability_registry: RwLock<CapabilityRegistry>,
     policy_engine: RwLock<PolicyEngine>,
     event_sink: Arc<EventStreamSink>,
@@ -304,6 +385,7 @@ impl CoreBridge {
         let settings_store = SettingsStore::new(db.clone());
         let master_key = AeadKey::generate();
         let secret_store = SecretStore::new(db.clone(), master_key);
+        let persona_store = PersonaStore::new(db.clone());
         let capability_registry = RwLock::new(CapabilityRegistry::for_current_host());
         let policy_engine = RwLock::new(PolicyEngine::new());
         let identity = DeviceIdentity::generate();
@@ -328,6 +410,7 @@ impl CoreBridge {
             audit_store,
             settings_store,
             secret_store,
+            persona_store,
             capability_registry,
             policy_engine,
             event_sink,
@@ -369,6 +452,7 @@ impl CoreBridge {
             }
         };
         let secret_store = SecretStore::new(db.clone(), master_key);
+        let persona_store = PersonaStore::new(db.clone());
 
         let capability_registry = RwLock::new(CapabilityRegistry::for_current_host());
         let policy_engine = RwLock::new(PolicyEngine::new());
@@ -394,6 +478,7 @@ impl CoreBridge {
             audit_store,
             settings_store,
             secret_store,
+            persona_store,
             capability_registry,
             policy_engine,
             event_sink,
@@ -1104,7 +1189,8 @@ impl CoreBridge {
                         height: l.bbox.height,
                     },
                     confidence: l.confidence,
-                    words: l.words
+                    words: l
+                        .words
                         .into_iter()
                         .map(|w| OcrWordItem {
                             text: w.text,
@@ -1267,6 +1353,64 @@ impl CoreBridge {
 
         session_guard.clear_history();
         Ok(())
+    }
+
+    // Persona & Preference Management
+
+    /// Returns the currently active user persona, if configured.
+    pub fn get_active_persona(&self) -> FfiResult<Option<UserPersonaItem>> {
+        let persona = self.persona_store.get_active_persona()?;
+        Ok(persona.map(Into::into))
+    }
+
+    /// Lists all stored user personas.
+    pub fn list_personas(&self) -> FfiResult<Vec<UserPersonaItem>> {
+        let personas = self.persona_store.list_personas()?;
+        Ok(personas.into_iter().map(Into::into).collect())
+    }
+
+    /// Saves or updates a user persona.
+    pub fn save_persona(&self, item: UserPersonaItem) -> FfiResult<()> {
+        let persona: UserPersona = item.try_into()?;
+        self.persona_store.save_persona(&persona)?;
+        Ok(())
+    }
+
+    /// Sets the specified persona as active.
+    pub fn set_active_persona(&self, id: &str) -> FfiResult<()> {
+        self.persona_store.set_active_persona(id)?;
+        Ok(())
+    }
+
+    /// Deletes a persona by ID.
+    pub fn delete_persona(&self, id: &str) -> FfiResult<bool> {
+        let deleted = self.persona_store.delete_persona(id)?;
+        Ok(deleted)
+    }
+
+    /// Retrieves an explicit user preference by key.
+    pub fn get_preference(&self, key: &str) -> FfiResult<Option<UserPreferenceItem>> {
+        let pref = self.persona_store.get_preference(key)?;
+        Ok(pref.map(Into::into))
+    }
+
+    /// Sets or updates an explicit user preference.
+    pub fn set_preference(&self, key: &str, value_json: &str, category: &str) -> FfiResult<()> {
+        self.persona_store
+            .set_preference(key, value_json, category)?;
+        Ok(())
+    }
+
+    /// Lists user preferences, optionally filtered by category.
+    pub fn list_preferences(&self, category: Option<&str>) -> FfiResult<Vec<UserPreferenceItem>> {
+        let prefs = self.persona_store.list_preferences(category)?;
+        Ok(prefs.into_iter().map(Into::into).collect())
+    }
+
+    /// Deletes an explicit user preference.
+    pub fn delete_preference(&self, key: &str) -> FfiResult<bool> {
+        let deleted = self.persona_store.delete_preference(key)?;
+        Ok(deleted)
     }
 }
 
@@ -1573,6 +1717,60 @@ pub fn bridge_interpreter_swap_languages() -> FfiResult<InterpreterSessionStatus
 pub fn bridge_interpreter_clear_session() -> FfiResult<()> {
     let bridge = get_bridge()?;
     bridge.interpreter_clear_session()
+}
+
+/// Convenience entry point: gets active user persona.
+pub fn bridge_get_active_persona() -> FfiResult<Option<UserPersonaItem>> {
+    let bridge = get_bridge()?;
+    bridge.get_active_persona()
+}
+
+/// Convenience entry point: lists all user personas.
+pub fn bridge_list_personas() -> FfiResult<Vec<UserPersonaItem>> {
+    let bridge = get_bridge()?;
+    bridge.list_personas()
+}
+
+/// Convenience entry point: saves or updates a user persona.
+pub fn bridge_save_persona(persona: UserPersonaItem) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.save_persona(persona)
+}
+
+/// Convenience entry point: sets active persona by ID.
+pub fn bridge_set_active_persona(id: &str) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.set_active_persona(id)
+}
+
+/// Convenience entry point: deletes a persona by ID.
+pub fn bridge_delete_persona(id: &str) -> FfiResult<bool> {
+    let bridge = get_bridge()?;
+    bridge.delete_persona(id)
+}
+
+/// Convenience entry point: gets an explicit user preference by key.
+pub fn bridge_get_preference(key: &str) -> FfiResult<Option<UserPreferenceItem>> {
+    let bridge = get_bridge()?;
+    bridge.get_preference(key)
+}
+
+/// Convenience entry point: sets or updates an explicit user preference.
+pub fn bridge_set_preference(key: &str, value_json: &str, category: &str) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.set_preference(key, value_json, category)
+}
+
+/// Convenience entry point: lists explicit user preferences, optionally filtered by category.
+pub fn bridge_list_preferences(category: Option<&str>) -> FfiResult<Vec<UserPreferenceItem>> {
+    let bridge = get_bridge()?;
+    bridge.list_preferences(category)
+}
+
+/// Convenience entry point: deletes an explicit user preference.
+pub fn bridge_delete_preference(key: &str) -> FfiResult<bool> {
+    let bridge = get_bridge()?;
+    bridge.delete_preference(key)
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

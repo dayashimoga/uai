@@ -14,6 +14,7 @@ import 'models/health_report.dart';
 import 'models/interpreter_models.dart';
 import 'models/knowledge_models.dart';
 import 'models/model_item.dart';
+import 'models/persona_models.dart';
 import 'models/vision_models.dart';
 import 'models/voice_state.dart';
 
@@ -71,6 +72,15 @@ abstract class AissistantBridge {
   List<InterpreterTurnItem> getInterpreterTurns();
   InterpreterSessionStatusItem swapInterpreterLanguages();
   void clearInterpreterSession();
+  UserPersonaItem? getActivePersona();
+  List<UserPersonaItem> listPersonas();
+  void savePersona(UserPersonaItem persona);
+  void setActivePersona(String id);
+  bool deletePersona(String id);
+  UserPreferenceItem? getPreference(String key);
+  void setPreference(String key, String valueJson, String category);
+  List<UserPreferenceItem> listPreferences({String? category});
+  bool deletePreference(String key);
   Stream<BridgeEvent> get eventStream;
 }
 
@@ -221,6 +231,41 @@ typedef _BridgeInterpreterSwapDart = Pointer<Utf8> Function();
 typedef _BridgeInterpreterClearC = Int32 Function();
 typedef _BridgeInterpreterClearDart = int Function();
 
+typedef _BridgePersonaGetActiveC = Pointer<Utf8> Function();
+typedef _BridgePersonaGetActiveDart = Pointer<Utf8> Function();
+
+typedef _BridgePersonaListC = Pointer<Utf8> Function();
+typedef _BridgePersonaListDart = Pointer<Utf8> Function();
+
+typedef _BridgePersonaSaveC = Pointer<Utf8> Function(Pointer<Utf8> personaJson);
+typedef _BridgePersonaSaveDart = Pointer<Utf8> Function(Pointer<Utf8> personaJson);
+
+typedef _BridgePersonaSetActiveC = Pointer<Utf8> Function(Pointer<Utf8> id);
+typedef _BridgePersonaSetActiveDart = Pointer<Utf8> Function(Pointer<Utf8> id);
+
+typedef _BridgePersonaDeleteC = Pointer<Utf8> Function(Pointer<Utf8> id);
+typedef _BridgePersonaDeleteDart = Pointer<Utf8> Function(Pointer<Utf8> id);
+
+typedef _BridgePreferenceGetC = Pointer<Utf8> Function(Pointer<Utf8> key);
+typedef _BridgePreferenceGetDart = Pointer<Utf8> Function(Pointer<Utf8> key);
+
+typedef _BridgePreferenceSetC = Pointer<Utf8> Function(
+  Pointer<Utf8> key,
+  Pointer<Utf8> valueJson,
+  Pointer<Utf8> category,
+);
+typedef _BridgePreferenceSetDart = Pointer<Utf8> Function(
+  Pointer<Utf8> key,
+  Pointer<Utf8> valueJson,
+  Pointer<Utf8> category,
+);
+
+typedef _BridgePreferenceListC = Pointer<Utf8> Function(Pointer<Utf8> category);
+typedef _BridgePreferenceListDart = Pointer<Utf8> Function(Pointer<Utf8> category);
+
+typedef _BridgePreferenceDeleteC = Pointer<Utf8> Function(Pointer<Utf8> key);
+typedef _BridgePreferenceDeleteDart = Pointer<Utf8> Function(Pointer<Utf8> key);
+
 /// Native FFI implementation driving aissistant-ffi C-ABI entry points.
 class NativeFfiBridge implements AissistantBridge {
   final DynamicLibrary _lib;
@@ -267,6 +312,15 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeInterpreterGetTurnsDart _interpreterGetTurns;
   late final _BridgeInterpreterSwapDart _interpreterSwap;
   late final _BridgeInterpreterClearDart _interpreterClear;
+  late final _BridgePersonaGetActiveDart _personaGetActive;
+  late final _BridgePersonaListDart _personaList;
+  late final _BridgePersonaSaveDart _personaSave;
+  late final _BridgePersonaSetActiveDart _personaSetActive;
+  late final _BridgePersonaDeleteDart _personaDelete;
+  late final _BridgePreferenceGetDart _preferenceGet;
+  late final _BridgePreferenceSetDart _preferenceSet;
+  late final _BridgePreferenceListDart _preferenceList;
+  late final _BridgePreferenceDeleteDart _preferenceDelete;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -310,6 +364,15 @@ class NativeFfiBridge implements AissistantBridge {
     _interpreterGetTurns = _lib.lookupFunction<_BridgeInterpreterGetTurnsC, _BridgeInterpreterGetTurnsDart>('bridge_c_interpreter_get_turns');
     _interpreterSwap = _lib.lookupFunction<_BridgeInterpreterSwapC, _BridgeInterpreterSwapDart>('bridge_c_interpreter_swap_languages');
     _interpreterClear = _lib.lookupFunction<_BridgeInterpreterClearC, _BridgeInterpreterClearDart>('bridge_c_interpreter_clear');
+    _personaGetActive = _lib.lookupFunction<_BridgePersonaGetActiveC, _BridgePersonaGetActiveDart>('bridge_c_persona_get_active');
+    _personaList = _lib.lookupFunction<_BridgePersonaListC, _BridgePersonaListDart>('bridge_c_persona_list');
+    _personaSave = _lib.lookupFunction<_BridgePersonaSaveC, _BridgePersonaSaveDart>('bridge_c_persona_save');
+    _personaSetActive = _lib.lookupFunction<_BridgePersonaSetActiveC, _BridgePersonaSetActiveDart>('bridge_c_persona_set_active');
+    _personaDelete = _lib.lookupFunction<_BridgePersonaDeleteC, _BridgePersonaDeleteDart>('bridge_c_persona_delete');
+    _preferenceGet = _lib.lookupFunction<_BridgePreferenceGetC, _BridgePreferenceGetDart>('bridge_c_preference_get');
+    _preferenceSet = _lib.lookupFunction<_BridgePreferenceSetC, _BridgePreferenceSetDart>('bridge_c_preference_set');
+    _preferenceList = _lib.lookupFunction<_BridgePreferenceListC, _BridgePreferenceListDart>('bridge_c_preference_list');
+    _preferenceDelete = _lib.lookupFunction<_BridgePreferenceDeleteC, _BridgePreferenceDeleteDart>('bridge_c_preference_delete');
     _freeString = _lib.lookupFunction<_BridgeFreeStringC, _BridgeFreeStringDart>('bridge_c_free_string');
   }
 
@@ -898,6 +961,217 @@ class NativeFfiBridge implements AissistantBridge {
     final res = _interpreterClear();
     if (res != 0) {
       throw StateError('Failed to clear interpreter session');
+    }
+  }
+
+  @override
+  UserPersonaItem? getActivePersona() {
+    final ptr = _personaGetActive();
+    if (ptr.address == 0) return null;
+    try {
+      final jsonStr = ptr.toDartString();
+      if (jsonStr == 'null') return null;
+      final map = jsonDecode(jsonStr);
+      if (map is Map<String, dynamic>) {
+        if (map.containsKey('code') || map.containsKey('error')) return null;
+        return UserPersonaItem.fromJson(map);
+      }
+      return null;
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  List<UserPersonaItem> listPersonas() {
+    final ptr = _personaList();
+    if (ptr.address == 0) return [];
+    try {
+      final jsonStr = ptr.toDartString();
+      final decoded = jsonDecode(jsonStr);
+      if (decoded is List) {
+        return decoded
+            .map((e) => UserPersonaItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  void savePersona(UserPersonaItem persona) {
+    final jsonStr = jsonEncode(persona.toJson());
+    final jsonPtr = jsonStr.toNativeUtf8();
+    try {
+      final ptr = _personaSave(jsonPtr);
+      if (ptr.address != 0) {
+        try {
+          final res = ptr.toDartString();
+          if (res != 'null') {
+            final map = jsonDecode(res);
+            if (map is Map<String, dynamic> &&
+                (map.containsKey('code') || map.containsKey('error'))) {
+              throw StateError(
+                (map['message'] ?? 'Failed to save persona').toString(),
+              );
+            }
+          }
+        } finally {
+          _freeString(ptr);
+        }
+      }
+    } finally {
+      malloc.free(jsonPtr);
+    }
+  }
+
+  @override
+  void setActivePersona(String id) {
+    final idPtr = id.toNativeUtf8();
+    try {
+      final ptr = _personaSetActive(idPtr);
+      if (ptr.address != 0) {
+        try {
+          final res = ptr.toDartString();
+          if (res != 'null') {
+            final map = jsonDecode(res);
+            if (map is Map<String, dynamic> &&
+                (map.containsKey('code') || map.containsKey('error'))) {
+              throw StateError(
+                (map['message'] ?? 'Failed to activate persona').toString(),
+              );
+            }
+          }
+        } finally {
+          _freeString(ptr);
+        }
+      }
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  bool deletePersona(String id) {
+    final idPtr = id.toNativeUtf8();
+    try {
+      final ptr = _personaDelete(idPtr);
+      if (ptr.address == 0) return false;
+      try {
+        final res = ptr.toDartString();
+        final decoded = jsonDecode(res);
+        if (decoded is bool) return decoded;
+        if (decoded is Map<String, dynamic> &&
+            (decoded.containsKey('code') || decoded.containsKey('error'))) {
+          throw StateError(
+            (decoded['message'] ?? 'Failed to delete persona').toString(),
+          );
+        }
+        return false;
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  UserPreferenceItem? getPreference(String key) {
+    final keyPtr = key.toNativeUtf8();
+    try {
+      final ptr = _preferenceGet(keyPtr);
+      if (ptr.address == 0) return null;
+      try {
+        final res = ptr.toDartString();
+        if (res == 'null') return null;
+        final decoded = jsonDecode(res);
+        if (decoded is Map<String, dynamic>) {
+          if (decoded.containsKey('code') || decoded.containsKey('error')) return null;
+          return UserPreferenceItem.fromJson(decoded);
+        }
+        return null;
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(keyPtr);
+    }
+  }
+
+  @override
+  void setPreference(String key, String valueJson, String category) {
+    final keyPtr = key.toNativeUtf8();
+    final valPtr = valueJson.toNativeUtf8();
+    final catPtr = category.toNativeUtf8();
+    try {
+      final ptr = _preferenceSet(keyPtr, valPtr, catPtr);
+      if (ptr.address != 0) {
+        try {
+          final res = ptr.toDartString();
+          if (res != 'null') {
+            final map = jsonDecode(res);
+            if (map is Map<String, dynamic> &&
+                (map.containsKey('code') || map.containsKey('error'))) {
+              throw StateError(
+                (map['message'] ?? 'Failed to set preference').toString(),
+              );
+            }
+          }
+        } finally {
+          _freeString(ptr);
+        }
+      }
+    } finally {
+      malloc.free(keyPtr);
+      malloc.free(valPtr);
+      malloc.free(catPtr);
+    }
+  }
+
+  @override
+  List<UserPreferenceItem> listPreferences({String? category}) {
+    final catPtr = category != null ? category.toNativeUtf8() : Pointer<Utf8>.fromAddress(0);
+    try {
+      final ptr = _preferenceList(catPtr);
+      if (ptr.address == 0) return [];
+      try {
+        final res = ptr.toDartString();
+        final decoded = jsonDecode(res);
+        if (decoded is List) {
+          return decoded
+              .map((e) => UserPreferenceItem.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        return [];
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      if (category != null) {
+        malloc.free(catPtr);
+      }
+    }
+  }
+
+  @override
+  bool deletePreference(String key) {
+    final keyPtr = key.toNativeUtf8();
+    try {
+      final ptr = _preferenceDelete(keyPtr);
+      if (ptr.address == 0) return false;
+      try {
+        final res = ptr.toDartString();
+        final decoded = jsonDecode(res);
+        if (decoded is bool) return decoded;
+        return false;
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(keyPtr);
     }
   }
 }
@@ -1713,5 +1987,130 @@ class TestHarnessBridge implements AissistantBridge {
       activeSpeaker: 'party_a',
       turnCount: 0,
     );
+  }
+
+  final List<UserPersonaItem> _personas = [
+    const UserPersonaItem(
+      id: 'persona_default',
+      name: 'Default Assistant',
+      tone: 'balanced',
+      verbosity: 'normal',
+      voiceId: 'vits_piper_en_ryan',
+      speakingRate: 1.0,
+      pitch: 1.0,
+      systemPromptOverride: null,
+      isActive: true,
+      createdAtMs: 1731670000000,
+      updatedAtMs: 1731670000000,
+    ),
+  ];
+
+  final List<UserPreferenceItem> _preferences = [
+    const UserPreferenceItem(
+      key: 'ui.theme',
+      valueJson: '"system"',
+      category: 'appearance',
+      updatedAtMs: 1731670000000,
+    ),
+    const UserPreferenceItem(
+      key: 'code.language',
+      valueJson: '"rust"',
+      category: 'developer',
+      updatedAtMs: 1731670000000,
+    ),
+  ];
+
+  @override
+  UserPersonaItem? getActivePersona() {
+    return _personas.cast<UserPersonaItem?>().firstWhere(
+      (p) => p?.isActive == true,
+      orElse: () => _personas.isNotEmpty ? _personas.first : null,
+    );
+  }
+
+  @override
+  List<UserPersonaItem> listPersonas() => List.unmodifiable(_personas);
+
+  @override
+  void savePersona(UserPersonaItem persona) {
+    final idx = _personas.indexWhere((p) => p.id == persona.id);
+    if (persona.isActive) {
+      for (var i = 0; i < _personas.length; i++) {
+        _personas[i] = _personas[i].copyWith(isActive: false);
+      }
+    }
+    if (idx >= 0) {
+      _personas[idx] = persona;
+    } else {
+      _personas.add(persona);
+    }
+  }
+
+  @override
+  void setActivePersona(String id) {
+    final exists = _personas.any((p) => p.id == id);
+    if (!exists) {
+      throw StateError('Persona $id not found');
+    }
+    for (var i = 0; i < _personas.length; i++) {
+      _personas[i] = _personas[i].copyWith(isActive: _personas[i].id == id);
+    }
+  }
+
+  @override
+  bool deletePersona(String id) {
+    if (id == 'persona_default') {
+      throw StateError('Cannot delete default persona');
+    }
+    final persona = _personas.firstWhere(
+      (p) => p.id == id,
+      orElse: () => throw StateError('Not found'),
+    );
+    if (persona.isActive) {
+      throw StateError('Cannot delete active persona');
+    }
+    return _personas.remove(persona);
+  }
+
+  @override
+  UserPreferenceItem? getPreference(String key) {
+    return _preferences.cast<UserPreferenceItem?>().firstWhere(
+      (p) => p?.key == key,
+      orElse: () => null,
+    );
+  }
+
+  @override
+  void setPreference(String key, String valueJson, String category) {
+    final idx = _preferences.indexWhere((p) => p.key == key);
+    final item = UserPreferenceItem(
+      key: key,
+      valueJson: valueJson,
+      category: category,
+      updatedAtMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    if (idx >= 0) {
+      _preferences[idx] = item;
+    } else {
+      _preferences.add(item);
+    }
+  }
+
+  @override
+  List<UserPreferenceItem> listPreferences({String? category}) {
+    if (category != null && category.isNotEmpty) {
+      return _preferences.where((p) => p.category == category).toList();
+    }
+    return List.unmodifiable(_preferences);
+  }
+
+  @override
+  bool deletePreference(String key) {
+    final idx = _preferences.indexWhere((p) => p.key == key);
+    if (idx >= 0) {
+      _preferences.removeAt(idx);
+      return true;
+    }
+    return false;
   }
 }

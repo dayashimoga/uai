@@ -7,6 +7,7 @@ pub mod confirmation;
 pub mod error;
 pub mod interpreter;
 pub mod orchestrator;
+pub mod persona;
 pub mod state;
 pub mod tool_dispatcher;
 pub mod turn_machine;
@@ -17,6 +18,7 @@ pub use interpreter::{
     InterpreterSession, InterpreterSessionConfig, InterpreterSpeaker, InterpreterTurn,
 };
 pub use orchestrator::{Orchestrator, OrchestratorConfig, TurnExecution, TurnSummary};
+pub use persona::PersonaPromptInjector;
 pub use state::{InputMode, OrchestratorEvent, TurnInput, TurnState};
 pub use tool_dispatcher::{redact_sensitive_json, ToolDispatcher, ToolHandler};
 pub use turn_machine::{TurnMetrics, TurnStateMachine};

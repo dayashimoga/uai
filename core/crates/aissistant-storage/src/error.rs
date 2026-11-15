@@ -51,6 +51,10 @@ pub enum StorageError {
     #[error("Invalid search query: {0}")]
     InvalidSearchQuery(String),
 
+    /// Validation error for storage records and domain rules.
+    #[error("Storage validation error: {0}")]
+    InvalidData(String),
+
     /// The cryptographic audit chain is broken or has been tampered with.
     #[error("Cryptographic audit log corrupted: {reason}")]
     CorruptAuditChain {
@@ -87,6 +91,10 @@ impl StorageError {
             },
             Self::InvalidSearchQuery(reason) => CoreError::ConfigValidation {
                 field: "search_query".to_string(),
+                reason: reason.clone(),
+            },
+            Self::InvalidData(reason) => CoreError::ConfigValidation {
+                field: "storage_record".to_string(),
                 reason: reason.clone(),
             },
             Self::CorruptAuditChain { reason } => CoreError::PermissionDenied {
@@ -162,6 +170,12 @@ mod tests {
         let invalid_query = StorageError::InvalidSearchQuery("empty term".to_string());
         assert_eq!(
             invalid_query.to_core_error().category(),
+            aissistant_core::ErrorCategory::Configuration
+        );
+
+        let invalid_data = StorageError::InvalidData("cannot delete active persona".to_string());
+        assert_eq!(
+            invalid_data.to_core_error().category(),
             aissistant_core::ErrorCategory::Configuration
         );
     }

@@ -11,6 +11,7 @@ pub mod hybrid_search;
 pub mod keystore;
 pub mod knowledge_retriever;
 pub mod migration;
+pub mod persona_store;
 pub mod pool;
 pub mod secret_store;
 pub mod settings_store;
@@ -33,6 +34,9 @@ pub use keystore::{
 };
 pub use knowledge_retriever::{KnowledgeCitation, KnowledgeRagPromptContext, KnowledgeRetriever};
 pub use migration::{Migration, MigrationRunner};
+pub use persona_store::{
+    PersonaStore, PersonaTone, ResponseVerbosity, UserPersona, UserPreference,
+};
 pub use pool::SqliteDb;
 pub use secret_store::SecretStore;
 pub use settings_store::SettingsStore;

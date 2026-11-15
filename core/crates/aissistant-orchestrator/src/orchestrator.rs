@@ -15,12 +15,13 @@ use aissistant_security::{
 };
 use aissistant_speech::{SentenceChunker, TtsEngine};
 use aissistant_storage::{
-    AuditStore, ConversationStore, ConversationTurn, HybridSearchEngine, TurnMetadata, TurnRole,
-    VectorMemoryStore, VectorRecord,
+    AuditStore, ConversationStore, ConversationTurn, HybridSearchEngine, PersonaStore,
+    TurnMetadata, TurnRole, VectorMemoryStore, VectorRecord,
 };
 
 use crate::confirmation::{ConfirmationId, ConfirmationManager, PendingConfirmation};
 use crate::error::{OrchestratorError, Result};
+use crate::persona::PersonaPromptInjector;
 use crate::state::{OrchestratorEvent, TurnState};
 use crate::tool_dispatcher::{redact_sensitive_json, ToolDispatcher};
 use crate::turn_machine::TurnStateMachine;
@@ -103,6 +104,7 @@ pub struct Orchestrator {
     audit_store: Option<Arc<AuditStore>>,
     confirmation_manager: Arc<ConfirmationManager>,
     taint_tracker: Arc<RwLock<TaintTracker>>,
+    persona_store: Option<Arc<PersonaStore>>,
     event_listeners: Arc<Mutex<Vec<EventListener>>>,
 }
 
@@ -132,6 +134,7 @@ impl Orchestrator {
             audit_store: None,
             confirmation_manager: Arc::new(ConfirmationManager::new()),
             taint_tracker: Arc::new(RwLock::new(TaintTracker::new())),
+            persona_store: None,
             event_listeners: Arc::new(Mutex::new(Vec::new())),
         }
     }
@@ -169,6 +172,19 @@ impl Orchestrator {
     pub fn with_taint_tracker(mut self, tracker: Arc<RwLock<TaintTracker>>) -> Self {
         self.taint_tracker = tracker;
         self
+    }
+
+    /// Sets the persona and preference store.
+    #[must_use]
+    pub fn with_persona_store(mut self, store: Arc<PersonaStore>) -> Self {
+        self.persona_store = Some(store);
+        self
+    }
+
+    /// Returns a reference to the persona store if configured.
+    #[must_use]
+    pub fn persona_store(&self) -> Option<&Arc<PersonaStore>> {
+        self.persona_store.as_ref()
     }
 
     /// Returns a reference to the tool dispatcher.
@@ -366,6 +382,16 @@ impl Orchestrator {
             .metadata
             .system_prompt
             .unwrap_or_else(|| self.config.system_prompt.clone());
+
+        if let Some(store) = &self.persona_store {
+            let active_persona = store.get_active_persona().unwrap_or(None);
+            let prefs = store.list_preferences(None).unwrap_or_default();
+            assembled_system = PersonaPromptInjector::inject_persona(
+                &assembled_system,
+                active_persona.as_ref(),
+                &prefs,
+            );
+        }
 
         if !memory_hits.is_empty() {
             assembled_system.push_str("\n\n--- Relevant Prior Memories ---\n");
@@ -1620,5 +1646,40 @@ mod tests {
             verification_res.unwrap(),
             entries.last().unwrap().entry_hash
         );
+    }
+
+    #[test]
+    fn test_orchestrator_persona_and_preferences_prompt_injection() {
+        let (mut orch, conv_id) = setup_test_orchestrator();
+        let db = SqliteDb::open_in_memory().unwrap();
+        let persona_store = Arc::new(PersonaStore::new(db));
+
+        let custom_persona = aissistant_storage::UserPersona {
+            id: "persona_tech".to_string(),
+            name: "Senior Architect".to_string(),
+            tone: aissistant_storage::PersonaTone::Technical,
+            verbosity: aissistant_storage::ResponseVerbosity::Detailed,
+            voice_id: "vits_voice".to_string(),
+            speaking_rate: 1.0,
+            pitch: 1.0,
+            system_prompt_override: None,
+            is_active: true,
+            created_at_ms: 0,
+            updated_at_ms: 0,
+        };
+        persona_store.save_persona(&custom_persona).unwrap();
+        persona_store
+            .set_preference("code.style", "\"functional\"", "developer")
+            .unwrap();
+
+        orch = orch.with_persona_store(persona_store);
+
+        let execution = orch
+            .execute_turn(&conv_id, "Explain the architecture")
+            .unwrap();
+        assert!(matches!(
+            execution,
+            TurnExecution::Completed(ref summary) if summary.conversation_id == conv_id
+        ));
     }
 }

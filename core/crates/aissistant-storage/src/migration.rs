@@ -233,6 +233,52 @@ const MIGRATIONS: &[Migration] = &[
             END;
         ",
     },
+    Migration {
+        version: 7,
+        description: "Create user personas and explicit user preferences tables",
+        sql: "
+            CREATE TABLE IF NOT EXISTS user_personas (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                tone TEXT NOT NULL,
+                verbosity TEXT NOT NULL,
+                voice_id TEXT NOT NULL,
+                speaking_rate REAL NOT NULL DEFAULT 1.0,
+                pitch REAL NOT NULL DEFAULT 1.0,
+                system_prompt_override TEXT,
+                is_active INTEGER NOT NULL DEFAULT 0,
+                created_at_ms INTEGER NOT NULL,
+                updated_at_ms INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_user_personas_active ON user_personas(is_active);
+
+            INSERT OR IGNORE INTO user_personas (
+                id, name, tone, verbosity, voice_id, speaking_rate, pitch, system_prompt_override, is_active, created_at_ms, updated_at_ms
+            ) VALUES (
+                'persona_default',
+                'Default Assistant',
+                'balanced',
+                'normal',
+                'vits_piper_en_ryan',
+                1.0,
+                1.0,
+                NULL,
+                1,
+                1731670000000,
+                1731670000000
+            );
+
+            CREATE TABLE IF NOT EXISTS user_preferences (
+                key TEXT PRIMARY KEY,
+                value_json TEXT NOT NULL,
+                category TEXT NOT NULL,
+                updated_at_ms INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_user_preferences_category ON user_preferences(category);
+        ",
+    },
 ];
 
 /// Migration runner applying incremental DDL changes within ACID transactions.
@@ -305,21 +351,21 @@ mod tests {
 
         // Initial run
         let version = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version, 6);
-        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 6);
+        assert_eq!(version, 7);
+        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 7);
 
         // Verify tables exist
         let tables_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts', 'semantic_embeddings', 'paired_devices', 'peer_permissions', 'documents', 'document_chunks', 'document_chunks_fts');",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts', 'semantic_embeddings', 'paired_devices', 'peer_permissions', 'documents', 'document_chunks', 'document_chunks_fts', 'user_personas', 'user_preferences');",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(tables_count, 13);
+        assert_eq!(tables_count, 15);
 
         // Second run must be a no-op
         let version_again = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version_again, 6);
+        assert_eq!(version_again, 7);
     }
 }

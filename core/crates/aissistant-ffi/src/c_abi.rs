@@ -12,18 +12,22 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use aissistant_core::ErrorDescriptor;
 
 use crate::api::{
-    bridge_device_cancel_pairing, bridge_device_confirm_pairing, bridge_device_discovered_peers,
-    bridge_device_paired_list, bridge_device_set_permission, bridge_device_simulate_peer,
-    bridge_device_start_pairing, bridge_device_unpair, bridge_get_capabilities, bridge_get_health,
-    bridge_get_lifecycle_state, bridge_get_setting, bridge_interpreter_clear_session,
-    bridge_interpreter_get_turns, bridge_interpreter_start_session, bridge_interpreter_submit_turn,
+    bridge_delete_persona, bridge_delete_preference, bridge_device_cancel_pairing,
+    bridge_device_confirm_pairing, bridge_device_discovered_peers, bridge_device_paired_list,
+    bridge_device_set_permission, bridge_device_simulate_peer, bridge_device_start_pairing,
+    bridge_device_unpair, bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
+    bridge_get_lifecycle_state, bridge_get_preference, bridge_get_setting,
+    bridge_interpreter_clear_session, bridge_interpreter_get_turns,
+    bridge_interpreter_start_session, bridge_interpreter_submit_turn,
     bridge_interpreter_swap_languages, bridge_knowledge_delete_document,
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
-    bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
-    bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
-    bridge_translate_text, bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
-    bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
-    bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge, shutdown_bridge,
+    bridge_list_personas, bridge_list_preferences, bridge_model_benchmark_run, bridge_model_load,
+    bridge_model_snapshot, bridge_model_unload, bridge_notify_memory_pressure, bridge_query_audit,
+    bridge_request_shutdown, bridge_save_persona, bridge_set_active_persona, bridge_set_preference,
+    bridge_set_setting, bridge_translate_text, bridge_update_permission, bridge_verify_audit,
+    bridge_vision_ocr_extract, bridge_voice_inject_audio, bridge_voice_set_keywords,
+    bridge_voice_set_mode, bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge,
+    shutdown_bridge, UserPersonaItem,
 };
 use crate::device_bridge::DiscoveredPeerItem;
 use crate::error::FfiError;
@@ -771,6 +775,168 @@ pub extern "C" fn bridge_c_interpreter_clear() -> i32 {
         Ok(Ok(())) => 0,
         _ => -1,
     }
+}
+
+/// Returns active persona as JSON.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+#[no_mangle]
+pub extern "C" fn bridge_c_persona_get_active() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_get_active_persona));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_persona_get_active".into(),
+        ))
+    }))
+}
+
+/// Returns list of all user personas as JSON array.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+#[no_mangle]
+pub extern "C" fn bridge_c_persona_list() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_list_personas));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_persona_list".into(),
+        ))
+    }))
+}
+
+/// Saves or updates a user persona from JSON.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `persona_json` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_persona_save(persona_json: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let json_str = unsafe { c_char_to_str(persona_json) }?;
+        let persona: UserPersonaItem = serde_json::from_str(json_str)
+            .map_err(|e| FfiError::Serialization(format!("Invalid persona JSON: {e}")))?;
+        bridge_save_persona(persona)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_persona_save".into(),
+        ))
+    }))
+}
+
+/// Sets active persona by ID.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_persona_set_active(id: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(id) }?;
+        bridge_set_active_persona(id_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_persona_set_active".into(),
+        ))
+    }))
+}
+
+/// Deletes a user persona by ID.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_persona_delete(id: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(id) }?;
+        bridge_delete_persona(id_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_persona_delete".into(),
+        ))
+    }))
+}
+
+/// Retrieves an explicit user preference by key.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `key` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_preference_get(key: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let key_str = unsafe { c_char_to_str(key) }?;
+        bridge_get_preference(key_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_preference_get".into(),
+        ))
+    }))
+}
+
+/// Sets or updates an explicit user preference.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `key`, `value_json`, and `category` must point to valid null-terminated UTF-8 C strings.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_preference_set(
+    key: *const c_char,
+    value_json: *const c_char,
+    category: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let key_str = unsafe { c_char_to_str(key) }?;
+        let value_str = unsafe { c_char_to_str(value_json) }?;
+        let cat_str = unsafe { c_char_to_str(category) }?;
+        bridge_set_preference(key_str, value_str, cat_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_preference_set".into(),
+        ))
+    }))
+}
+
+/// Lists explicit user preferences, optionally filtered by category.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `category` can be null or a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_preference_list(category: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let cat_str = if category.is_null() {
+            None
+        } else {
+            Some(unsafe { c_char_to_str(category) }?)
+        };
+        bridge_list_preferences(cat_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_preference_list".into(),
+        ))
+    }))
+}
+
+/// Deletes an explicit user preference by key.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `key` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_preference_delete(key: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let key_str = unsafe { c_char_to_str(key) }?;
+        bridge_delete_preference(key_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_preference_delete".into(),
+        ))
+    }))
 }
 
 /// Frees a C string previously allocated by `aissistant-ffi`.

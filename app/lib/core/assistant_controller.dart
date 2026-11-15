@@ -11,6 +11,7 @@ import 'models/health_report.dart';
 import 'models/interpreter_models.dart';
 import 'models/knowledge_models.dart';
 import 'models/model_item.dart';
+import 'models/persona_models.dart';
 import 'models/vision_models.dart';
 import 'models/voice_state.dart';
 
@@ -45,6 +46,11 @@ class AssistantController extends ChangeNotifier {
   bool _isProcessingInterpreterTurn = false;
   String? _interpreterError;
   TranslationResultItem? _lastTranslationResult;
+  UserPersonaItem? _activePersona;
+  List<UserPersonaItem> _personas = <UserPersonaItem>[];
+  List<UserPreferenceItem> _preferences = <UserPreferenceItem>[];
+  bool _isPersonaLoading = false;
+  String? _personaError;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -81,6 +87,11 @@ class AssistantController extends ChangeNotifier {
   bool get isProcessingInterpreterTurn => _isProcessingInterpreterTurn;
   String? get interpreterError => _interpreterError;
   TranslationResultItem? get lastTranslationResult => _lastTranslationResult;
+  UserPersonaItem? get activePersona => _activePersona;
+  List<UserPersonaItem> get personas => List<UserPersonaItem>.unmodifiable(_personas);
+  List<UserPreferenceItem> get preferences => List<UserPreferenceItem>.unmodifiable(_preferences);
+  bool get isPersonaLoading => _isPersonaLoading;
+  String? get personaError => _personaError;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -106,6 +117,9 @@ class AssistantController extends ChangeNotifier {
       _documents = List<DocumentRecordItem>.from(_bridge.getKnowledgeDocuments());
       _interpreterStatus = _bridge.startInterpreterSession(partyALang: 'en', partyBLang: 'es');
       _interpreterTurns = List<InterpreterTurnItem>.from(_bridge.getInterpreterTurns());
+      _activePersona = _bridge.getActivePersona();
+      _personas = List<UserPersonaItem>.from(_bridge.listPersonas());
+      _preferences = List<UserPreferenceItem>.from(_bridge.listPreferences());
 
       // Read persisted theme mode
       final savedTheme = _bridge.getSetting('assistant.theme_mode');
@@ -519,6 +533,9 @@ class AssistantController extends ChangeNotifier {
       _documents = List<DocumentRecordItem>.from(_bridge.getKnowledgeDocuments());
       _interpreterStatus = _bridge.startInterpreterSession(partyALang: 'en', partyBLang: 'es');
       _interpreterTurns = List<InterpreterTurnItem>.from(_bridge.getInterpreterTurns());
+      _activePersona = _bridge.getActivePersona();
+      _personas = List<UserPersonaItem>.from(_bridge.listPersonas());
+      _preferences = List<UserPreferenceItem>.from(_bridge.listPreferences());
       notifyListeners();
     } catch (e) {
       _errorMessage = 'Failed to refresh documents: $e';
@@ -729,6 +746,120 @@ class AssistantController extends ChangeNotifier {
     }
     _interpreterError = null;
     notifyListeners();
+  }
+
+  // Persona & Preference Management
+
+  Future<void> loadPersonas() async {
+    _isPersonaLoading = true;
+    _personaError = null;
+    notifyListeners();
+    try {
+      _activePersona = _bridge.getActivePersona();
+      _personas = List<UserPersonaItem>.from(_bridge.listPersonas());
+    } catch (e) {
+      _personaError = 'Failed to load personas: $e';
+    } finally {
+      _isPersonaLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> savePersona(UserPersonaItem persona) async {
+    _isPersonaLoading = true;
+    _personaError = null;
+    notifyListeners();
+    try {
+      _bridge.savePersona(persona);
+      _activePersona = _bridge.getActivePersona();
+      _personas = List<UserPersonaItem>.from(_bridge.listPersonas());
+    } catch (e) {
+      _personaError = 'Failed to save persona: $e';
+    } finally {
+      _isPersonaLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> setActivePersona(String id) async {
+    _isPersonaLoading = true;
+    _personaError = null;
+    notifyListeners();
+    try {
+      _bridge.setActivePersona(id);
+      _activePersona = _bridge.getActivePersona();
+      _personas = List<UserPersonaItem>.from(_bridge.listPersonas());
+    } catch (e) {
+      _personaError = 'Failed to activate persona: $e';
+    } finally {
+      _isPersonaLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> deletePersona(String id) async {
+    _isPersonaLoading = true;
+    _personaError = null;
+    notifyListeners();
+    try {
+      final res = _bridge.deletePersona(id);
+      _activePersona = _bridge.getActivePersona();
+      _personas = List<UserPersonaItem>.from(_bridge.listPersonas());
+      return res;
+    } catch (e) {
+      _personaError = 'Failed to delete persona: $e';
+      return false;
+    } finally {
+      _isPersonaLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadPreferences({String? category}) async {
+    _isPersonaLoading = true;
+    _personaError = null;
+    notifyListeners();
+    try {
+      _preferences =
+          List<UserPreferenceItem>.from(_bridge.listPreferences(category: category));
+    } catch (e) {
+      _personaError = 'Failed to load preferences: $e';
+    } finally {
+      _isPersonaLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> setPreference(String key, String valueJson, String category) async {
+    _isPersonaLoading = true;
+    _personaError = null;
+    notifyListeners();
+    try {
+      _bridge.setPreference(key, valueJson, category);
+      _preferences = List<UserPreferenceItem>.from(_bridge.listPreferences());
+    } catch (e) {
+      _personaError = 'Failed to save preference: $e';
+    } finally {
+      _isPersonaLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> deletePreference(String key) async {
+    _isPersonaLoading = true;
+    _personaError = null;
+    notifyListeners();
+    try {
+      final res = _bridge.deletePreference(key);
+      _preferences = List<UserPreferenceItem>.from(_bridge.listPreferences());
+      return res;
+    } catch (e) {
+      _personaError = 'Failed to delete preference: $e';
+      return false;
+    } finally {
+      _isPersonaLoading = false;
+      notifyListeners();
+    }
   }
 
   @override

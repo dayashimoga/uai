@@ -10,22 +10,25 @@ pub mod model_bridge;
 pub mod voice_bridge;
 
 pub use api::{
-    bridge_device_cancel_pairing, bridge_device_confirm_pairing, bridge_device_discovered_peers,
-    bridge_device_paired_list, bridge_device_set_permission, bridge_device_simulate_peer,
-    bridge_device_start_pairing, bridge_device_unpair, bridge_get_capabilities, bridge_get_health,
-    bridge_get_lifecycle_state, bridge_get_setting, bridge_interpreter_clear_session,
-    bridge_interpreter_get_turns, bridge_interpreter_start_session, bridge_interpreter_submit_turn,
+    bridge_delete_persona, bridge_delete_preference, bridge_device_cancel_pairing,
+    bridge_device_confirm_pairing, bridge_device_discovered_peers, bridge_device_paired_list,
+    bridge_device_set_permission, bridge_device_simulate_peer, bridge_device_start_pairing,
+    bridge_device_unpair, bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
+    bridge_get_lifecycle_state, bridge_get_preference, bridge_get_setting,
+    bridge_interpreter_clear_session, bridge_interpreter_get_turns,
+    bridge_interpreter_start_session, bridge_interpreter_submit_turn,
     bridge_interpreter_swap_languages, bridge_knowledge_delete_document,
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
-    bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
-    bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
-    bridge_translate_text, bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
-    bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
-    bridge_voice_start_listening, bridge_voice_stop_listening, get_bridge, init_bridge,
-    shutdown_bridge, AuditIntegrityReport, AuditItem, CapabilityItem, CoreBridge,
-    DocumentRecordItem, HealthReport, HealthStatus, InterpreterSessionStatusItem,
-    InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem, OcrDocumentItem,
-    OcrTextLineItem, OcrWordItem, TranslationResultItem,
+    bridge_list_personas, bridge_list_preferences, bridge_model_benchmark_run, bridge_model_load,
+    bridge_model_snapshot, bridge_model_unload, bridge_notify_memory_pressure, bridge_query_audit,
+    bridge_request_shutdown, bridge_save_persona, bridge_set_active_persona, bridge_set_preference,
+    bridge_set_setting, bridge_translate_text, bridge_update_permission, bridge_verify_audit,
+    bridge_vision_ocr_extract, bridge_voice_inject_audio, bridge_voice_set_keywords,
+    bridge_voice_set_mode, get_bridge, init_bridge, shutdown_bridge, AuditIntegrityReport,
+    AuditItem, CapabilityItem, CoreBridge, DocumentRecordItem, HealthReport, HealthStatus,
+    InterpreterSessionStatusItem, InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem,
+    OcrDocumentItem, OcrTextLineItem, OcrWordItem, TranslationResultItem, UserPersonaItem,
+    UserPreferenceItem,
 };
 pub use device_bridge::{
     DeviceSupervisor, DiscoveredPeerItem, PairedDeviceItem, PairingSessionInfo,
@@ -916,7 +919,8 @@ mod tests {
         assert_eq!(init, 0);
 
         // Synthetic image payload with embedded OCR text
-        let payload = "Invoice #1042\nTotal Amount: $42.50\nPayment Method: Offline Cash".as_bytes();
+        let payload =
+            "Invoice #1042\nTotal Amount: $42.50\nPayment Method: Offline Cash".as_bytes();
         let ptr = unsafe { c_abi::bridge_c_vision_ocr_extract(payload.as_ptr(), payload.len()) };
         assert!(!ptr.is_null());
 
@@ -971,9 +975,8 @@ mod tests {
         // 2. Test Interpreter Start C-ABI
         let lang_a_c = CString::new("en").unwrap();
         let lang_b_c = CString::new("fr").unwrap();
-        let start_ptr = unsafe {
-            c_abi::bridge_c_interpreter_start(lang_a_c.as_ptr(), lang_b_c.as_ptr())
-        };
+        let start_ptr =
+            unsafe { c_abi::bridge_c_interpreter_start(lang_a_c.as_ptr(), lang_b_c.as_ptr()) };
         assert!(!start_ptr.is_null());
         let start_json = unsafe { CStr::from_ptr(start_ptr) }.to_str().unwrap();
         let status: InterpreterSessionStatusItem = serde_json::from_str(start_json).unwrap();
@@ -1034,10 +1037,128 @@ mod tests {
         assert_eq!(clear_res, 0);
 
         let history_after_ptr = c_abi::bridge_c_interpreter_get_turns();
-        let history_after_json = unsafe { CStr::from_ptr(history_after_ptr) }.to_str().unwrap();
-        let history_after: Vec<InterpreterTurnItem> = serde_json::from_str(history_after_json).unwrap();
+        let history_after_json = unsafe { CStr::from_ptr(history_after_ptr) }
+            .to_str()
+            .unwrap();
+        let history_after: Vec<InterpreterTurnItem> =
+            serde_json::from_str(history_after_json).unwrap();
         unsafe { c_abi::bridge_c_free_string(history_after_ptr) };
         assert!(history_after.is_empty());
+
+        let cleanup = c_abi::bridge_c_shutdown();
+        assert_eq!(cleanup, 0);
+    }
+
+    #[test]
+    fn test_persona_and_preference_c_abi() {
+        let _lock = TEST_GLOBAL_LOCK.lock().unwrap();
+
+        // 1. Initialize in-memory bridge
+        let init_res = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
+        assert_eq!(init_res, 0);
+
+        // 2. Query default active persona
+        let active_ptr = c_abi::bridge_c_persona_get_active();
+        assert!(!active_ptr.is_null());
+        let active_json = unsafe { CStr::from_ptr(active_ptr) }.to_str().unwrap();
+        let default_active: Option<UserPersonaItem> = serde_json::from_str(active_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(active_ptr) };
+
+        assert!(default_active.is_some());
+        let def = default_active.unwrap();
+        assert_eq!(def.id, "persona_default");
+        assert_eq!(def.name, "Default Assistant");
+        assert!(def.is_active);
+
+        // 3. Save new custom persona
+        let custom = UserPersonaItem {
+            id: "persona_custom_tutor".to_string(),
+            name: "Code Tutor".to_string(),
+            tone: "technical".to_string(),
+            verbosity: "detailed".to_string(),
+            voice_id: "vits_piper_en_ryan".to_string(),
+            speaking_rate: 1.15,
+            pitch: 0.95,
+            system_prompt_override: Some(
+                "Always write idiomatic Rust with doc comments.".to_string(),
+            ),
+            is_active: true,
+            created_at_ms: 0,
+            updated_at_ms: 0,
+        };
+        let custom_json = serde_json::to_string(&custom).unwrap();
+        let custom_c = CString::new(custom_json).unwrap();
+        let save_ptr = unsafe { c_abi::bridge_c_persona_save(custom_c.as_ptr()) };
+        assert!(!save_ptr.is_null());
+        let save_str = unsafe { CStr::from_ptr(save_ptr) }.to_str().unwrap();
+        assert_eq!(save_str, "null");
+        unsafe { c_abi::bridge_c_free_string(save_ptr) };
+
+        // 4. Verify custom is now active
+        let active_ptr2 = c_abi::bridge_c_persona_get_active();
+        let active2_json = unsafe { CStr::from_ptr(active_ptr2) }.to_str().unwrap();
+        let active2: Option<UserPersonaItem> = serde_json::from_str(active2_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(active_ptr2) };
+        assert_eq!(active2.unwrap().id, "persona_custom_tutor");
+
+        // 5. List personas
+        let list_ptr = c_abi::bridge_c_persona_list();
+        let list_json = unsafe { CStr::from_ptr(list_ptr) }.to_str().unwrap();
+        let personas: Vec<UserPersonaItem> = serde_json::from_str(list_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(list_ptr) };
+        assert_eq!(personas.len(), 2);
+
+        // 6. Set active back to default
+        let def_id_c = CString::new("persona_default").unwrap();
+        let set_active_ptr = unsafe { c_abi::bridge_c_persona_set_active(def_id_c.as_ptr()) };
+        let set_str = unsafe { CStr::from_ptr(set_active_ptr) }.to_str().unwrap();
+        assert_eq!(set_str, "null");
+        unsafe { c_abi::bridge_c_free_string(set_active_ptr) };
+
+        // 7. Delete custom persona
+        let custom_id_c = CString::new("persona_custom_tutor").unwrap();
+        let del_ptr = unsafe { c_abi::bridge_c_persona_delete(custom_id_c.as_ptr()) };
+        let del_str = unsafe { CStr::from_ptr(del_ptr) }.to_str().unwrap();
+        assert_eq!(del_str, "true");
+        unsafe { c_abi::bridge_c_free_string(del_ptr) };
+
+        // 8. Cannot delete default persona (returns error JSON)
+        let del_def_ptr = unsafe { c_abi::bridge_c_persona_delete(def_id_c.as_ptr()) };
+        let del_def_str = unsafe { CStr::from_ptr(del_def_ptr) }.to_str().unwrap();
+        assert!(del_def_str.contains("code"));
+        unsafe { c_abi::bridge_c_free_string(del_def_ptr) };
+
+        // 9. Preferences: Set
+        let pref_key = CString::new("editor.font_family").unwrap();
+        let pref_val = CString::new("\"JetBrains Mono\"").unwrap();
+        let pref_cat = CString::new("ui").unwrap();
+        let set_pref_ptr = unsafe {
+            c_abi::bridge_c_preference_set(pref_key.as_ptr(), pref_val.as_ptr(), pref_cat.as_ptr())
+        };
+        let set_pref_str = unsafe { CStr::from_ptr(set_pref_ptr) }.to_str().unwrap();
+        assert_eq!(set_pref_str, "null");
+        unsafe { c_abi::bridge_c_free_string(set_pref_ptr) };
+
+        // 10. Preferences: Get
+        let get_pref_ptr = unsafe { c_abi::bridge_c_preference_get(pref_key.as_ptr()) };
+        let get_pref_json = unsafe { CStr::from_ptr(get_pref_ptr) }.to_str().unwrap();
+        let get_pref: Option<UserPreferenceItem> = serde_json::from_str(get_pref_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(get_pref_ptr) };
+        assert!(get_pref.is_some());
+        assert_eq!(get_pref.unwrap().value_json, "\"JetBrains Mono\"");
+
+        // 11. Preferences: List
+        let list_prefs_ptr = unsafe { c_abi::bridge_c_preference_list(pref_cat.as_ptr()) };
+        let list_prefs_json = unsafe { CStr::from_ptr(list_prefs_ptr) }.to_str().unwrap();
+        let prefs: Vec<UserPreferenceItem> = serde_json::from_str(list_prefs_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(list_prefs_ptr) };
+        assert_eq!(prefs.len(), 1);
+
+        // 12. Preferences: Delete
+        let del_pref_ptr = unsafe { c_abi::bridge_c_preference_delete(pref_key.as_ptr()) };
+        let del_pref_str = unsafe { CStr::from_ptr(del_pref_ptr) }.to_str().unwrap();
+        assert_eq!(del_pref_str, "true");
+        unsafe { c_abi::bridge_c_free_string(del_pref_ptr) };
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);
