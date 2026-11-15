@@ -961,7 +961,7 @@ Status Legend:
   - `knowledge_screen_test::indexes a new document via dialog and shows in catalog`: Verified manual document ingestion dialog and reactive document list updating.
   - `knowledge_screen_test::deletes an indexed document after confirmation`: Verified deletion confirmation dialog and cascading purge of document and chunks.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `7cc68a6`
 
 
 
