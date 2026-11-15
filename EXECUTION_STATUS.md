@@ -939,7 +939,7 @@ Status Legend:
   - `document_store::tests::test_cascading_deletion_purges_chunks_fts_and_embeddings`: Verified that deleting a document triggers 100% cascade cleanup across `document_chunks`, `document_chunks_fts`, and `semantic_embeddings` (`entity_type = 'doc_chunk'`).
   - `migration::tests::test_migration_runner_applies_v1_and_is_idempotent`: Verified `Migration 6` DDL idempotency and table count across 13 core SQLite tables.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
-- **Commit Reference:** `PENDING`
+- **Commit Reference:** `7f935c9`
 
 
 
