@@ -436,5 +436,5 @@ Status Legend:
   - `AssistantController State Management Tests`: Verified reactive voice state propagation, mode switching, keyword updates, and audio injection via `AissistantBridge`.
   - `BridgeEvent & VoiceState Model Tests`: Verified JSON deserialization of `VoiceLevelUpdatedEvent`, `WakeWordTriggeredEvent`, `TranscriptUpdatedEvent`, and `VoiceStateChangedEvent`, along with immutable `copyWith` methods.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** `Pending`
+- **Commit Reference:** `73e7360`
 
