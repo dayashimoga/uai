@@ -165,4 +165,4 @@ Status Legend:
   - `audit::tests::test_tampered_entry_payload_detected`: Verified mutation of intermediate entry payload triggers immediate chain verification failure at the tampered index.
   - `audit::tests::test_deleted_entry_breaks_chain`: Verified deletion of an intermediate audit entry breaks `prev_hash` linkage and triggers tamper detection.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit.
+- **Commit Reference:** `d519acbb23d25ad1a48b77ce288e0f683ded708b`
