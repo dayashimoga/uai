@@ -182,6 +182,44 @@ pub struct KnowledgeCitationItem {
     pub snippet: String,
 }
 
+/// FFI view of a 2D bounding box normalized to `[0.0, 1.0]`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct OcrBoundingBoxItem {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+/// FFI view of an OCR-recognized word.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OcrWordItem {
+    pub text: String,
+    pub bbox: OcrBoundingBoxItem,
+    pub confidence: f32,
+}
+
+/// FFI view of a line of recognized text.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OcrTextLineItem {
+    pub line_number: usize,
+    pub text: String,
+    pub bbox: OcrBoundingBoxItem,
+    pub confidence: f32,
+    pub words: Vec<OcrWordItem>,
+}
+
+/// FFI view of complete OCR extraction results for an image.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OcrDocumentItem {
+    pub lines: Vec<OcrTextLineItem>,
+    pub full_text: String,
+    pub average_confidence: f32,
+    pub image_width: u32,
+    pub image_height: u32,
+    pub processing_time_ms: u64,
+}
+
 /// Core bridge orchestrating subsystem access and safe FFI dispatch.
 pub struct CoreBridge {
     db: SqliteDb,
@@ -990,6 +1028,52 @@ impl CoreBridge {
             })
             .collect())
     }
+
+    /// Extracts recognized text, bounding boxes, and metrics from an image byte buffer.
+    pub fn vision_ocr_extract(&self, image_bytes: &[u8]) -> FfiResult<OcrDocumentItem> {
+        let img = aissistant_llm::ImageBuffer::from_encoded_bytes(image_bytes)
+            .map_err(|e| FfiError::Model(e.to_string()))?;
+        let engine = aissistant_llm::OfflineOcrEngine::new();
+        let doc = engine
+            .extract_text(&img)
+            .map_err(|e| FfiError::Model(e.to_string()))?;
+
+        Ok(OcrDocumentItem {
+            lines: doc
+                .lines
+                .into_iter()
+                .map(|l| OcrTextLineItem {
+                    line_number: l.line_number,
+                    text: l.text,
+                    bbox: OcrBoundingBoxItem {
+                        x: l.bbox.x,
+                        y: l.bbox.y,
+                        width: l.bbox.width,
+                        height: l.bbox.height,
+                    },
+                    confidence: l.confidence,
+                    words: l.words
+                        .into_iter()
+                        .map(|w| OcrWordItem {
+                            text: w.text,
+                            bbox: OcrBoundingBoxItem {
+                                x: w.bbox.x,
+                                y: w.bbox.y,
+                                width: w.bbox.width,
+                                height: w.bbox.height,
+                            },
+                            confidence: w.confidence,
+                        })
+                        .collect(),
+                })
+                .collect(),
+            full_text: doc.full_text,
+            average_confidence: doc.average_confidence,
+            image_width: doc.image_width,
+            image_height: doc.image_height,
+            processing_time_ms: doc.processing_time_ms,
+        })
+    }
 }
 
 // Global Singleton Bridge Management
@@ -1246,6 +1330,12 @@ pub fn bridge_knowledge_delete_document(doc_id: &str) -> FfiResult<bool> {
 pub fn bridge_knowledge_search(query: &str, limit: usize) -> FfiResult<Vec<KnowledgeCitationItem>> {
     let bridge = get_bridge()?;
     bridge.knowledge_search(query, limit)
+}
+
+/// Convenience entry point: extracts recognized text and bounding boxes from an image buffer.
+pub fn bridge_vision_ocr_extract(image_bytes: &[u8]) -> FfiResult<OcrDocumentItem> {
+    let bridge = get_bridge()?;
+    bridge.vision_ocr_extract(image_bytes)
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

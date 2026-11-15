@@ -17,11 +17,12 @@ pub use api::{
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
     bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
     bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
-    bridge_update_permission, bridge_verify_audit, bridge_voice_inject_audio,
-    bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
-    bridge_voice_stop_listening, get_bridge, init_bridge, shutdown_bridge, AuditIntegrityReport,
-    AuditItem, CapabilityItem, CoreBridge, DocumentRecordItem, HealthReport, HealthStatus,
-    KnowledgeCitationItem,
+    bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
+    bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
+    bridge_voice_start_listening, bridge_voice_stop_listening, get_bridge, init_bridge,
+    shutdown_bridge, AuditIntegrityReport, AuditItem, CapabilityItem, CoreBridge,
+    DocumentRecordItem, HealthReport, HealthStatus, KnowledgeCitationItem, OcrBoundingBoxItem,
+    OcrDocumentItem, OcrTextLineItem, OcrWordItem,
 };
 pub use device_bridge::{
     DeviceSupervisor, DiscoveredPeerItem, PairedDeviceItem, PairingSessionInfo,
@@ -898,6 +899,40 @@ mod tests {
         let docs_after: Vec<DocumentRecordItem> = serde_json::from_str(list_after_json).unwrap();
         unsafe { c_abi::bridge_c_free_string(list_after_ptr) };
         assert!(docs_after.is_empty());
+
+        let cleanup = c_abi::bridge_c_shutdown();
+        assert_eq!(cleanup, 0);
+    }
+
+    #[test]
+    fn test_vision_ocr_bridge_and_c_abi() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap();
+        let _ = c_abi::bridge_c_shutdown();
+
+        let init = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
+        assert_eq!(init, 0);
+
+        // Synthetic image payload with embedded OCR text
+        let payload = "Invoice #1042\nTotal Amount: $42.50\nPayment Method: Offline Cash".as_bytes();
+        let ptr = unsafe { c_abi::bridge_c_vision_ocr_extract(payload.as_ptr(), payload.len()) };
+        assert!(!ptr.is_null());
+
+        let json_str = unsafe { CStr::from_ptr(ptr) }.to_str().unwrap();
+        let doc: OcrDocumentItem = serde_json::from_str(json_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(ptr) };
+
+        assert_eq!(doc.lines.len(), 3);
+        assert!(doc.full_text.contains("Invoice #1042"));
+        assert!(doc.full_text.contains("Total Amount: $42.50"));
+        assert!(doc.average_confidence > 0.9);
+        assert!(doc.lines[0].words.len() >= 2);
+
+        // Null pointer safety check
+        let err_ptr = unsafe { c_abi::bridge_c_vision_ocr_extract(std::ptr::null(), 0) };
+        assert!(!err_ptr.is_null());
+        let err_str = unsafe { CStr::from_ptr(err_ptr) }.to_str().unwrap();
+        assert!(err_str.contains("message") || err_str.contains("code"));
+        unsafe { c_abi::bridge_c_free_string(err_ptr) };
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);

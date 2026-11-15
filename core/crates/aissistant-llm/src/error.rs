@@ -37,6 +37,12 @@ pub enum LlmError {
     #[error("Embedding generation error: {0}")]
     EmbeddingError(String),
 
+    #[error("Vision processing error: {0}")]
+    VisionError(String),
+
+    #[error("OCR extraction error: {0}")]
+    OcrError(String),
+
     #[error("Inference cancellation requested")]
     CancellationRequested,
 

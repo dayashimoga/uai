@@ -13,6 +13,7 @@ import 'models/device_models.dart';
 import 'models/health_report.dart';
 import 'models/knowledge_models.dart';
 import 'models/model_item.dart';
+import 'models/vision_models.dart';
 import 'models/voice_state.dart';
 
 /// Abstract interface for Universal AI Assistant Rust Core communication.
@@ -55,6 +56,7 @@ abstract class AissistantBridge {
   });
   bool deleteKnowledgeDocument(String documentId);
   List<KnowledgeCitationItem> searchKnowledge(String query, {int limit = 10});
+  OcrDocumentItem extractOcr({required List<int> imageBytes});
   Stream<BridgeEvent> get eventStream;
 }
 
@@ -170,6 +172,9 @@ typedef _BridgeKnowledgeDeleteDart = int Function(Pointer<Utf8> docId);
 typedef _BridgeKnowledgeSearchC = Pointer<Utf8> Function(Pointer<Utf8> query, IntPtr limit);
 typedef _BridgeKnowledgeSearchDart = Pointer<Utf8> Function(Pointer<Utf8> query, int limit);
 
+typedef _BridgeVisionOcrC = Pointer<Utf8> Function(Pointer<Uint8> imagePtr, IntPtr imageLen);
+typedef _BridgeVisionOcrDart = Pointer<Utf8> Function(Pointer<Uint8> imagePtr, int imageLen);
+
 /// Native FFI implementation driving aissistant-ffi C-ABI entry points.
 class NativeFfiBridge implements AissistantBridge {
   final DynamicLibrary _lib;
@@ -209,6 +214,7 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeKnowledgeIndexDart _knowledgeIndex;
   late final _BridgeKnowledgeDeleteDart _knowledgeDelete;
   late final _BridgeKnowledgeSearchDart _knowledgeSearch;
+  late final _BridgeVisionOcrDart _visionOcrExtract;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -245,6 +251,7 @@ class NativeFfiBridge implements AissistantBridge {
     _knowledgeIndex = _lib.lookupFunction<_BridgeKnowledgeIndexC, _BridgeKnowledgeIndexDart>('bridge_c_knowledge_index');
     _knowledgeDelete = _lib.lookupFunction<_BridgeKnowledgeDeleteC, _BridgeKnowledgeDeleteDart>('bridge_c_knowledge_delete');
     _knowledgeSearch = _lib.lookupFunction<_BridgeKnowledgeSearchC, _BridgeKnowledgeSearchDart>('bridge_c_knowledge_search');
+    _visionOcrExtract = _lib.lookupFunction<_BridgeVisionOcrC, _BridgeVisionOcrDart>('bridge_c_vision_ocr_extract');
     _freeString = _lib.lookupFunction<_BridgeFreeStringC, _BridgeFreeStringDart>('bridge_c_free_string');
   }
 
@@ -682,6 +689,32 @@ class NativeFfiBridge implements AissistantBridge {
       malloc.free(queryPtr);
     }
   }
+
+  @override
+  OcrDocumentItem extractOcr({required List<int> imageBytes}) {
+    final nativeBytes = malloc<Uint8>(imageBytes.length);
+    final byteList = nativeBytes.asTypedList(imageBytes.length);
+    byteList.setAll(0, imageBytes);
+    try {
+      final ptr = _visionOcrExtract(nativeBytes, imageBytes.length);
+      if (ptr == nullptr) {
+        throw StateError('OCR extraction returned null pointer');
+      }
+      try {
+        final jsonStr = ptr.toDartString();
+        final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+        if (map.containsKey('code') || map.containsKey('error')) {
+          final msg = map['message'] ?? map['error'] ?? 'Unknown OCR error';
+          throw StateError('OCR extraction error: $msg');
+        }
+        return OcrDocumentItem.fromJson(map);
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(nativeBytes);
+    }
+  }
 }
 
 /// Fallback / mock-free test harness bridge implementing exact live schema contracts.
@@ -754,6 +787,13 @@ class TestHarnessBridge implements AissistantBridge {
     ),
     const CapabilityItem(
       name: 'lan_peer_networking',
+      tier: 'standard',
+      isSupported: true,
+      isActive: true,
+      status: 'supported',
+    ),
+    const CapabilityItem(
+      name: 'vision_ocr',
       tier: 'standard',
       isSupported: true,
       isActive: true,
@@ -1265,5 +1305,92 @@ class TestHarnessBridge implements AissistantBridge {
       }
     }
     return results.take(limit).toList();
+  }
+
+  @override
+  OcrDocumentItem extractOcr({required List<int> imageBytes}) {
+    return const OcrDocumentItem(
+      lines: <OcrTextLineItem>[
+        OcrTextLineItem(
+          lineNumber: 1,
+          text: 'UNIVERSAL AI ASSISTANT',
+          bbox: OcrBoundingBoxItem(x: 0.1, y: 0.1, width: 0.8, height: 0.15),
+          confidence: 0.98,
+          words: <OcrWordItem>[
+            OcrWordItem(
+              text: 'UNIVERSAL',
+              bbox: OcrBoundingBoxItem(x: 0.1, y: 0.1, width: 0.25, height: 0.15),
+              confidence: 0.98,
+            ),
+            OcrWordItem(
+              text: 'AI',
+              bbox: OcrBoundingBoxItem(x: 0.38, y: 0.1, width: 0.08, height: 0.15),
+              confidence: 0.99,
+            ),
+            OcrWordItem(
+              text: 'ASSISTANT',
+              bbox: OcrBoundingBoxItem(x: 0.49, y: 0.1, width: 0.41, height: 0.15),
+              confidence: 0.97,
+            ),
+          ],
+        ),
+        OcrTextLineItem(
+          lineNumber: 2,
+          text: '100% OFFLINE MULTIMODAL VISION',
+          bbox: OcrBoundingBoxItem(x: 0.1, y: 0.35, width: 0.75, height: 0.12),
+          confidence: 0.96,
+          words: <OcrWordItem>[
+            OcrWordItem(
+              text: '100%',
+              bbox: OcrBoundingBoxItem(x: 0.1, y: 0.35, width: 0.12, height: 0.12),
+              confidence: 0.99,
+            ),
+            OcrWordItem(
+              text: 'OFFLINE',
+              bbox: OcrBoundingBoxItem(x: 0.24, y: 0.35, width: 0.18, height: 0.12),
+              confidence: 0.95,
+            ),
+            OcrWordItem(
+              text: 'MULTIMODAL',
+              bbox: OcrBoundingBoxItem(x: 0.44, y: 0.35, width: 0.24, height: 0.12),
+              confidence: 0.96,
+            ),
+            OcrWordItem(
+              text: 'VISION',
+              bbox: OcrBoundingBoxItem(x: 0.70, y: 0.35, width: 0.15, height: 0.12),
+              confidence: 0.95,
+            ),
+          ],
+        ),
+        OcrTextLineItem(
+          lineNumber: 3,
+          text: 'ZERO CLOUD DEPENDENCY',
+          bbox: OcrBoundingBoxItem(x: 0.1, y: 0.6, width: 0.65, height: 0.12),
+          confidence: 0.95,
+          words: <OcrWordItem>[
+            OcrWordItem(
+              text: 'ZERO',
+              bbox: OcrBoundingBoxItem(x: 0.1, y: 0.6, width: 0.15, height: 0.12),
+              confidence: 0.96,
+            ),
+            OcrWordItem(
+              text: 'CLOUD',
+              bbox: OcrBoundingBoxItem(x: 0.27, y: 0.6, width: 0.16, height: 0.12),
+              confidence: 0.94,
+            ),
+            OcrWordItem(
+              text: 'DEPENDENCY',
+              bbox: OcrBoundingBoxItem(x: 0.45, y: 0.6, width: 0.30, height: 0.12),
+              confidence: 0.95,
+            ),
+          ],
+        ),
+      ],
+      fullText: 'UNIVERSAL AI ASSISTANT\n100% OFFLINE MULTIMODAL VISION\nZERO CLOUD DEPENDENCY',
+      averageConfidence: 0.963,
+      imageWidth: 640,
+      imageHeight: 480,
+      processingTimeMs: 42,
+    );
   }
 }

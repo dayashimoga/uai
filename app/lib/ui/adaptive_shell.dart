@@ -8,6 +8,7 @@ import 'screens/diagnostics_screen.dart';
 import 'screens/knowledge_screen.dart';
 import 'screens/models_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/vision_screen.dart';
 import 'screens/voice_screen.dart';
 
 /// Responsive adaptive shell providing NavigationRail on desktop/tablet and NavigationBar on mobile.
@@ -33,6 +34,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
       VoiceScreen(controller: widget.controller),
       ModelsScreen(controller: widget.controller),
       KnowledgeScreen(controller: widget.controller),
+      VisionScreen(controller: widget.controller),
       DevicesScreen(controller: widget.controller),
       CapabilitiesScreen(controller: widget.controller),
       AuditLogScreen(controller: widget.controller),
@@ -59,6 +61,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         icon: Icon(Icons.menu_book_outlined),
         selectedIcon: Icon(Icons.menu_book),
         label: 'Knowledge',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.document_scanner_outlined),
+        selectedIcon: Icon(Icons.document_scanner),
+        label: 'Vision',
       ),
       NavigationDestination(
         icon: Icon(Icons.devices_outlined),
@@ -132,6 +139,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                   icon: Icon(Icons.menu_book_outlined),
                   selectedIcon: Icon(Icons.menu_book),
                   label: Text('Knowledge'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.document_scanner_outlined),
+                  selectedIcon: Icon(Icons.document_scanner),
+                  label: Text('Vision'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.devices_outlined),

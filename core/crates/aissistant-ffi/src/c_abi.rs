@@ -19,9 +19,9 @@ use crate::api::{
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
     bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
     bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown, bridge_set_setting,
-    bridge_update_permission, bridge_verify_audit, bridge_voice_inject_audio,
-    bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
-    bridge_voice_stop_listening, init_bridge, shutdown_bridge,
+    bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
+    bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
+    bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge, shutdown_bridge,
 };
 use crate::device_bridge::DiscoveredPeerItem;
 use crate::error::FfiError;
@@ -642,6 +642,32 @@ pub unsafe extern "C" fn bridge_c_knowledge_search(
     serialize_to_c_json(result.unwrap_or_else(|_| {
         Err(FfiError::PanicCaught(
             "Panic in bridge_c_knowledge_search".into(),
+        ))
+    }))
+}
+
+/// Extracts recognized text, bounding boxes, and metrics from an image byte buffer.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `image_ptr` must point to a readable array of at least `image_len` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_vision_ocr_extract(
+    image_ptr: *const u8,
+    image_len: usize,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        if image_ptr.is_null() || image_len == 0 {
+            return Err(FfiError::InvalidParameter(
+                "Image buffer pointer is null or length is 0".into(),
+            ));
+        }
+        let slice = unsafe { std::slice::from_raw_parts(image_ptr, image_len) };
+        bridge_vision_ocr_extract(slice)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_vision_ocr_extract".into(),
         ))
     }))
 }

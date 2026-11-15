@@ -132,6 +132,8 @@ pub enum Capability {
     RemoteInputInjectionHost,
     /// Local mDNS discovery and mutual-TLS QUIC transport.
     LanPeerNetworking,
+    /// Offline optical character recognition and multimodal vision understanding.
+    VisionOcr,
 }
 
 impl Capability {
@@ -148,6 +150,7 @@ impl Capability {
             Self::ScreenStreamingHost => "screen_streaming_host",
             Self::RemoteInputInjectionHost => "remote_input_injection_host",
             Self::LanPeerNetworking => "lan_peer_networking",
+            Self::VisionOcr => "vision_ocr",
         }
     }
 
@@ -164,6 +167,7 @@ impl Capability {
             Self::ScreenStreamingHost,
             Self::RemoteInputInjectionHost,
             Self::LanPeerNetworking,
+            Self::VisionOcr,
         ]
     }
 }
@@ -188,6 +192,7 @@ impl FromStr for Capability {
             "screen_streaming_host" => Ok(Self::ScreenStreamingHost),
             "remote_input_injection_host" => Ok(Self::RemoteInputInjectionHost),
             "lan_peer_networking" => Ok(Self::LanPeerNetworking),
+            "vision_ocr" => Ok(Self::VisionOcr),
             other => Err(CoreError::InvalidId {
                 entity: "Capability",
                 value: other.to_string(),
@@ -339,6 +344,20 @@ impl CapabilityMatrix {
                 | PlatformTarget::Android => CapabilityStatus::Supported,
                 PlatformTarget::Ios => CapabilityStatus::RequiresPermission {
                     permission: "ios.permission.LOCAL_NETWORK".to_string(),
+                    granted: false,
+                },
+            },
+
+            Capability::VisionOcr => match target {
+                PlatformTarget::Windows | PlatformTarget::Linux | PlatformTarget::MacOS => {
+                    CapabilityStatus::Supported
+                }
+                PlatformTarget::Android => CapabilityStatus::RequiresPermission {
+                    permission: "android.permission.CAMERA".to_string(),
+                    granted: false,
+                },
+                PlatformTarget::Ios => CapabilityStatus::RequiresPermission {
+                    permission: "ios.permission.CAMERA".to_string(),
                     granted: false,
                 },
             },

@@ -10,6 +10,7 @@ import 'models/device_models.dart';
 import 'models/health_report.dart';
 import 'models/knowledge_models.dart';
 import 'models/model_item.dart';
+import 'models/vision_models.dart';
 import 'models/voice_state.dart';
 
 /// Reactive application state controller coordinating live Rust core states and the UI shell.
@@ -35,6 +36,9 @@ class AssistantController extends ChangeNotifier {
   List<KnowledgeCitationItem> _citationSearchResults = <KnowledgeCitationItem>[];
   bool _isSearchingKnowledge = false;
   String? _knowledgeSearchQuery;
+  OcrDocumentItem? _activeOcrResult;
+  bool _isProcessingOcr = false;
+  String? _ocrError;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -62,6 +66,9 @@ class AssistantController extends ChangeNotifier {
       List<KnowledgeCitationItem>.unmodifiable(_citationSearchResults);
   bool get isSearchingKnowledge => _isSearchingKnowledge;
   String? get knowledgeSearchQuery => _knowledgeSearchQuery;
+  OcrDocumentItem? get activeOcrResult => _activeOcrResult;
+  bool get isProcessingOcr => _isProcessingOcr;
+  String? get ocrError => _ocrError;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -576,6 +583,31 @@ class AssistantController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  Future<OcrDocumentItem?> extractOcr(List<int> imageBytes) async {
+    _isProcessingOcr = true;
+    _ocrError = null;
+    notifyListeners();
+
+    try {
+      final result = _bridge.extractOcr(imageBytes: imageBytes);
+      _activeOcrResult = result;
+      return result;
+    } catch (e) {
+      _ocrError = 'OCR processing failed: $e';
+      return null;
+    } finally {
+      _isProcessingOcr = false;
+      notifyListeners();
+    }
+  }
+
+  void clearOcrResult() {
+    _activeOcrResult = null;
+    _ocrError = null;
+    _isProcessingOcr = false;
+    notifyListeners();
   }
 
   @override

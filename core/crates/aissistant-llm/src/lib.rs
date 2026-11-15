@@ -4,6 +4,8 @@ pub mod error;
 pub mod grammar;
 pub mod hardware;
 pub mod models;
+pub mod ocr;
+pub mod vision;
 
 pub use embeddings::{
     cosine_similarity, l2_norm, l2_normalize, EmbeddingEngine, LocalEmbeddingEngine,
@@ -24,6 +26,11 @@ pub use hardware::{
 pub use models::{
     DownloadProgress, DownloadStatus, GgufInspector, GgufMetadata, GgufType, LocalModelDownloader,
     ModelCatalog, ModelDescriptor, ModelDownloader, QuantizationType, Sha256Verifier, GGUF_MAGIC,
+};
+pub use ocr::{OcrBoundingBox, OcrDocument, OcrTextLine, OcrWord, OfflineOcrEngine};
+pub use vision::{
+    ImageBuffer, ImageFormat, ImageMetadata, ImagePatch, VisionPreprocessor,
+    VisionPreprocessorConfig,
 };
 
 #[cfg(test)]

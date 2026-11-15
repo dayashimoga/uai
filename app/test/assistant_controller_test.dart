@@ -27,7 +27,7 @@ void main() {
 
       expect(controller.health, isNotNull);
       expect(controller.health!.status, HealthStatus.healthy);
-      expect(controller.capabilities.length, 9);
+      expect(controller.capabilities.length, 10);
       expect(controller.auditLogs.length, 1);
       expect(controller.auditIntegrity?.isValid, isTrue);
       expect(controller.themeMode, 'system');
