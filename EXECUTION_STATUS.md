@@ -688,7 +688,7 @@ Status Legend:
   - `registry::tests::test_desktop_skills_registration`: Verified all 6 desktop automation skills register cleanly with `ToolDispatcher` (total 18 tools across built-in, file, and desktop).
   - `tests::test_skill_registry_desktop_skills_execution_and_risk_tiers`: Verified end-to-end execution and risk tier verification for `app.list`, `app.launch`, `process.list`, `process.kill`, `window.list`, and `window.focus`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS.
-- **Commit Reference:** Pending commit
+- **Commit Reference:** `91c223b`
 
 
 
