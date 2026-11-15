@@ -1,7 +1,12 @@
+pub mod engine;
 pub mod error;
 pub mod hardware;
 pub mod models;
 
+pub use engine::{
+    FinishReason, InferenceMetrics, LlmCancellationHandle, LlmEngine, LlmEngineConfig, LlmSession,
+    LocalLlmEngine, SamplingParams, TokenChunk,
+};
 pub use error::{LlmError, Result};
 pub use hardware::{
     CpuFeatures, GpuBackend, GpuDevice, GpuProfile, HardwareProfile, HardwareProfiler,
@@ -403,5 +408,253 @@ mod tests {
         std::fs::write(&part_file, b"0123456789").unwrap();
         let offset = downloader.compute_resume_offset(&part_file);
         assert_eq!(offset, 10);
+    }
+
+    #[test]
+    fn test_sampling_params_validation() {
+        let default_params = SamplingParams::default();
+        assert!(default_params.validate().is_ok());
+
+        // Invalid temperature (< 0 or > 2.0)
+        let mut bad_temp = default_params.clone();
+        bad_temp.temperature = -0.1;
+        assert!(bad_temp.validate().is_err());
+        bad_temp.temperature = 2.5;
+        assert!(bad_temp.validate().is_err());
+
+        // Invalid top_p (<= 0 or > 1.0)
+        let mut bad_top_p = default_params.clone();
+        bad_top_p.top_p = 0.0;
+        assert!(bad_top_p.validate().is_err());
+        bad_top_p.top_p = 1.1;
+        assert!(bad_top_p.validate().is_err());
+
+        // Invalid top_k (== 0)
+        let mut bad_top_k = default_params.clone();
+        bad_top_k.top_k = 0;
+        assert!(bad_top_k.validate().is_err());
+
+        // Invalid repetition penalty (< 0.5 or > 3.0)
+        let mut bad_rep = default_params.clone();
+        bad_rep.repetition_penalty = 0.2;
+        assert!(bad_rep.validate().is_err());
+        bad_rep.repetition_penalty = 3.5;
+        assert!(bad_rep.validate().is_err());
+
+        // Invalid max_tokens (== 0)
+        let mut bad_tokens = default_params;
+        bad_tokens.max_tokens = 0;
+        assert!(bad_tokens.validate().is_err());
+    }
+
+    #[test]
+    fn test_llm_session_history_and_templates() {
+        let mut session = LlmSession::new("test-session-001", 128);
+        assert_eq!(session.session_id, "test-session-001");
+        assert_eq!(session.context_window_limit, 128);
+        assert_eq!(session.prefix_hash, 0);
+        assert!(!session.is_context_exceeded());
+
+        session.add_turn("user", "Hello assistant, what is your purpose?");
+        assert_ne!(session.prefix_hash, 0);
+        let hash_after_turn1 = session.prefix_hash;
+
+        session.add_turn("assistant", "I am your offline universal AI assistant.");
+        assert_ne!(session.prefix_hash, hash_after_turn1);
+
+        // ChatML formatting
+        let chatml = session.format_chatml_prompt(Some("You are a helpful assistant."));
+        assert!(chatml.contains("<|im_start|>system\nYou are a helpful assistant.<|im_end|>"));
+        assert!(
+            chatml.contains("<|im_start|>user\nHello assistant, what is your purpose?<|im_end|>")
+        );
+        assert!(chatml.contains(
+            "<|im_start|>assistant\nI am your offline universal AI assistant.<|im_end|>"
+        ));
+        assert!(chatml.ends_with("<|im_start|>assistant\n"));
+
+        // Llama 3 formatting
+        let llama3 = session.format_llama3_prompt(Some("You are a helpful assistant."));
+        assert!(llama3.starts_with("<|begin_of_text|>"));
+        assert!(llama3.contains(
+            "<|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant.<|eot_id|>"
+        ));
+        assert!(llama3.contains("<|start_header_id|>user<|end_header_id|>\n\nHello assistant, what is your purpose?<|eot_id|>"));
+        assert!(llama3.ends_with("<|start_header_id|>assistant<|end_header_id|>\n\n"));
+
+        // Token count estimation
+        assert!(session.estimate_token_count() > 10);
+        assert!(!session.is_context_exceeded());
+
+        // Clear resets history and hash
+        session.clear();
+        assert!(session.history_turns.is_empty());
+        assert_eq!(session.prefix_hash, 0);
+    }
+
+    #[test]
+    fn test_local_llm_engine_lifecycle_and_streaming() {
+        let mut engine = LocalLlmEngine::new();
+        assert!(!engine.is_loaded());
+        assert_eq!(engine.active_model_id(), None);
+        assert_eq!(engine.active_config(), None);
+
+        // Cannot generate without loading
+        let params = SamplingParams::default();
+        let mut chunks = Vec::new();
+        let res = engine.generate_stream("Test prompt", &params, None, &mut |chunk| {
+            chunks.push(chunk);
+            Ok(())
+        });
+        assert!(res.is_err());
+
+        // Load valid configuration
+        let config = LlmEngineConfig {
+            model_id: "qwen2.5-0.5b-instruct-q4_k_m".to_string(),
+            model_path: std::path::PathBuf::from("/models/qwen2.5-0.5b.gguf"),
+            n_gpu_layers: 0,
+            context_length: 2048,
+            threads: 4,
+            memory_budget_bytes: 1024 * 1024 * 1024,
+        };
+        assert!(engine.load_model(config.clone()).is_ok());
+        assert!(engine.is_loaded());
+        assert_eq!(
+            engine.active_model_id(),
+            Some("qwen2.5-0.5b-instruct-q4_k_m")
+        );
+        assert_eq!(engine.active_config(), Some(&config));
+
+        // Generate streaming tokens
+        let mut received_tokens = Vec::new();
+        let metrics = engine
+            .generate_stream("Explain offline AI", &params, None, &mut |chunk| {
+                received_tokens.push(chunk);
+                Ok(())
+            })
+            .unwrap();
+
+        assert!(!received_tokens.is_empty());
+        assert!(metrics.generated_tokens > 0);
+        assert!(metrics.prompt_tokens > 0);
+        assert!(metrics.tokens_per_second >= 0.0);
+
+        // Verify last chunk has is_final == true
+        let last_chunk = received_tokens.last().unwrap();
+        assert!(last_chunk.is_final);
+        assert!(matches!(
+            last_chunk.finish_reason,
+            Some(FinishReason::Length) | Some(FinishReason::Stop)
+        ));
+
+        // Unload model
+        engine.unload_model();
+        assert!(!engine.is_loaded());
+        assert_eq!(engine.active_model_id(), None);
+    }
+
+    #[test]
+    fn test_cooperative_cancellation_latency() {
+        let mut engine = LocalLlmEngine::new();
+        let config = LlmEngineConfig {
+            model_id: "test-model".to_string(),
+            model_path: std::path::PathBuf::from("/models/test.gguf"),
+            n_gpu_layers: 0,
+            context_length: 2048,
+            threads: 2,
+            memory_budget_bytes: 512 * 1024 * 1024,
+        };
+        engine.load_model(config).unwrap();
+
+        let cancel_handle = LlmCancellationHandle::new();
+        assert!(!cancel_handle.is_cancelled());
+
+        // Pre-cancel to verify immediate interruption
+        cancel_handle.cancel();
+        assert!(cancel_handle.is_cancelled());
+
+        let params = SamplingParams::default();
+        let mut received_tokens = Vec::new();
+        let metrics = engine
+            .generate_stream(
+                "Cancel immediately",
+                &params,
+                Some(&cancel_handle),
+                &mut |chunk| {
+                    received_tokens.push(chunk);
+                    Ok(())
+                },
+            )
+            .unwrap();
+
+        assert_eq!(received_tokens.len(), 1);
+        assert!(received_tokens[0].is_final);
+        assert_eq!(
+            received_tokens[0].finish_reason,
+            Some(FinishReason::Cancelled)
+        );
+        assert_eq!(metrics.generated_tokens, 0);
+
+        // Reset handle for reuse
+        cancel_handle.reset();
+        assert!(!cancel_handle.is_cancelled());
+    }
+
+    #[test]
+    fn test_stop_sequence_interruption() {
+        let mut engine = LocalLlmEngine::new();
+        let config = LlmEngineConfig {
+            model_id: "test-model".to_string(),
+            model_path: std::path::PathBuf::from("/models/test.gguf"),
+            n_gpu_layers: 0,
+            context_length: 2048,
+            threads: 2,
+            memory_budget_bytes: 512 * 1024 * 1024,
+        };
+        engine.load_model(config).unwrap();
+
+        // Sample sentence is: "The Universal AI Assistant operates completely offline directly on your device . ..."
+        // Add "device" as a stop sequence
+        let params = SamplingParams {
+            stop_sequences: vec!["device".to_string()],
+            ..Default::default()
+        };
+
+        let mut received_tokens = Vec::new();
+        let metrics = engine
+            .generate_stream("Stop at device", &params, None, &mut |chunk| {
+                received_tokens.push(chunk);
+                Ok(())
+            })
+            .unwrap();
+
+        assert!(!received_tokens.is_empty());
+        let last_chunk = received_tokens.last().unwrap();
+        assert!(last_chunk.is_final);
+        assert_eq!(last_chunk.finish_reason, Some(FinishReason::Stop));
+        assert!(metrics.generated_tokens < 24);
+    }
+
+    #[test]
+    fn test_memory_pressure_auto_unload() {
+        let mut engine = LocalLlmEngine::new();
+        let config = LlmEngineConfig {
+            model_id: "heavy-model".to_string(),
+            model_path: std::path::PathBuf::from("/models/heavy.gguf"),
+            n_gpu_layers: 32,
+            context_length: 4096,
+            threads: 8,
+            memory_budget_bytes: 4 * 1024 * 1024 * 1024,
+        };
+        engine.load_model(config).unwrap();
+        assert!(engine.is_loaded());
+
+        // Non-critical pressure does not unload
+        engine.on_memory_pressure(false);
+        assert!(engine.is_loaded());
+
+        // Critical pressure triggers immediate unload
+        engine.on_memory_pressure(true);
+        assert!(!engine.is_loaded());
     }
 }

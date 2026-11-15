@@ -56,6 +56,6 @@
 ## Stage 3 Queue (Local LLM Runtime & Model Management)
 - [x] `[S3.P1.1]` CPU/RAM/GPU Hardware Profiler (`aissistant-llm`) *(Completed 2026-11-15)*
 - [x] `[S3.P1.2]` Resumable Model Downloader, SHA-256 Verifier & GGUF Inspector *(Completed 2026-11-15)*
-- [ ] `[S3.P2.1]` `llama.cpp` Rust Bindings, Session Management & Token Streaming
+- [x] `[S3.P2.1]` `llama.cpp` Rust Bindings, Session Management & Token Streaming *(Completed 2026-11-15)*
 - [ ] `[S3.P2.2]` GBNF Grammar Compiler for Structured JSON Tool Calling
 - [ ] `[S3.P2.3]` Flutter Model Manager UI & Live Benchmark Diagnostics

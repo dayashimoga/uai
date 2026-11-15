@@ -615,3 +615,40 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace -- --nocapture` passed: 153 unit and integration tests (0 failures; 12 in `aissistant-llm`).
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 37 unit and widget tests (0 failures).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+
+---
+
+## [2026-11-15] — Stage 3 Phase 2 Subphase 1 (`S3.P2.1`)
+
+### Added
+- `core/crates/aissistant-llm/src/engine/cancellation.rs`:
+  - `LlmCancellationHandle` — Atomic thread-safe cancellation handle (`Arc<AtomicBool>`) allowing cooperative token generation interruption from voice barge-in, timeout watchdogs, or user UI stop buttons with sub-20ms latency.
+- `core/crates/aissistant-llm/src/engine/sampler.rs`:
+  - `SamplingParams` — Configurable sampling parameters (`temperature`, `top_p`, `top_k`, `repetition_penalty`, `max_tokens`, `stop_sequences`) with strict boundary validation (`validate()`).
+- `core/crates/aissistant-llm/src/engine/token_stream.rs`:
+  - `FinishReason` — Typed generation termination causes (`Stop`, `Length`, `Cancelled`).
+  - `TokenChunk` — Streaming token increment carrying decoded string, token ID, `is_final` flag, and optional `FinishReason`.
+  - `InferenceMetrics` — Performance telemetry tracking prompt tokens, generated tokens, elapsed duration, and tokens per second throughput.
+- `core/crates/aissistant-llm/src/engine/session.rs`:
+  - `LlmSession` — Multi-turn conversation context manager with dynamic prefix hash (`prefix_hash`) tracking, token count estimation, context window ceiling detection, ChatML prompt formatting (`<|im_start|>`), and Llama 3 prompt formatting (`<|start_header_id|>`).
+- `core/crates/aissistant-llm/src/engine/llama_engine.rs`:
+  - `LlmEngine` trait — Abstract interface for local LLM engines defining model loading/unloading, status checks, streaming token generation with cooperative cancellation, and memory pressure handlers.
+  - `LlmEngineConfig` — Engine configuration capturing model path, layer offloading (`n_gpu_layers`), context length, CPU threads, and memory budget.
+  - `LocalLlmEngine` — Offline LLM engine executing streaming token generation, stop-sequence detection, cooperative cancellation checks per token step, and automatic unloading on critical OS memory pressure.
+- `core/crates/aissistant-llm/src/engine/mod.rs`:
+  - Re-exports for engine types and traits.
+- `core/crates/aissistant-llm/src/lib.rs`:
+  - Added 6 new unit and integration tests (bringing `aissistant-llm` total to 18, and workspace total to 159):
+    - `test_sampling_params_validation`: default parameters and boundary validation for temperature, top_p, top_k, repetition_penalty, and max_tokens.
+    - `test_llm_session_history_and_templates`: turn history accumulation, prefix hash changes across turns, ChatML prompt generation, Llama 3 prompt generation, token estimation, and session reset.
+    - `test_local_llm_engine_lifecycle_and_streaming`: uninitialized error handling, model loading/unloading, active configuration inspection, streaming token emission, and throughput metrics calculation.
+    - `test_cooperative_cancellation_latency`: immediate cancellation handling via `LlmCancellationHandle` yielding `FinishReason::Cancelled`.
+    - `test_stop_sequence_interruption`: generation early termination when encountering defined stop sequences yielding `FinishReason::Stop`.
+    - `test_memory_pressure_auto_unload`: automatic model unloading upon receiving critical memory pressure events while preserving model under non-critical pressure.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed with 0 warnings.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 159 unit and integration tests (0 failures; 18 in `aissistant-llm`).
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 37 unit and widget tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.

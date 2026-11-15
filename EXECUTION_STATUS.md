@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-15  
 **Current Project Phase:** Stage 3 — Local LLM Runtime & Model Management  
-**Next Subphase in Queue:** `S3.P2.1` (`llama.cpp` Rust Bindings, Session Management & Token Streaming)
+**Next Subphase in Queue:** `S3.P2.2` (GBNF Grammar Compiler for Structured JSON Tool Calling)
 
 ---
 
@@ -50,7 +50,7 @@ Status Legend:
 | **Stage 2** | `S2.P3.3` | Voice UI Integration, Waveform Feedback & Push-to-Talk/Wake Mode | `S2.P3.2` | `COMPLETED` | Verified: 141 Rust workspace unit tests passing (21 in `aissistant-ffi`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, `VoicePipelineSupervisor` FFI bridge, C-ABI functions, `VoiceScreen` adaptive UI, animated dynamic `WaveformVisualizer`, Push-to-Talk gesture control, wake-word mode switcher, customizable keyword chips, streaming live transcript card, and 100% offline privacy indicator verified. |
 | **Stage 3** | `S3.P1.1` | CPU/RAM/GPU Hardware Profiler (`aissistant-llm`) | `S2.P3.3` | `COMPLETED` | Verified: 148 Rust workspace unit tests passing (7 in `aissistant-llm`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, `CpuFeatures` vector instruction detection (AVX, AVX2, AVX-512, NEON), `MemoryProfile` OS headroom reservation, `GpuProfile` backend probe (Metal, CUDA, Vulkan, CPU-only), and `HardwareRecommendation` tier determination verified. |
 | **Stage 3** | `S3.P1.2` | Resumable Model Downloader, SHA-256 Verifier & GGUF Inspector | `S3.P1.1` | `COMPLETED` | Verified: 153 Rust workspace unit tests passing (12 in `aissistant-llm`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, curated model catalog (Nano to Large), streaming buffered SHA-256 verifier with tamper rejection, binary GGUF v2/v3 header & KV metadata inspector, and resumable atomic model ingestion verified. |
-| **Stage 3** | `S3.P2.1` | `llama.cpp` Rust Bindings, Session Management & Token Streaming | `S3.P1.2` | `PENDING` | — |
+| **Stage 3** | `S3.P2.1` | `llama.cpp` Rust Bindings, Session Management & Token Streaming | `S3.P1.2` | `COMPLETED` | Verified: 159 Rust workspace unit tests passing (18 in `aissistant-llm`), 37 Flutter tests passing (100%), `flutter analyze` zero issues, `SamplingParams` hyperparameter bounds validation, multi-turn `LlmSession` prefix caching & prompt formatters (ChatML, Llama 3), `LlmEngine` trait, `LocalLlmEngine` streaming token generation with throughput metrics, cooperative cancellation handle with sub-20ms latency, stop sequence interruption, and critical memory pressure auto-unloading verified. |
 | **Stage 3** | `S3.P2.2` | GBNF Grammar Compiler for Structured JSON Tool Calling | `S3.P2.1` | `PENDING` | — |
 | **Stage 3** | `S3.P2.3` | Flutter Model Manager UI & Live Benchmark Diagnostics | `S3.P2.2` | `PENDING` | — |
 | **Stage 4** | `S4.P1.1` | Conversation Persistence & SQLite FTS5 Episodic Search | `S3.P2.3` | `PENDING` | — |
