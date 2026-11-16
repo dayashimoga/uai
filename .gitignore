@@ -71,6 +71,18 @@ unlinked*.dsym
 *.key
 *.crt
 
+# Distribution Binaries (Packaging output)
+dist/*.exe
+dist/*.msix
+dist/*.zip
+dist/*.deb
+dist/*.AppImage
+dist/*.dmg
+dist/*.apk
+dist/*.aab
+dist/*.ipa
+dist/*.xcarchive
+
 # IDE / OS
 .vscode/
 .idea/
