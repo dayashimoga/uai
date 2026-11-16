@@ -26,17 +26,34 @@ On first launch, the assistant performs a completely local hardware inspection:
 
 ---
 
-## 3. Permissions, Skills & Security Audit Log
+## 3. Multimodal Vision & Offline Voice Interpreter
 
-1. **Permission Policies:** Navigate to **Settings -> Skills & Permissions** to configure each skill category:
-   - **Always Allow:** Safe read-only actions (time, weather/sensors, reading media status).
-   - **Ask Every Time (Default for Sensitive Actions):** File moves/deletions, system setting changes, application control, and cross-device actions.
-   - **Deny:** Completely disables the skill.
-2. **Audit Log:** Navigate to **Settings -> Security & Audit Log** to inspect the cryptographic hash-chained log of every tool execution, permission decision, and remote peer request, including a one-click **Verify Chain Integrity** button.
+1. **Offline OCR & Vision Analysis:**
+   - Navigate to the **Vision** screen.
+   - Import or drag-and-drop local images, screenshots, or receipts.
+   - Perform instant offline text extraction and structural analysis without sending images to external clouds.
+2. **Live Voice Interpreter Mode:**
+   - Navigate to the **Interpreter** screen.
+   - Select source and target languages (English, Spanish, Mandarin, French, German, Japanese, and more).
+   - Tap **Start Interpreting** for real-time, bidirectional voice translation powered by local offline translation models.
 
 ---
 
-## 4. Cross-Device Pairing & Remote Control
+## 4. Personal Memory, Document Knowledge (RAG) & Routines
+
+1. **Episodic & Semantic Memory:**
+   - The assistant remembers facts from prior conversations stored locally in your encrypted SQLite database.
+   - Inspect, search, edit, or purge memory items at any time under **Knowledge & Memory**.
+2. **Local Document Indexing (Offline RAG):**
+   - Ingest folders containing Markdown, TXT, PDF, or code files.
+   - Ask questions grounded in your local documents; responses include verifiable file names and line citations.
+3. **Visual Automation Builder:**
+   - Navigate to the **Automation** tab to schedule cron/time-based routines or event-triggered macros (e.g., "Mute media when battery drops below 20%", "Sync clipboard when paired desktop connects").
+   - Connect local MQTT brokers or Home Assistant instances for offline smart-home control.
+
+---
+
+## 5. Cross-Device Pairing & Remote Control
 
 1. **Discover Peers:** Ensure both devices are on the same local network (or connected via your private WireGuard/Tailscale tunnel) and open the **Devices** tab.
 2. **Pair Securely:**
@@ -49,7 +66,12 @@ On first launch, the assistant performs a completely local hardware inspection:
 
 ---
 
-## 5. Personal Memory & Knowledge Base
+## 6. Permissions, Security Audit Log & Emergency Lockdown
 
-- **Memory Manager:** Open **Knowledge & Memory** to search, edit, or delete facts and conversation history stored in your encrypted local SQLite database.
-- **Local Folder Indexing (Offline RAG):** Add local document folders to ask questions grounded in your personal Markdown notes, PDFs, and codebases with exact file and line citations.
+1. **Permission Policies:** Navigate to **Settings -> Skills & Permissions** to configure each skill category:
+   - **Always Allow:** Safe read-only actions (time, weather/sensors, reading media status).
+   - **Ask Every Time (Default for Sensitive Actions):** File moves/deletions, system setting changes, application control, and cross-device actions.
+   - **Deny:** Completely disables the skill.
+2. **Cryptographic Audit Log:** Navigate to **Settings -> Security & Audit Log** to inspect the BLAKE3 hash-chained log of every tool execution, permission decision, and remote peer request, including a one-click **Verify Chain Integrity** button.
+3. **Emergency Panic Lockdown:**
+   - Tap the red **Emergency Lockdown** button in Settings to instantly terminate all active network connections, revoke remote peer sessions, purge volatile memory caches, and lock the assistant.
