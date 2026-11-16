@@ -1805,3 +1805,48 @@
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 94 unit and widget tests (0 failures).
 - Commit reference: `dbd8e6c`.
+
+---
+
+## [2026-11-16] — S9.P2.1: Local MQTT & Home Assistant / Matter-Bridge Offline Integration
+
+### Added & Modified
+- `core/crates/aissistant-storage/src/migration.rs`:
+  - Added `Migration 9` defining `smart_home_entities` table (`id`, `domain`, `name`, `state_json`, `attributes_json`, `protocol`, `is_available`, `last_updated_ms`) with indices on `domain`, `protocol`, and `is_available`.
+  - Updated schema version to 9 and table count to 18.
+- `core/crates/aissistant-storage/src/smart_home_store.rs`:
+  - Implemented `SmartHomeStore` with models `SmartHomeDomain` (`Light`, `Switch`, `Climate`, `Sensor`, `Cover`, `Fan`, `Lock`, `MediaPlayer`), `SmartHomeProtocol` (`Mqtt`, `HomeAssistant`, `MatterLocal`), and `SmartHomeEntityRecord`.
+  - Added CRUD and lifecycle operations: `upsert_entity`, `get_entity`, `list_entities` (with optional domain filter), `update_state`, `update_availability`, `delete_entity`, and `count_entities`.
+- `core/crates/aissistant-storage/src/lib.rs`:
+  - Exposed and re-exported `smart_home_store` module and types.
+- `core/crates/aissistant-skills/src/smart_home.rs`:
+  - Implemented `SmartHomeCommand` (`TurnOn`, `TurnOff`, `Toggle`, `SetTemperature`, `SetPosition`) with MQTT subtopic/payload generators (`to_mqtt_payload`) and Home Assistant REST payload formatters (`to_home_assistant_payload`).
+  - Implemented 4 tool handlers conforming to `ToolHandler`: `HomeDeviceListSkill`, `HomeDeviceStateSkill`, `HomeDeviceControlSkill` (with state persistence into cache), and `HomeDeviceDiscoverSkill`.
+- `core/crates/aissistant-skills/src/registry.rs`:
+  - Added smart home skill registration to `SkillRegistry` (`register_all_smart_home_skills`).
+- `core/crates/aissistant-skills/src/lib.rs`:
+  - Exposed and re-exported `smart_home` module and types.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Added FFI models: `SmartHomeEntityItem`, `SmartHomeCommandItem`, and `SmartHomeCommandResultItem`.
+  - Integrated `SmartHomeStore` into `CoreBridge` with methods `home_list_entities`, `home_get_entity`, `home_upsert_entity`, `home_delete_entity`, and `home_control_device`.
+  - Added top-level convenience entrypoints: `bridge_home_entity_list`, `bridge_home_entity_get`, `bridge_home_entity_upsert`, `bridge_home_entity_delete`, and `bridge_home_entity_control`.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Added safe C-ABI functions with safety documentation and panic catching: `bridge_c_home_entity_list`, `bridge_c_home_entity_get`, `bridge_c_home_entity_upsert`, `bridge_c_home_entity_delete`, and `bridge_c_home_entity_control`.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Re-exported smart home types and added `test_smart_home_c_abi` integration test.
+- `app/lib/core/models/smart_home_models.dart`:
+  - Implemented Dart models `SmartHomeDomain`, `SmartHomeProtocol`, `SmartHomeEntityItem` (with helper getters `isTurnedOn`, `brightness`, `targetTemperature`, `position`), `SmartHomeCommandItem`, and `SmartHomeCommandResultItem`.
+- `app/lib/core/ffi_bridge.dart`:
+  - Wired smart home methods across `AissistantBridge`, `NativeFfiBridge` (via C-ABI lookup), and `TestHarnessBridge` (with mock entity registry and state mutation).
+- `app/lib/core/assistant_controller.dart`:
+  - Added reactive smart home state (`homeEntities`, `isHomeLoading`, `homeError`) and methods (`loadHomeEntities`, `controlHomeDevice`, `upsertHomeEntity`, `deleteHomeEntity`).
+- `app/test/assistant_controller_test.dart`:
+  - Added test verifying smart home entity management: listing devices, domain filtering, actuation (`turn_off`, `set_temperature`), entity upsert, and deletion.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed cleanly.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across workspace.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 378 unit and integration tests (0 failures; 52 in `aissistant-storage`, 48 in `aissistant-skills`, 32 in `aissistant-ffi`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 95 unit and widget tests (0 failures).
+- Commit reference: `abb36fd`.

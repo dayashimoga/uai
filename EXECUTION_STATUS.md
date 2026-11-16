@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-16  
 **Current Project Phase:** Stage 9 — Personalization, Workflows & Proactive Automation  
-**Next Subphase in Queue:** `S9.P2.1` (Local MQTT & Home Assistant / Matter-Bridge Offline Integration)
+**Next Subphase in Queue:** `S9.P2.2` (Automation Builder UI & Execution History Inspector)
 
 ---
 
@@ -78,7 +78,7 @@ Status Legend:
 | **Stage 8** | `S8.P2.2` | Offline Multilingual Translation & Live Voice Interpreter Mode | `S8.P2.1` | `COMPLETED` | Verified [Commit `3719f45`]: 356 Rust workspace unit tests passing (40 in `aissistant-llm`, 24 in `aissistant-orchestrator`, 29 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 89 Flutter tests passing (100%), `flutter analyze` zero issues, offline `Language` & `LanguagePair` (ISO 639-1: en, es, fr, de, zh, ja, it, pt, ru, ko), `TranslationPromptTemplate`, `TranslationEngine` (fast verified phrasebook, casing match, hybrid fallback), `InterpreterSession` & `InterpreterTurn` bi-directional dialogue manager with auto-alternating speakers, safe FFI & C-ABI exports, reactive `AssistantController` interpreter state, and responsive `InterpreterScreen` UI with participant cards, active turn indicator, quick phrase chips, and transcript history verified. |
 | **Stage 9** | `S9.P1.1` | User Persona, Voice Profile & Explicit Preference Manager | `S8.P2.2` | `COMPLETED` | Verified [Commit `aea67e1`]: 367 Rust workspace unit tests passing (46 in `aissistant-storage`, 28 in `aissistant-orchestrator`, 30 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 93 Flutter tests passing (100%), `flutter analyze` zero issues, Migration 7 schema runner, PersonaStore CRUD with active exclusivity and default persona protection, PersonaPromptInjector prompt assembly, safe FFI and C-ABI exports, reactive AssistantController state, and responsive PersonaScreen UI with voice tuning verified. |
 | **Stage 9** | `S9.P1.2` | Cron, Event-Triggered & Cross-Device Workflow Automation Engine | `S9.P1.1` | `COMPLETED` | `dbd8e6c` |
-| **Stage 9** | `S9.P2.1` | Local MQTT & Home Assistant / Matter-Bridge Offline Integration | `S9.P1.2` | `PENDING` | — |
+| **Stage 9** | `S9.P2.1` | Local MQTT & Home Assistant / Matter-Bridge Offline Integration | `S9.P1.2` | `COMPLETED` | `abb36fd` |
 | **Stage 9** | `S9.P2.2` | Automation Builder UI & Execution History Inspector | `S9.P2.1` | `PENDING` | — |
 | **Stage 10** | `S10.P1.1` | Comprehensive Prompt-Injection, Sandbox Escape & Fuzzing Suite | `S9.P2.2` | `PENDING` | — |
 | **Stage 10** | `S10.P1.2` | Cryptographic Key Rotation, Revocation & Emergency Lockdown | `S10.P1.1` | `PENDING` | — |
@@ -1071,6 +1071,30 @@ Status Legend:
   - `assistant_controller_test::manages automations: lists, saves, toggles, triggers and deletes workflow rules`: Verified Flutter controller reactive state, automation loading, toggling, rule persistence, manual execution triggering, history queries, and rule deletion.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `dbd8e6c`
+
+### Verification Evidence — S9.P2.1 (Local MQTT & Home Assistant / Matter-Bridge Offline Integration)
+- **Subphase:** `S9.P2.1`
+- **Execution Date:** 2026-11-16
+- **Status:** `COMPLETED`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (Clean formatting across all 11 crates)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (0 warnings across workspace)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (378 passed across 11 crates; 52 in `aissistant-storage`, 48 in `aissistant-skills`, 32 in `aissistant-ffi`)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (95 passed across 14 Flutter test suites)
+- **Test Summary:**
+  - `migration::tests::test_migration_runner_applies_v1_and_is_idempotent`: Verified `Migration 9` creating `smart_home_entities` table (`id`, `domain`, `name`, `state_json`, `attributes_json`, `protocol`, `is_available`, `last_updated_ms`) with indices on `domain`, `protocol`, and `is_available`, with schema version `9` and table count `18`.
+  - `smart_home_store::tests::test_domain_and_protocol_conversions`: Verified round-trip conversions and string representations for `SmartHomeDomain` (light, switch, climate, sensor, cover, fan, lock, media_player) and `SmartHomeProtocol` (mqtt, home_assistant, matter_local).
+  - `smart_home_store::tests::test_smart_home_store_crud_lifecycle`: Verified entity insertion, retrieval, domain filtering, state updating, availability updating, deletion, and total count.
+  - `smart_home_store::tests::test_smart_home_store_validation_errors`: Verified rejection of empty IDs, empty names, and malformed state JSON.
+  - `smart_home::tests::test_smart_home_command_payload_formatting`: Verified serialization of `SmartHomeCommand` (`TurnOn`, `TurnOff`, `Toggle`, `SetTemperature`, `SetPosition`) into local MQTT subtopic/payloads and Home Assistant REST service payloads (`light/turn_on`, `climate/set_temperature`, etc.).
+  - `smart_home::tests::test_home_device_list_and_state_skills`: Verified `HomeDeviceListSkill` (with optional domain filter) and `HomeDeviceStateSkill` tool handlers under `ReadOnly` risk tier.
+  - `smart_home::tests::test_home_device_control_skill_turn_on_and_temperature`: Verified `HomeDeviceControlSkill` device actuation under `StateModifying` risk tier, caching new state into SQLite and generating protocol-specific dispatch metadata.
+  - `smart_home::tests::test_home_device_discover_skill`: Verified local network bridge discovery simulation reporting offline readiness.
+  - `tests::test_smart_home_c_abi`: Verified C-ABI functions (`bridge_c_home_entity_list`, `bridge_c_home_entity_get`, `bridge_c_home_entity_upsert`, `bridge_c_home_entity_delete`, `bridge_c_home_entity_control`), JSON roundtrips, and safe C string deallocation via `bridge_c_free_string`.
+  - `assistant_controller_test::manages smart home entities`: Verified Flutter controller reactive state, entity loading, domain filtering, actuation (`turn_off`, `set_temperature`), entity upsert, and deletion.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** `abb36fd`
 
 
 
