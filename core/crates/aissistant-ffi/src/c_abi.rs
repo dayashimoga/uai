@@ -36,8 +36,9 @@ use crate::api::{
     bridge_set_active_persona, bridge_set_preference, bridge_set_setting, bridge_translate_text,
     bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
     bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
-    bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge, shutdown_bridge,
-    AutomationRuleItem, SmartHomeCommandItem, SmartHomeEntityItem, UserPersonaItem,
+    bridge_voice_start_listening, bridge_voice_stop_listening, get_bridge, init_bridge,
+    shutdown_bridge, AutomationRuleItem, SmartHomeCommandItem, SmartHomeEntityItem,
+    UserPersonaItem,
 };
 use crate::device_bridge::DiscoveredPeerItem;
 use crate::error::FfiError;
@@ -1482,6 +1483,194 @@ pub unsafe extern "C" fn bridge_c_run_pipeline_benchmark() -> *mut c_char {
             "Panic in bridge_c_run_pipeline_benchmark".into(),
         ))
     }))
+}
+
+/// Creates a new conversation thread.
+/// The returned JSON string MUST be freed with `bridge_c_free_string`.
+///
+/// # Safety
+/// `title` may be null or point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_chat_create_conversation(title: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let title_opt = if title.is_null() {
+            None
+        } else {
+            Some(unsafe { c_char_to_str(title) }?)
+        };
+        let bridge = get_bridge()?;
+        bridge.chat_create_conversation(title_opt)
+    }));
+    match result {
+        Ok(res) => serialize_to_c_json(res),
+        Err(_) => serialize_to_c_json::<()>(Err(FfiError::PanicCaught(
+            "Panic in chat_create_conversation".into(),
+        ))),
+    }
+}
+
+/// Lists conversations ordered by updated_at descending.
+/// The returned JSON string MUST be freed with `bridge_c_free_string`.
+#[no_mangle]
+pub extern "C" fn bridge_c_chat_list_conversations(limit: u32, offset: u32) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let bridge = get_bridge()?;
+        bridge.chat_list_conversations(limit as usize, offset as usize)
+    }));
+    match result {
+        Ok(res) => serialize_to_c_json(res),
+        Err(_) => serialize_to_c_json::<()>(Err(FfiError::PanicCaught(
+            "Panic in chat_list_conversations".into(),
+        ))),
+    }
+}
+
+/// Retrieves all turns belonging to a conversation.
+/// The returned JSON string MUST be freed with `bridge_c_free_string`.
+///
+/// # Safety
+/// `conversation_id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_chat_get_turns(conversation_id: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let cid = unsafe { c_char_to_str(conversation_id) }?;
+        let bridge = get_bridge()?;
+        bridge.chat_get_turns(cid, None)
+    }));
+    match result {
+        Ok(res) => serialize_to_c_json(res),
+        Err(_) => serialize_to_c_json::<()>(Err(FfiError::PanicCaught(
+            "Panic in chat_get_turns".into(),
+        ))),
+    }
+}
+
+/// Deletes a conversation by ID.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `conversation_id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_chat_delete_conversation(conversation_id: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let cid = unsafe { c_char_to_str(conversation_id) }?;
+        let bridge = get_bridge()?;
+        bridge.chat_delete_conversation(cid)
+    }));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Searches conversation turns using SQLite FTS5 BM25.
+/// The returned JSON string MUST be freed with `bridge_c_free_string`.
+///
+/// # Safety
+/// `query` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_chat_search_turns(
+    query: *const c_char,
+    limit: u32,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let q = unsafe { c_char_to_str(query) }?;
+        let bridge = get_bridge()?;
+        bridge.chat_search_turns(q, limit as usize)
+    }));
+    match result {
+        Ok(res) => serialize_to_c_json(res),
+        Err(_) => serialize_to_c_json::<()>(Err(FfiError::PanicCaught(
+            "Panic in chat_search_turns".into(),
+        ))),
+    }
+}
+
+/// Sends a user message in a conversation, streaming tokens asynchronously.
+/// The returned JSON string MUST be freed with `bridge_c_free_string`.
+///
+/// # Safety
+/// `conversation_id` and `message` must point to valid null-terminated UTF-8 C strings.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_chat_send_message(
+    conversation_id: *const c_char,
+    message: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let cid = unsafe { c_char_to_str(conversation_id) }?;
+        let msg = unsafe { c_char_to_str(message) }?;
+        let bridge = get_bridge()?;
+        bridge.chat_send_message(cid, msg)
+    }));
+    match result {
+        Ok(res) => serialize_to_c_json(res),
+        Err(_) => serialize_to_c_json::<()>(Err(FfiError::PanicCaught(
+            "Panic in chat_send_message".into(),
+        ))),
+    }
+}
+
+/// Alias for `bridge_c_chat_send_message`.
+///
+/// # Safety
+/// `conversation_id` and `prompt_text` must point to valid null-terminated UTF-8 C strings.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_send_text(
+    conversation_id: *const c_char,
+    prompt_text: *const c_char,
+) -> *mut c_char {
+    unsafe { bridge_c_chat_send_message(conversation_id, prompt_text) }
+}
+
+/// Cancels an in-flight conversation turn.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `conversation_id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_chat_cancel_turn(conversation_id: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let cid = unsafe { c_char_to_str(conversation_id) }?;
+        let bridge = get_bridge()?;
+        bridge.chat_cancel_turn(cid)
+    }));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Resolves an outstanding confirmation by confirmation ID or turn ID.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `key` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_chat_resolve_confirmation(
+    key: *const c_char,
+    approved: i32,
+) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let k = unsafe { c_char_to_str(key) }?;
+        let bridge = get_bridge()?;
+        bridge.chat_resolve_confirmation(k, approved != 0)
+    }));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Alias for `bridge_c_chat_resolve_confirmation`.
+///
+/// # Safety
+/// `turn_id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_resolve_confirmation(
+    turn_id: *const c_char,
+    approved: i32,
+) -> i32 {
+    unsafe { bridge_c_chat_resolve_confirmation(turn_id, approved) }
 }
 
 /// Frees a C string previously allocated by `aissistant-ffi`.

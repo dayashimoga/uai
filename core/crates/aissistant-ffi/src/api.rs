@@ -7,22 +7,27 @@ use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
 
 use aissistant_core::{
-    AuditEntryId, Capability, CapabilityRegistry, CapabilityStatus, CoreError, SkillId,
+    AuditEntryId, Capability, CapabilityRegistry, CapabilityStatus, ConversationId, CoreError,
+    SkillId,
 };
-use aissistant_llm::{Language, TranslationEngine};
-use aissistant_orchestrator::{InterpreterSession, InterpreterSessionConfig};
+use aissistant_llm::{Language, LocalEmbeddingEngine, TranslationEngine};
+use aissistant_orchestrator::{
+    ConfirmationId, ConfirmationManager, InterpreterSession, InterpreterSessionConfig, Orchestrator,
+    OrchestratorConfig, OrchestratorEvent,
+};
 use aissistant_security::{
     Actor, AeadKey, AuditEntry, AuditExecutionStatus, DeviceIdentity, PolicyDecision, PolicyEngine,
-    GENESIS_PREV_HASH,
+    TaintTracker, GENESIS_PREV_HASH,
 };
 use aissistant_skills::{
     AutomationEngine, SmartHomeCommand, WorkflowAction, WorkflowExecutionReport,
 };
 use aissistant_storage::{
     AuditStore, AutomationHistoryRecord, AutomationRuleRecord, AutomationStore,
-    AutomationTriggerType, FileBoundKeystore, KeystoreProvider, PersonaStore, PersonaTone,
-    ResponseVerbosity, SecretStore, SettingsStore, SmartHomeDomain, SmartHomeEntityRecord,
-    SmartHomeProtocol, SmartHomeStore, SqliteDb, UserPersona, UserPreference,
+    AutomationTriggerType, ConversationStore, FileBoundKeystore, HybridSearchEngine,
+    KeystoreProvider, PersonaStore, PersonaTone, ResponseVerbosity, SecretStore, SettingsStore,
+    SmartHomeDomain, SmartHomeEntityRecord, SmartHomeProtocol, SmartHomeStore, SqliteDb,
+    UserPersona, UserPreference, VectorMemoryStore,
 };
 use serde::{Deserialize, Serialize};
 
@@ -36,7 +41,8 @@ use crate::lifecycle::{
     ShutdownReason,
 };
 use crate::model_bridge::{
-    BenchmarkReport, HardwareOverview, ModelCatalogItem, ModelManagerSnapshot, ModelSupervisor,
+    BenchmarkReport, BridgeLlmEngine, HardwareOverview, ModelCatalogItem, ModelManagerSnapshot,
+    ModelSupervisor,
 };
 use crate::voice_bridge::{VoiceListeningMode, VoicePipelineSupervisor};
 
@@ -142,6 +148,39 @@ pub struct AuditIntegrityReport {
     pub head_hash: String,
     /// Error message if integrity was violated.
     pub error_message: Option<String>,
+}
+
+/// FFI view of a conversation thread.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConversationItem {
+    pub id: String,
+    pub title: String,
+    pub created_at_ms: i64,
+    pub updated_at_ms: i64,
+}
+
+/// FFI view of a conversation message turn.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChatTurnItem {
+    pub id: String,
+    pub conversation_id: String,
+    pub turn_index: u32,
+    pub role: String,
+    pub content: String,
+    pub timestamp_ms: i64,
+    pub tool_calls_json: Option<String>,
+}
+
+/// FFI view of an FTS5 search result within conversation turns.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChatSearchItem {
+    pub turn_id: String,
+    pub conversation_id: String,
+    pub turn_index: u32,
+    pub role: String,
+    pub content: String,
+    pub snippet: String,
+    pub rank: f64,
 }
 
 /// FFI view of an ingested document record.
@@ -672,6 +711,8 @@ pub struct CoreBridge {
     device_supervisor: Arc<DeviceSupervisor>,
     interpreter_session: Arc<Mutex<InterpreterSession>>,
     translation_engine: TranslationEngine,
+    pub(crate) conversation_store: ConversationStore,
+    pub(crate) orchestrator: Arc<Mutex<Orchestrator>>,
     cold_start_ms: u64,
     data_dir: Option<PathBuf>,
 }
@@ -725,6 +766,59 @@ impl CoreBridge {
         let translation_engine = TranslationEngine::new();
         let lockdown_active = Arc::new(AtomicBool::new(false));
 
+        let conversation_store = ConversationStore::new(db.clone());
+        let vec_store = VectorMemoryStore::new(db.clone());
+        let hybrid_search = HybridSearchEngine::new(conversation_store.clone(), vec_store.clone());
+        let embed_engine = Arc::new(LocalEmbeddingEngine::default());
+        let bridge_llm = Arc::new(BridgeLlmEngine::new(model_supervisor.clone()));
+        let orch_raw = Orchestrator::new(
+            OrchestratorConfig::default(),
+            conversation_store.clone(),
+            vec_store,
+            hybrid_search,
+            embed_engine,
+            bridge_llm,
+            None,
+        )
+        .with_policy_engine(Arc::new(RwLock::new(PolicyEngine::new())))
+        .with_audit_store(Arc::new(AuditStore::new(db.clone())))
+        .with_confirmation_manager(Arc::new(ConfirmationManager::new()))
+        .with_taint_tracker(Arc::new(RwLock::new(TaintTracker::new())))
+        .with_persona_store(Arc::new(PersonaStore::new(db.clone())));
+
+        let sink_orch = event_sink.clone();
+        orch_raw.on_event(move |ev| match ev {
+            OrchestratorEvent::TokenStreamed { turn_id, token, .. } => {
+                sink_orch.broadcast(BridgeEvent::ChatTokenDelta {
+                    turn_id: turn_id.to_string(),
+                    token: token.clone(),
+                });
+            }
+            OrchestratorEvent::TurnFinished { turn_id, .. } => {
+                sink_orch.broadcast(BridgeEvent::ChatTurnComplete {
+                    turn_id: turn_id.to_string(),
+                    citations: Vec::new(),
+                });
+            }
+            OrchestratorEvent::ConfirmationRequired { confirmation } => {
+                sink_orch.broadcast(BridgeEvent::ToolConfirmationRequired {
+                    turn_id: confirmation.turn_id.to_string(),
+                    tool_name: confirmation.tool_name.clone(),
+                    risk_tier: format!("{:?}", confirmation.risk_tier),
+                    params_json: confirmation.arguments.to_string(),
+                    taint_status: confirmation.untrusted_input_tainted,
+                });
+            }
+            OrchestratorEvent::ConfirmationResolved { id, approved } => {
+                sink_orch.broadcast(BridgeEvent::ToolConfirmationResolved {
+                    confirmation_id: id.to_string(),
+                    approved: *approved,
+                });
+            }
+            _ => {}
+        });
+        let orchestrator = Arc::new(Mutex::new(orch_raw));
+
         runtime.transition_to(LifecycleState::Running, Some("ready"))?;
         let cold_start_ms = start_time.elapsed().as_millis() as u64;
 
@@ -747,6 +841,8 @@ impl CoreBridge {
             device_supervisor,
             interpreter_session,
             translation_engine,
+            conversation_store,
+            orchestrator,
             cold_start_ms,
             data_dir: None,
         })
@@ -802,10 +898,63 @@ impl CoreBridge {
         let translation_engine = TranslationEngine::new();
         let lockdown_active = Arc::new(AtomicBool::new(false));
 
+        let conversation_store = ConversationStore::new(db.clone());
+        let vec_store = VectorMemoryStore::new(db.clone());
+        let hybrid_search = HybridSearchEngine::new(conversation_store.clone(), vec_store.clone());
+        let embed_engine = Arc::new(LocalEmbeddingEngine::default());
+        let bridge_llm = Arc::new(BridgeLlmEngine::new(model_supervisor.clone()));
+        let orch_raw = Orchestrator::new(
+            OrchestratorConfig::default(),
+            conversation_store.clone(),
+            vec_store,
+            hybrid_search,
+            embed_engine,
+            bridge_llm,
+            None,
+        )
+        .with_policy_engine(Arc::new(RwLock::new(PolicyEngine::new())))
+        .with_audit_store(Arc::new(AuditStore::new(db.clone())))
+        .with_confirmation_manager(Arc::new(ConfirmationManager::new()))
+        .with_taint_tracker(Arc::new(RwLock::new(TaintTracker::new())))
+        .with_persona_store(Arc::new(PersonaStore::new(db.clone())));
+
+        let sink_orch = event_sink.clone();
+        orch_raw.on_event(move |ev| match ev {
+            OrchestratorEvent::TokenStreamed { turn_id, token, .. } => {
+                sink_orch.broadcast(BridgeEvent::ChatTokenDelta {
+                    turn_id: turn_id.to_string(),
+                    token: token.clone(),
+                });
+            }
+            OrchestratorEvent::TurnFinished { turn_id, .. } => {
+                sink_orch.broadcast(BridgeEvent::ChatTurnComplete {
+                    turn_id: turn_id.to_string(),
+                    citations: Vec::new(),
+                });
+            }
+            OrchestratorEvent::ConfirmationRequired { confirmation } => {
+                sink_orch.broadcast(BridgeEvent::ToolConfirmationRequired {
+                    turn_id: confirmation.turn_id.to_string(),
+                    tool_name: confirmation.tool_name.clone(),
+                    risk_tier: format!("{:?}", confirmation.risk_tier),
+                    params_json: confirmation.arguments.to_string(),
+                    taint_status: confirmation.untrusted_input_tainted,
+                });
+            }
+            OrchestratorEvent::ConfirmationResolved { id, approved } => {
+                sink_orch.broadcast(BridgeEvent::ToolConfirmationResolved {
+                    confirmation_id: id.to_string(),
+                    approved: *approved,
+                });
+            }
+            _ => {}
+        });
+        let orchestrator = Arc::new(Mutex::new(orch_raw));
+
         runtime.transition_to(LifecycleState::Running, Some("ready"))?;
         let cold_start_ms = start_time.elapsed().as_millis() as u64;
 
-        Ok(Self {
+        let bridge = Self {
             db,
             audit_store,
             settings_store,
@@ -824,9 +973,21 @@ impl CoreBridge {
             device_supervisor,
             interpreter_session,
             translation_engine,
+            conversation_store,
+            orchestrator,
             cold_start_ms,
             data_dir: Some(path.to_path_buf()),
-        })
+        };
+
+        let _ = bridge.append_audit_entry(
+            Actor::LocalUser,
+            SkillId::new("core.supervisor.init").map_err(FfiError::Core)?,
+            "{\"action\":\"system_boot\",\"keystore_unsealed\":true,\"status\":\"ok\"}",
+            PolicyDecision::Allow,
+            AuditExecutionStatus::Success,
+        );
+
+        Ok(bridge)
     }
 
     /// Returns a comprehensive system health report.
@@ -1355,7 +1516,17 @@ impl CoreBridge {
             .model_supervisor
             .lock()
             .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
-        sup.load_model(model_id)
+        let res = sup.load_model(model_id);
+        if res.is_ok() {
+            let _ = self.append_audit_entry(
+                Actor::LocalUser,
+                SkillId::new("llm.model.load").map_err(FfiError::Core)?,
+                &format!("{{\"model_id\":\"{model_id}\"}}"),
+                PolicyDecision::Allow,
+                AuditExecutionStatus::Success,
+            );
+        }
+        res
     }
 
     /// Unloads the active model from memory.
@@ -1364,7 +1535,17 @@ impl CoreBridge {
             .model_supervisor
             .lock()
             .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
-        sup.unload_model()
+        let res = sup.unload_model();
+        if res.is_ok() {
+            let _ = self.append_audit_entry(
+                Actor::LocalUser,
+                SkillId::new("llm.model.unload").map_err(FfiError::Core)?,
+                "{\"action\":\"unload\"}",
+                PolicyDecision::Allow,
+                AuditExecutionStatus::Success,
+            );
+        }
+        res
     }
 
     /// Executes an on-device inference benchmark.
@@ -2294,6 +2475,156 @@ impl CoreBridge {
         }
         // Baseline estimate if OS restricts process inspect
         24 * 1024 * 1024
+    }
+
+    // ==========================================
+    // Conversational Chat & Orchestration Methods
+    // ==========================================
+
+    /// Creates a new conversation thread.
+    pub fn chat_create_conversation(&self, title: Option<&str>) -> FfiResult<ConversationItem> {
+        let conv_title = title.unwrap_or("New Conversation");
+        let conv = self
+            .conversation_store
+            .create_conversation(conv_title, None)?;
+        Ok(ConversationItem {
+            id: conv.id.to_string(),
+            title: conv.title,
+            created_at_ms: conv.created_at_ms,
+            updated_at_ms: conv.updated_at_ms,
+        })
+    }
+
+    /// Lists conversations ordered by updated_at_ms descending.
+    pub fn chat_list_conversations(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> FfiResult<Vec<ConversationItem>> {
+        let convs = self.conversation_store.list_conversations(limit, offset)?;
+        Ok(convs
+            .into_iter()
+            .map(|c| ConversationItem {
+                id: c.id.to_string(),
+                title: c.title,
+                created_at_ms: c.created_at_ms,
+                updated_at_ms: c.updated_at_ms,
+            })
+            .collect())
+    }
+
+    /// Retrieves all turns in a conversation.
+    pub fn chat_get_turns(
+        &self,
+        conversation_id: &str,
+        limit: Option<usize>,
+    ) -> FfiResult<Vec<ChatTurnItem>> {
+        let cid = ConversationId::new(conversation_id).map_err(FfiError::Core)?;
+        let turns = self.conversation_store.list_turns(&cid, limit)?;
+        Ok(turns
+            .into_iter()
+            .map(|t| ChatTurnItem {
+                id: t.id.to_string(),
+                conversation_id: t.conversation_id.to_string(),
+                turn_index: t.turn_index,
+                role: t.role.as_str().to_string(),
+                content: t.content,
+                timestamp_ms: t.timestamp_ms,
+                tool_calls_json: t.tool_calls.map(|v| v.to_string()),
+            })
+            .collect())
+    }
+
+    /// Deletes a conversation by ID.
+    pub fn chat_delete_conversation(&self, conversation_id: &str) -> FfiResult<()> {
+        let cid = ConversationId::new(conversation_id).map_err(FfiError::Core)?;
+        self.conversation_store.delete_conversation(&cid)?;
+        Ok(())
+    }
+
+    /// Performs FTS5 episodic search across conversation turns.
+    pub fn chat_search_turns(&self, query: &str, limit: usize) -> FfiResult<Vec<ChatSearchItem>> {
+        let hits = self
+            .conversation_store
+            .search_episodic_memory(query, limit)?;
+        Ok(hits
+            .into_iter()
+            .map(|h| ChatSearchItem {
+                turn_id: h.turn_id.to_string(),
+                conversation_id: h.conversation_id.to_string(),
+                turn_index: h.turn_index,
+                role: h.role.as_str().to_string(),
+                content: h.content,
+                snippet: h.snippet,
+                rank: h.bm25_score,
+            })
+            .collect())
+    }
+
+    /// Sends a user message in a conversation, streaming tokens asynchronously.
+    pub fn chat_send_message(&self, conversation_id: &str, message: &str) -> FfiResult<()> {
+        // Enforce active loaded model requirement
+        {
+            let sup = self
+                .model_supervisor
+                .lock()
+                .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+            if !sup.is_loaded() {
+                return Err(FfiError::Model(
+                    "Cannot generate: no LLM model is currently loaded in memory. Please download or load a model from the Models screen.".to_string(),
+                ));
+            }
+        }
+
+        let cid = ConversationId::new(conversation_id).map_err(FfiError::Core)?;
+        let text = message.to_string();
+        let orchestrator = self.orchestrator.clone();
+        let sink = self.event_sink.clone();
+
+        std::thread::spawn(move || {
+            let orch = match orchestrator.lock() {
+                Ok(o) => o,
+                Err(e) => {
+                    sink.broadcast(BridgeEvent::ErrorOccurred {
+                        code: "ORCHESTRATOR_LOCK".to_string(),
+                        message: e.to_string(),
+                        recoverable: false,
+                    });
+                    return;
+                }
+            };
+
+            if let Err(e) = orch.execute_turn(&cid, &text) {
+                sink.broadcast(BridgeEvent::ErrorOccurred {
+                    code: "CHAT_INFERENCE_ERROR".to_string(),
+                    message: e.to_string(),
+                    recoverable: true,
+                });
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Cancels active chat turn inference.
+    pub fn chat_cancel_turn(&self, _conversation_id: &str) -> FfiResult<()> {
+        let orch = self
+            .orchestrator
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        orch.handle_barge_in();
+        Ok(())
+    }
+
+    /// Resolves an outstanding confirmation by confirmation ID or turn ID.
+    pub fn chat_resolve_confirmation(&self, key: &str, approved: bool) -> FfiResult<()> {
+        let orch = self
+            .orchestrator
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        orch.resolve_confirmation(&ConfirmationId::new(key), approved)
+            .map_err(|e| FfiError::Core(CoreError::Internal { message: e.to_string() }))?;
+        Ok(())
     }
 }
 

@@ -232,6 +232,44 @@ pub enum BridgeEvent {
         /// The event name ("suspend" or "resume").
         event: String,
     },
+
+    /// A single token streamed from the active LLM session.
+    ChatTokenDelta {
+        /// Turn identifier.
+        turn_id: String,
+        /// Incremental token content.
+        token: String,
+    },
+
+    /// Chat turn completed and persisted.
+    ChatTurnComplete {
+        /// Turn identifier.
+        turn_id: String,
+        /// Citations or memory excerpt snippets used in the turn.
+        citations: Vec<String>,
+    },
+
+    /// Security policy requires explicit user confirmation before executing a tool.
+    ToolConfirmationRequired {
+        /// Turn identifier.
+        turn_id: String,
+        /// Tool or skill name.
+        tool_name: String,
+        /// Risk classification tier.
+        risk_tier: String,
+        /// Formatted arguments JSON.
+        params_json: String,
+        /// Whether turn input was tainted by prompt injection.
+        taint_status: bool,
+    },
+
+    /// Tool confirmation request resolved.
+    ToolConfirmationResolved {
+        /// Confirmation identifier.
+        confirmation_id: String,
+        /// Whether execution was approved by user.
+        approved: bool,
+    },
 }
 
 type CallbackFn = Box<dyn Fn(&BridgeEvent) + Send + Sync + 'static>;

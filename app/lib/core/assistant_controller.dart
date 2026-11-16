@@ -7,6 +7,7 @@ import 'models/audit_item.dart';
 import 'models/automation_models.dart';
 import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
+import 'models/chat_models.dart';
 import 'models/device_models.dart';
 import 'models/health_report.dart';
 import 'models/interpreter_models.dart';
@@ -68,6 +69,16 @@ class AssistantController extends ChangeNotifier {
   PipelineBenchmarkReportModel? _pipelineBenchmarkReport;
   bool _isPipelineBenchmarking = false;
   bool _isOptimizingMemory = false;
+  List<ConversationItem> _conversations = <ConversationItem>[];
+  String? _activeConversationId;
+  List<ChatTurnItem> _currentTurns = <ChatTurnItem>[];
+  bool _isChatStreaming = false;
+  String _streamingAssistantText = '';
+  PendingConfirmationItem? _pendingConfirmation;
+  List<ChatSearchItem> _chatSearchResults = <ChatSearchItem>[];
+  bool _isSearchingChat = false;
+  String? _chatSearchQuery;
+  String? _chatError;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -87,6 +98,15 @@ class AssistantController extends ChangeNotifier {
   bool get isPipelineBenchmarking => _isPipelineBenchmarking;
   bool get isOptimizingMemory => _isOptimizingMemory;
   String? get activeModelId => _modelSnapshot?.activeModelId;
+  ModelItem? get activeModel {
+    final id = activeModelId;
+    if (id == null) return null;
+    try {
+      return models.firstWhere((m) => m.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
   List<ModelItem> get models => _modelSnapshot?.models ?? const <ModelItem>[];
   HardwareOverview? get hardware => _modelSnapshot?.hardware;
   List<DiscoveredPeerItem> get discoveredPeers => List<DiscoveredPeerItem>.unmodifiable(_discoveredPeers);
@@ -124,6 +144,24 @@ class AssistantController extends ChangeNotifier {
   String? get homeError => _homeError;
   bool get isLockdownActive => _isLockdownActive;
   String? get lastPowerTransition => _lastPowerTransition;
+  List<ConversationItem> get conversations => List<ConversationItem>.unmodifiable(_conversations);
+  String? get activeConversationId => _activeConversationId;
+  ConversationItem? get activeConversation {
+    if (_activeConversationId == null) return null;
+    try {
+      return _conversations.firstWhere((c) => c.id == _activeConversationId);
+    } catch (_) {
+      return null;
+    }
+  }
+  List<ChatTurnItem> get currentTurns => List<ChatTurnItem>.unmodifiable(_currentTurns);
+  bool get isChatStreaming => _isChatStreaming;
+  String get streamingAssistantText => _streamingAssistantText;
+  PendingConfirmationItem? get pendingConfirmation => _pendingConfirmation;
+  List<ChatSearchItem> get chatSearchResults => List<ChatSearchItem>.unmodifiable(_chatSearchResults);
+  bool get isSearchingChat => _isSearchingChat;
+  String? get chatSearchQuery => _chatSearchQuery;
+  String? get chatError => _chatError;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -162,6 +200,11 @@ class AssistantController extends ChangeNotifier {
       _homeEntities = List<SmartHomeEntityItem>.from(_bridge.listHomeEntities());
       _isLockdownActive = _bridge.isLockdownActive();
       _performanceSnapshot = _bridge.getPerformanceSnapshot();
+      _conversations = List<ConversationItem>.from(_bridge.listConversations());
+      if (_conversations.isNotEmpty) {
+        _activeConversationId = _conversations.first.id;
+        _currentTurns = List<ChatTurnItem>.from(_bridge.getConversationTurns(_activeConversationId!));
+      }
 
       // Read persisted theme mode
       final savedTheme = _bridge.getSetting('assistant.theme_mode');
@@ -328,6 +371,30 @@ class AssistantController extends ChangeNotifier {
     } else if (event is PowerTransitionEvent) {
       _lastPowerTransition = event.event;
       refreshDiagnostics();
+    } else if (event is ChatTokenDeltaEvent) {
+      _isChatStreaming = true;
+      _streamingAssistantText += event.token;
+    } else if (event is ChatTurnCompleteEvent) {
+      _isChatStreaming = false;
+      _streamingAssistantText = '';
+      if (_activeConversationId != null) {
+        try {
+          _currentTurns = List<ChatTurnItem>.from(_bridge.getConversationTurns(_activeConversationId!));
+          _conversations = List<ConversationItem>.from(_bridge.listConversations());
+        } catch (_) {}
+      }
+      refreshAuditLog();
+      refreshDiagnostics();
+    } else if (event is ToolConfirmationRequiredEvent) {
+      _pendingConfirmation = PendingConfirmationItem(
+        turnId: event.turnId,
+        toolName: event.toolName,
+        riskTier: event.riskTier,
+        paramsJson: event.paramsJson,
+        taintStatus: event.taintStatus,
+      );
+    } else if (event is ToolConfirmationResolvedEvent) {
+      _pendingConfirmation = null;
     }
     notifyListeners();
   }
@@ -723,6 +790,11 @@ class AssistantController extends ChangeNotifier {
       _homeEntities = List<SmartHomeEntityItem>.from(_bridge.listHomeEntities());
       _isLockdownActive = _bridge.isLockdownActive();
       _performanceSnapshot = _bridge.getPerformanceSnapshot();
+      _conversations = List<ConversationItem>.from(_bridge.listConversations());
+      if (_conversations.isNotEmpty) {
+        _activeConversationId = _conversations.first.id;
+        _currentTurns = List<ChatTurnItem>.from(_bridge.getConversationTurns(_activeConversationId!));
+      }
       notifyListeners();
     } catch (e) {
       _errorMessage = 'Failed to refresh documents: $e';
@@ -1280,6 +1352,161 @@ class AssistantController extends ChangeNotifier {
   Future<void> handlePowerTransition(String transition) async {
     _bridge.notifyPowerTransition(transition);
     _lastPowerTransition = transition;
+    notifyListeners();
+  }
+
+  Future<void> loadConversations() async {
+    try {
+      _conversations = List<ConversationItem>.from(_bridge.listConversations());
+      if (_conversations.isEmpty) {
+        final conv = _bridge.createConversation(title: 'New Chat');
+        _conversations = [conv];
+        _activeConversationId = conv.id;
+        _currentTurns = <ChatTurnItem>[];
+      } else if (_activeConversationId == null ||
+          !_conversations.any((c) => c.id == _activeConversationId)) {
+        _activeConversationId = _conversations.first.id;
+        _currentTurns = List<ChatTurnItem>.from(
+          _bridge.getConversationTurns(_activeConversationId!),
+        );
+      }
+      notifyListeners();
+    } catch (e) {
+      _chatError = 'Failed to load conversations: $e';
+      notifyListeners();
+    }
+  }
+
+  void selectConversation(String id) {
+    if (_activeConversationId == id) return;
+    _activeConversationId = id;
+    _isChatStreaming = false;
+    _streamingAssistantText = '';
+    _pendingConfirmation = null;
+    try {
+      _currentTurns = List<ChatTurnItem>.from(_bridge.getConversationTurns(id));
+      _chatError = null;
+    } catch (e) {
+      _chatError = 'Failed to load turns: $e';
+    }
+    notifyListeners();
+  }
+
+  Future<void> createNewConversation([String? title]) async {
+    try {
+      final conv = _bridge.createConversation(title: title);
+      _conversations = List<ConversationItem>.from(_bridge.listConversations());
+      _activeConversationId = conv.id;
+      _currentTurns = <ChatTurnItem>[];
+      _isChatStreaming = false;
+      _streamingAssistantText = '';
+      _pendingConfirmation = null;
+      _chatError = null;
+      notifyListeners();
+    } catch (e) {
+      _chatError = 'Failed to create new conversation: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteConversation(String id) async {
+    try {
+      _bridge.deleteConversation(id);
+      _conversations = List<ConversationItem>.from(_bridge.listConversations());
+      if (_activeConversationId == id) {
+        if (_conversations.isNotEmpty) {
+          _activeConversationId = _conversations.first.id;
+          _currentTurns = List<ChatTurnItem>.from(
+            _bridge.getConversationTurns(_activeConversationId!),
+          );
+        } else {
+          final conv = _bridge.createConversation(title: 'New Chat');
+          _conversations = [conv];
+          _activeConversationId = conv.id;
+          _currentTurns = <ChatTurnItem>[];
+        }
+      }
+      _chatError = null;
+      notifyListeners();
+    } catch (e) {
+      _chatError = 'Failed to delete conversation: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> sendChatMessage(String message) async {
+    final text = message.trim();
+    if (text.isEmpty) return;
+
+    if (_activeConversationId == null) {
+      await createNewConversation();
+    }
+    final cid = _activeConversationId!;
+
+    _isChatStreaming = true;
+    _streamingAssistantText = '';
+    _chatError = null;
+    notifyListeners();
+
+    try {
+      _bridge.sendChatMessage(cid, text);
+      _currentTurns = List<ChatTurnItem>.from(_bridge.getConversationTurns(cid));
+      _conversations = List<ConversationItem>.from(_bridge.listConversations());
+      notifyListeners();
+    } catch (e) {
+      _isChatStreaming = false;
+      _chatError = 'Failed to send message: $e';
+      notifyListeners();
+    }
+  }
+
+  void cancelChatTurn() {
+    if (_activeConversationId != null && _isChatStreaming) {
+      try {
+        _bridge.cancelChatTurn(_activeConversationId!);
+      } catch (_) {}
+    }
+    _isChatStreaming = false;
+    _streamingAssistantText = '';
+    notifyListeners();
+  }
+
+  void resolveConfirmation(String turnId, bool approved) {
+    try {
+      _bridge.resolveConfirmation(turnId, approved);
+      _pendingConfirmation = null;
+      notifyListeners();
+    } catch (e) {
+      _chatError = 'Failed to resolve confirmation: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> searchChatTurns(String query) async {
+    final q = query.trim();
+    _chatSearchQuery = q;
+    if (q.isEmpty) {
+      _chatSearchResults = <ChatSearchItem>[];
+      _isSearchingChat = false;
+      notifyListeners();
+      return;
+    }
+    _isSearchingChat = true;
+    notifyListeners();
+    try {
+      _chatSearchResults = List<ChatSearchItem>.from(_bridge.searchChatTurns(q));
+    } catch (e) {
+      _chatError = 'Chat search failed: $e';
+    } finally {
+      _isSearchingChat = false;
+      notifyListeners();
+    }
+  }
+
+  void clearChatSearch() {
+    _chatSearchQuery = null;
+    _chatSearchResults = <ChatSearchItem>[];
+    _isSearchingChat = false;
     notifyListeners();
   }
 

@@ -1,10 +1,10 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use aissistant_llm::{
-    query_model_lifecycle, register_custom_gguf, HardwareProfiler, LlmCancellationHandle,
-    LlmEngine, LlmEngineConfig, LocalLlmEngine, ModelCatalog, ModelDownloadManager,
-    ModelLifecycleState, SamplingParams, SystemHardwareProfiler, TokenChunk,
+    query_model_lifecycle, register_custom_gguf, HardwareProfiler, InferenceMetrics,
+    LlmCancellationHandle, LlmEngine, LlmEngineConfig, LocalLlmEngine, ModelCatalog,
+    ModelDownloadManager, ModelLifecycleState, SamplingParams, SystemHardwareProfiler, TokenChunk,
 };
 use serde::{Deserialize, Serialize};
 
@@ -428,10 +428,86 @@ impl ModelSupervisor {
         Ok(report)
     }
 
+    /// Generates tokens in a streaming loop using the active loaded model.
+    pub fn generate_stream(
+        &self,
+        prompt: &str,
+        params: &SamplingParams,
+        cancel_handle: Option<&LlmCancellationHandle>,
+        on_token: &mut dyn FnMut(TokenChunk) -> aissistant_llm::Result<()>,
+    ) -> aissistant_llm::Result<InferenceMetrics> {
+        self.engine.generate_stream(prompt, params, cancel_handle, on_token)
+    }
+
     /// Handles system memory pressure, unloading models on critical events.
     pub fn on_memory_pressure(&mut self, critical: bool) {
         if critical && self.engine.is_loaded() {
             let _ = self.unload_model();
+        }
+    }
+}
+
+/// Thread-safe adapter implementing `LlmEngine` by delegating to `ModelSupervisor`.
+#[derive(Debug)]
+pub struct BridgeLlmEngine {
+    supervisor: Arc<Mutex<ModelSupervisor>>,
+}
+
+impl BridgeLlmEngine {
+    /// Creates a new bridge LLM engine wrapping the model supervisor.
+    pub fn new(supervisor: Arc<Mutex<ModelSupervisor>>) -> Self {
+        Self { supervisor }
+    }
+}
+
+impl LlmEngine for BridgeLlmEngine {
+    fn load_model(&mut self, config: LlmEngineConfig) -> aissistant_llm::Result<()> {
+        let mut sup = self
+            .supervisor
+            .lock()
+            .map_err(|e| aissistant_llm::LlmError::InferenceError(e.to_string()))?;
+        sup.load_model(&config.model_id)
+            .map_err(|e| aissistant_llm::LlmError::InferenceError(e.to_string()))
+    }
+
+    fn unload_model(&mut self) {
+        if let Ok(mut sup) = self.supervisor.lock() {
+            let _ = sup.unload_model();
+        }
+    }
+
+    fn is_loaded(&self) -> bool {
+        self.supervisor
+            .lock()
+            .map(|s| s.is_loaded())
+            .unwrap_or(false)
+    }
+
+    fn active_model_id(&self) -> Option<&str> {
+        None
+    }
+
+    fn active_config(&self) -> Option<&LlmEngineConfig> {
+        None
+    }
+
+    fn generate_stream(
+        &self,
+        prompt: &str,
+        params: &SamplingParams,
+        cancel_handle: Option<&LlmCancellationHandle>,
+        on_token: &mut dyn FnMut(TokenChunk) -> aissistant_llm::Result<()>,
+    ) -> aissistant_llm::Result<InferenceMetrics> {
+        let sup = self
+            .supervisor
+            .lock()
+            .map_err(|e| aissistant_llm::LlmError::InferenceError(e.to_string()))?;
+        sup.generate_stream(prompt, params, cancel_handle, on_token)
+    }
+
+    fn on_memory_pressure(&mut self, critical: bool) {
+        if let Ok(mut sup) = self.supervisor.lock() {
+            sup.on_memory_pressure(critical);
         }
     }
 }

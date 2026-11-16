@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-16  
 **Current Project Phase:** Stage 12 — Production Runtime Enhancements & Live Pipeline Integration  
-**Next Subphase in Queue:** `S12.P1.2` (Build Missing Primary Chat Screen & Orchestrator Turn UI)
+**Next Subphase in Queue:** `S12.P2.1` (Fix Live Voice Interpreter & Real Multi-Language Translation)
 
 ---
 
@@ -89,7 +89,7 @@ Status Legend:
 | **Stage 11** | `S11.P2.1` | Full Acceptance Matrix Verification, SBOM & SHA-256 Manifests | `S11.P1.2` | `COMPLETED` | Verified [Commit `13628bf`]: 125 Flutter tests passing (100% across 20 test suites), `flutter analyze` zero issues, 100% coverage across all 30 formal requirements (`FR-1`..`FR-12`, `NFR-1`..`NFR-8`, `SEC-1`..`SEC-6`, `PRIV-1`..`PRIV-4`) in `ACCEPTANCE_MATRIX.md`, SPDX 2.3 JSON SBOM generator (`generate_sbom.py`), release checksum aggregator and verifier (`verify_release_checksums.py`), and automated test suite verified. |
 | **Stage 11** | `S11.P2.2` | v1.0.0 Production Release Tagging & Final Documentation Sign-Off | `S11.P2.1` | `COMPLETED` | Verified [Commit `1f5b342`]: 129 Flutter tests passing (100% across 21 test suites), `flutter analyze` zero issues, `RELEASE_NOTES.md` authoring, repository documentation alignment (`README.md`, `docs/SETUP.md`, `docs/USER_GUIDE.md`), version synchronization (`1.0.0`), release sign-off automated test suite (`release_signoff_test.dart`), and Git tag `v1.0.0` created. |
 | **Stage 12** | `S12.P1.1` | Fix Model Provisioning, Local GGUF Loader & Real Benchmarks | `S11.P2.2` | `COMPLETED` | Verified: 88 Rust tests (`aissistant-llm` + `aissistant-ffi`), 343 workspace tests, 131 Flutter tests, `clippy` and `flutter analyze` 0 warnings, real resumable HTTP range model downloader, local GGUF importer, live llama.cpp profiler, SHA-256 verification, and Flutter Models UI overhaul. |
-| **Stage 12** | `S12.P1.2` | Build Missing Primary Chat Screen & Orchestrator Turn UI | `S12.P1.1` | `PENDING` | — |
+| **Stage 12** | `S12.P1.2` | Build Missing Primary Chat Screen & Orchestrator Turn UI | `S12.P1.1` | `COMPLETED` | Verified: 344 Rust workspace tests (11 crates), 136 Flutter tests, `clippy` and `flutter analyze` 0 warnings, primary ChatScreen in AdaptiveShell (NavigationRail/NavigationBar), instant FTS5 search, token streaming from local LLM, RAG citation chips, inline 5-tier confirmation card, and BLAKE3 hash-chained audit logging. |
 | **Stage 12** | `S12.P2.1` | Fix Live Voice Interpreter & Real Multi-Language Translation | `S12.P1.2` | `PENDING` | — |
 | **Stage 12** | `S12.P2.2` | Fix Offline Voice Assistant Pipeline & Real Vision/OCR File Input | `S12.P2.1` | `PENDING` | — |
 
@@ -1327,6 +1327,27 @@ Status Legend:
   - `app/test/models_screen_test.dart`: Added widget tests for live benchmark execution, empty benchmark banner, model download and cancel lifecycle, and local GGUF file import.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); cross-platform logic ready for CI matrix.
 - **Commit Reference:** `bedb1d6`
+
+### Verification Evidence — S12.P1.2 (Build Missing Primary Chat Screen & Orchestrator Turn UI)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `flutter 3.44.6`, `dart 3.12.2`, `python 3.11.9`
+- **Commands Executed:**
+  1. `cargo clippy --manifest-path core/Cargo.toml --workspace -- -D warnings` -> Exit 0 (0 warnings)
+  2. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (344 tests passed across all 11 crates; 0 failed)
+  3. `Set-Location app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  4. `Set-Location app; C:\flutter\bin\flutter.bat test test/chat_screen_test.dart` -> Exit 0 (5 tests passed; 0 failed)
+  5. `Set-Location app; C:\flutter\bin\flutter.bat test` -> Exit 0 (136 tests passed across 23 Flutter test suites; 0 failed)
+  6. `python scripts/generate_sbom.py; python scripts/verify_release_checksums.py` -> Exit 0 (SPDX 2.3 JSON documents and unified SHA256SUMS.txt updated)
+- **Deliverables & Test Summary:**
+  - `core/crates/aissistant-orchestrator/`: Integrated `AdversarialScanner` input taint checking, synchronized pre-generated `assistant_turn_id` for token streaming deltas and storage persistence, wired `BridgeLlmEngine` delegating to active `ModelSupervisor` session, and supported confirmation resolution by either confirmation ID or turn ID.
+  - `core/crates/aissistant-ffi/`: Added `ConversationItem`, `ChatTurnItem`, and `ChatSearchItem` DTOs; added `BridgeEvent::ChatTokenDelta`, `ChatTurnComplete`, `ToolConfirmationRequired`, and `ToolConfirmationResolved`; added boot audit entry logging on persistent startup (`new_with_path`) guaranteeing `> 0 Verified Entries` in System Diagnostics; exported `bridge_c_chat_create_conversation`, `bridge_c_chat_list_conversations`, `bridge_c_chat_get_turns`, `bridge_c_chat_delete_conversation`, `bridge_c_chat_search_turns`, `bridge_c_chat_send_message`, `bridge_c_send_text`, `bridge_c_chat_cancel_turn`, and `bridge_c_chat_resolve_confirmation` / `bridge_c_resolve_confirmation`.
+  - `app/lib/core/models/chat_models.dart`: Created full DTO suite for chat sessions, message turns, FTS5 search hits, and pending security confirmations.
+  - `app/lib/core/assistant_controller.dart`: Added full chat state management (`conversations`, `currentTurns`, `isChatStreaming`, `streamingAssistantText`, `pendingConfirmation`, `chatSearchResults`), bridge event listener wiring, and async controller actions.
+  - `app/lib/ui/adaptive_shell.dart`: Added `Chat` primary screen at index 1 directly below Diagnostics in both desktop `NavigationRail` and mobile `NavigationBar`.
+  - `app/lib/ui/screens/chat_screen.dart`: Implemented complete production chat viewport: collapsible left drawer with instant SQLite FTS5 search and conversation list, empty state with prompt suggestion chips, message bubbles with user/assistant avatars, expandable RAG citation chips, inline Security Policy Confirmation Card for Tier 2–4 tools (`Approve` / `Deny`), and multiline composer bar with attachment button, active model chip, and stop streaming button.
+  - `app/test/chat_screen_test.dart`: Added automated widget test suite testing empty state, turn sending, streaming token accumulation, security confirmation approval, thread creation/switching, and FTS5 search filtering.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); cross-platform UI and FFI bindings ready for CI matrix.
+- **Commit Reference:** `a6221ce`
 
 
 

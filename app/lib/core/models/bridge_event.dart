@@ -177,6 +177,36 @@ abstract class BridgeEvent {
           event: payload['event'] as String? ?? 'suspend',
         );
 
+      case 'chat_token_delta':
+        return ChatTokenDeltaEvent(
+          turnId: payload['turn_id'] as String? ?? '',
+          token: payload['token'] as String? ?? '',
+        );
+
+      case 'chat_turn_complete':
+        return ChatTurnCompleteEvent(
+          turnId: payload['turn_id'] as String? ?? '',
+          citations: (payload['citations'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              const [],
+        );
+
+      case 'tool_confirmation_required':
+        return ToolConfirmationRequiredEvent(
+          turnId: payload['turn_id'] as String? ?? '',
+          toolName: payload['tool_name'] as String? ?? '',
+          riskTier: payload['risk_tier'] as String? ?? '',
+          paramsJson: payload['params_json'] as String? ?? '{}',
+          taintStatus: payload['taint_status'] as bool? ?? false,
+        );
+
+      case 'tool_confirmation_resolved':
+        return ToolConfirmationResolvedEvent(
+          confirmationId: payload['confirmation_id'] as String? ?? '',
+          approved: payload['approved'] as bool? ?? false,
+        );
+
       default:
         return UnknownBridgeEvent(type: type, payload: payload);
     }
@@ -451,6 +481,52 @@ class PowerTransitionEvent extends BridgeEvent {
   const PowerTransitionEvent({
     required this.event,
   }) : super('power_transition');
+}
+
+class ChatTokenDeltaEvent extends BridgeEvent {
+  final String turnId;
+  final String token;
+
+  const ChatTokenDeltaEvent({
+    required this.turnId,
+    required this.token,
+  }) : super('chat_token_delta');
+}
+
+class ChatTurnCompleteEvent extends BridgeEvent {
+  final String turnId;
+  final List<String> citations;
+
+  const ChatTurnCompleteEvent({
+    required this.turnId,
+    required this.citations,
+  }) : super('chat_turn_complete');
+}
+
+class ToolConfirmationRequiredEvent extends BridgeEvent {
+  final String turnId;
+  final String toolName;
+  final String riskTier;
+  final String paramsJson;
+  final bool taintStatus;
+
+  const ToolConfirmationRequiredEvent({
+    required this.turnId,
+    required this.toolName,
+    required this.riskTier,
+    required this.paramsJson,
+    required this.taintStatus,
+  }) : super('tool_confirmation_required');
+}
+
+class ToolConfirmationResolvedEvent extends BridgeEvent {
+  final String confirmationId;
+  final bool approved;
+
+  const ToolConfirmationResolvedEvent({
+    required this.confirmationId,
+    required this.approved,
+  }) : super('tool_confirmation_resolved');
 }
 
 class UnknownBridgeEvent extends BridgeEvent {

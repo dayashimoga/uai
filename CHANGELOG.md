@@ -2233,6 +2233,54 @@
 - `Set-Location app; C:\flutter\bin\flutter.bat analyze`: 0 issues.
 - `Set-Location app; C:\flutter\bin\flutter.bat test`: 131 passed across 22 test suites (0 failed).
 
+---
+
+## [2026-11-16] — Stage 12: Subphase S12.P1.2: Build Missing Primary Chat Screen & Orchestrator Turn UI
+
+### Added & Changed
+- `core/crates/aissistant-orchestrator/`:
+  - Added `AdversarialScanner` check on input in `execute_turn` with taint escalation.
+  - Pre-generated `assistant_turn_id` before streaming to synchronize `TokenStreamed` event `turn_id` with persisted storage records.
+  - Supported resolution by either confirmation ID or turn ID in `resolve_confirmation`.
+- `core/crates/aissistant-ffi/`:
+  - Added `BridgeLlmEngine` delegating `LlmEngine` token generation to `ModelSupervisor`.
+  - Added `ConversationItem`, `ChatTurnItem`, and `ChatSearchItem` DTOs.
+  - Added `BridgeEvent::ChatTokenDelta`, `ChatTurnComplete`, `ToolConfirmationRequired`, and `ToolConfirmationResolved`.
+  - Registered boot audit entry logging on persistent startup (`new_with_path`), model load/unload logging, guaranteeing `> 0 Verified Entries` in System Diagnostics.
+  - Exported `bridge_c_chat_create_conversation`, `bridge_c_chat_list_conversations`, `bridge_c_chat_get_turns`, `bridge_c_chat_delete_conversation`, `bridge_c_chat_search_turns`, `bridge_c_chat_send_message`, `bridge_c_send_text`, `bridge_c_chat_cancel_turn`, and `bridge_c_chat_resolve_confirmation` / `bridge_c_resolve_confirmation`.
+  - Added `test_chat_orchestrator_and_c_abi` integration test.
+- `app/lib/core/models/chat_models.dart`:
+  - Implemented `ConversationItem`, `ChatTurnItem`, `ChatSearchItem`, and `PendingConfirmationItem`.
+- `app/lib/core/models/bridge_event.dart`:
+  - Added `ChatTokenDeltaEvent`, `ChatTurnCompleteEvent`, `ToolConfirmationRequiredEvent`, and `ToolConfirmationResolvedEvent`.
+- `app/lib/core/ffi_bridge.dart`:
+  - Defined C-ABI typedefs and lookup pointers in `NativeFfiBridge`.
+  - Implemented chat methods in `NativeFfiBridge` and `TestHarnessBridge` with token streaming simulation, FTS5 search, and audit trail updates.
+- `app/lib/core/assistant_controller.dart`:
+  - Added conversational state (`conversations`, `currentTurns`, `isChatStreaming`, `streamingAssistantText`, `pendingConfirmation`, `chatSearchResults`).
+  - Wired event handlers for chat tokens, turn completions, and confirmation gates.
+  - Added `loadConversations`, `selectConversation`, `createNewConversation`, `deleteConversation`, `sendChatMessage`, `cancelChatTurn`, `resolveConfirmation`, `searchChatTurns`, and `clearChatSearch`.
+- `app/lib/ui/adaptive_shell.dart`:
+  - Integrated `ChatScreen` at index 1 directly below Diagnostics in both desktop `NavigationRail` and mobile `NavigationBar`.
+- `app/lib/ui/screens/chat_screen.dart` & `app/lib/screens/chat_screen.dart`:
+  - Implemented complete primary chat viewport:
+    - Collapsible left drawer with instant SQLite FTS5 search, `New Chat` button, and thread list.
+    - Top AppBar with active conversation title, active model chip, and drawer toggle.
+    - Empty state with prompt suggestion chips.
+    - Message list with user/assistant bubbles, avatars, selectable text, and expandable RAG citation chips.
+    - Inline Security Policy Confirmation Card for Tier 2–4 tools (`Approve` / `Deny`).
+    - Multiline composer bar with attachment dialog, active model chip, and stop generation button.
+- `app/test/chat_screen_test.dart`:
+  - Added widget tests verifying empty state, message sending, streaming token accumulation, security confirmation approval, thread creation/switching, and FTS5 search.
+
+### Verification
+- `cargo clippy --manifest-path core/Cargo.toml --workspace -- -D warnings`: 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml --workspace`: 344 passed across 11 crates (0 failed).
+- `Set-Location app; C:\flutter\bin\flutter.bat analyze`: 0 issues.
+- `Set-Location app; C:\flutter\bin\flutter.bat test test/chat_screen_test.dart`: 5 passed (0 failed).
+- `Set-Location app; C:\flutter\bin\flutter.bat test`: 136 passed across 23 test suites (0 failed).
+- `python scripts/generate_sbom.py; python scripts/verify_release_checksums.py`: verified.
+
 
 
 

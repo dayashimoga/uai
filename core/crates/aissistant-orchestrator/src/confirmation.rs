@@ -59,6 +59,8 @@ pub struct PendingConfirmation {
     pub reason: String,
     /// Millisecond Unix epoch timestamp when created.
     pub created_at_ms: i64,
+    /// Whether the turn input was flagged as tainted by untrusted data / prompt injection.
+    pub untrusted_input_tainted: bool,
 }
 
 /// Thread-safe manager tracking pending confirmation requests.
@@ -98,6 +100,30 @@ impl ConfirmationManager {
         })?;
         map.remove(id)
             .ok_or_else(|| OrchestratorError::ConfirmationNotFound(id.to_string()))
+    }
+
+    /// Removes and returns a pending confirmation by confirmation ID or turn ID.
+    pub fn take_by_id_or_turn(&self, key: &str) -> Result<PendingConfirmation> {
+        let mut map = self.pending.lock().map_err(|_| {
+            OrchestratorError::Internal("ConfirmationManager mutex poisoned".to_string())
+        })?;
+        let conf_id = ConfirmationId::new(key);
+        if let Some(conf) = map.remove(&conf_id) {
+            return Ok(conf);
+        }
+        let matching_key = map.iter().find_map(|(id, conf)| {
+            if conf.turn_id.as_str() == key {
+                Some(id.clone())
+            } else {
+                None
+            }
+        });
+        if let Some(id) = matching_key {
+            if let Some(conf) = map.remove(&id) {
+                return Ok(conf);
+            }
+        }
+        Err(OrchestratorError::ConfirmationNotFound(key.to_string()))
     }
 
     /// Lists all currently active pending confirmations.
@@ -150,6 +176,7 @@ mod tests {
             risk_tier: RiskTier::Destructive,
             reason: "User requested file deletion".to_string(),
             created_at_ms: 1000,
+            untrusted_input_tainted: false,
         };
 
         manager.insert(req.clone()).unwrap();
@@ -182,6 +209,7 @@ mod tests {
             risk_tier: RiskTier::FileAndApp,
             reason: "write file".to_string(),
             created_at_ms: 1000,
+            untrusted_input_tainted: false,
         };
         let req2 = PendingConfirmation {
             id: ConfirmationId::generate(),
@@ -192,6 +220,7 @@ mod tests {
             risk_tier: RiskTier::FileAndApp,
             reason: "launch app".to_string(),
             created_at_ms: 1000,
+            untrusted_input_tainted: false,
         };
 
         manager.insert(req1).unwrap();

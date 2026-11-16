@@ -5,7 +5,7 @@
   "name": "Universal AI Assistant - Rust Core",
   "documentNamespace": "https://github.com/aissistant/aissistant/spdx/rust-core-1.0.0",
   "creationInfo": {
-    "created": "2026-11-16T11:07:57Z",
+    "created": "2026-11-16T12:04:55Z",
     "creators": [
       "Tool: aissistant-sbom-generator-1.0.0",
       "Organization: Universal AI Assistant Team"

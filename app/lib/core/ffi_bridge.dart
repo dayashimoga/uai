@@ -10,6 +10,7 @@ import 'models/audit_item.dart';
 import 'models/automation_models.dart';
 import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
+import 'models/chat_models.dart';
 import 'models/device_models.dart';
 import 'models/health_report.dart';
 import 'models/interpreter_models.dart';
@@ -110,6 +111,14 @@ abstract class AissistantBridge {
   PerformanceSnapshotModel getPerformanceSnapshot();
   bool enforceMemoryBudget();
   PipelineBenchmarkReportModel runPipelineBenchmark();
+  List<ConversationItem> listConversations();
+  ConversationItem createConversation({String? title});
+  List<ChatTurnItem> getConversationTurns(String conversationId);
+  void deleteConversation(String conversationId);
+  List<ChatSearchItem> searchChatTurns(String query, {int limit = 20});
+  void sendChatMessage(String conversationId, String message);
+  void cancelChatTurn(String conversationId);
+  void resolveConfirmation(String turnId, bool approved);
   Stream<BridgeEvent> get eventStream;
 }
 
@@ -360,6 +369,30 @@ typedef _BridgeEnforceMemBudgetDart = Pointer<Utf8> Function();
 typedef _BridgeRunPipelineBenchC = Pointer<Utf8> Function();
 typedef _BridgeRunPipelineBenchDart = Pointer<Utf8> Function();
 
+typedef _BridgeChatCreateC = Pointer<Utf8> Function(Pointer<Utf8> title);
+typedef _BridgeChatCreateDart = Pointer<Utf8> Function(Pointer<Utf8> title);
+
+typedef _BridgeChatListC = Pointer<Utf8> Function();
+typedef _BridgeChatListDart = Pointer<Utf8> Function();
+
+typedef _BridgeChatGetTurnsC = Pointer<Utf8> Function(Pointer<Utf8> conversationId);
+typedef _BridgeChatGetTurnsDart = Pointer<Utf8> Function(Pointer<Utf8> conversationId);
+
+typedef _BridgeChatDeleteC = Int32 Function(Pointer<Utf8> conversationId);
+typedef _BridgeChatDeleteDart = int Function(Pointer<Utf8> conversationId);
+
+typedef _BridgeChatSearchC = Pointer<Utf8> Function(Pointer<Utf8> query, Uint32 limit);
+typedef _BridgeChatSearchDart = Pointer<Utf8> Function(Pointer<Utf8> query, int limit);
+
+typedef _BridgeChatSendC = Pointer<Utf8> Function(Pointer<Utf8> conversationId, Pointer<Utf8> message);
+typedef _BridgeChatSendDart = Pointer<Utf8> Function(Pointer<Utf8> conversationId, Pointer<Utf8> message);
+
+typedef _BridgeChatCancelC = Int32 Function(Pointer<Utf8> conversationId);
+typedef _BridgeChatCancelDart = int Function(Pointer<Utf8> conversationId);
+
+typedef _BridgeChatResolveConfC = Int32 Function(Pointer<Utf8> key, Int32 approved);
+typedef _BridgeChatResolveConfDart = int Function(Pointer<Utf8> key, int approved);
+
 /// Native FFI implementation driving aissistant-ffi C-ABI entry points.
 class NativeFfiBridge implements AissistantBridge {
   final DynamicLibrary _lib;
@@ -441,6 +474,14 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeGetPerfSnapshotDart _getPerformanceSnapshot;
   late final _BridgeEnforceMemBudgetDart _enforceMemoryBudget;
   late final _BridgeRunPipelineBenchDart _runPipelineBenchmark;
+  late final _BridgeChatCreateDart _chatCreate;
+  late final _BridgeChatListDart _chatList;
+  late final _BridgeChatGetTurnsDart _chatGetTurns;
+  late final _BridgeChatDeleteDart _chatDelete;
+  late final _BridgeChatSearchDart _chatSearch;
+  late final _BridgeChatSendDart _chatSendMessage;
+  late final _BridgeChatCancelDart _chatCancel;
+  late final _BridgeChatResolveConfDart _chatResolveConf;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -519,6 +560,14 @@ class NativeFfiBridge implements AissistantBridge {
     _getPerformanceSnapshot = _lib.lookupFunction<_BridgeGetPerfSnapshotC, _BridgeGetPerfSnapshotDart>('bridge_c_get_performance_snapshot');
     _enforceMemoryBudget = _lib.lookupFunction<_BridgeEnforceMemBudgetC, _BridgeEnforceMemBudgetDart>('bridge_c_enforce_memory_budget');
     _runPipelineBenchmark = _lib.lookupFunction<_BridgeRunPipelineBenchC, _BridgeRunPipelineBenchDart>('bridge_c_run_pipeline_benchmark');
+    _chatCreate = _lib.lookupFunction<_BridgeChatCreateC, _BridgeChatCreateDart>('bridge_c_chat_create_conversation');
+    _chatList = _lib.lookupFunction<_BridgeChatListC, _BridgeChatListDart>('bridge_c_chat_list_conversations');
+    _chatGetTurns = _lib.lookupFunction<_BridgeChatGetTurnsC, _BridgeChatGetTurnsDart>('bridge_c_chat_get_turns');
+    _chatDelete = _lib.lookupFunction<_BridgeChatDeleteC, _BridgeChatDeleteDart>('bridge_c_chat_delete_conversation');
+    _chatSearch = _lib.lookupFunction<_BridgeChatSearchC, _BridgeChatSearchDart>('bridge_c_chat_search_turns');
+    _chatSendMessage = _lib.lookupFunction<_BridgeChatSendC, _BridgeChatSendDart>('bridge_c_chat_send_message');
+    _chatCancel = _lib.lookupFunction<_BridgeChatCancelC, _BridgeChatCancelDart>('bridge_c_chat_cancel_turn');
+    _chatResolveConf = _lib.lookupFunction<_BridgeChatResolveConfC, _BridgeChatResolveConfDart>('bridge_c_chat_resolve_confirmation');
     _freeString = _lib.lookupFunction<_BridgeFreeStringC, _BridgeFreeStringDart>('bridge_c_free_string');
   }
 
@@ -1830,6 +1879,158 @@ class NativeFfiBridge implements AissistantBridge {
       _freeString(ptr);
     }
   }
+
+  @override
+  List<ConversationItem> listConversations() {
+    final ptr = _chatList();
+    if (ptr.address == 0) return const <ConversationItem>[];
+    try {
+      final jsonStr = ptr.toDartString();
+      final decoded = jsonDecode(jsonStr);
+      if (decoded is List) {
+        return decoded
+            .map((e) => ConversationItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return const <ConversationItem>[];
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  ConversationItem createConversation({String? title}) {
+    final titlePtr = (title ?? '').toNativeUtf8();
+    try {
+      final ptr = _chatCreate(titlePtr);
+      if (ptr.address == 0) {
+        throw StateError('Failed to create conversation: null pointer');
+      }
+      try {
+        final jsonStr = ptr.toDartString();
+        final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+        if (map.containsKey('code') || map.containsKey('error')) {
+          final msg = map['message'] ?? map['error'] ?? 'Conversation creation error';
+          throw StateError('Create conversation failed: $msg');
+        }
+        return ConversationItem.fromJson(map);
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(titlePtr);
+    }
+  }
+
+  @override
+  List<ChatTurnItem> getConversationTurns(String conversationId) {
+    final idPtr = conversationId.toNativeUtf8();
+    try {
+      final ptr = _chatGetTurns(idPtr);
+      if (ptr.address == 0) return const <ChatTurnItem>[];
+      try {
+        final jsonStr = ptr.toDartString();
+        final decoded = jsonDecode(jsonStr);
+        if (decoded is List) {
+          return decoded
+              .map((e) => ChatTurnItem.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        return const <ChatTurnItem>[];
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  void deleteConversation(String conversationId) {
+    final idPtr = conversationId.toNativeUtf8();
+    try {
+      final rc = _chatDelete(idPtr);
+      if (rc != 0) {
+        throw StateError('Failed to delete conversation: code $rc');
+      }
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  List<ChatSearchItem> searchChatTurns(String query, {int limit = 20}) {
+    final qPtr = query.toNativeUtf8();
+    try {
+      final ptr = _chatSearch(qPtr, limit);
+      if (ptr.address == 0) return const <ChatSearchItem>[];
+      try {
+        final jsonStr = ptr.toDartString();
+        final decoded = jsonDecode(jsonStr);
+        if (decoded is List) {
+          return decoded
+              .map((e) => ChatSearchItem.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        return const <ChatSearchItem>[];
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(qPtr);
+    }
+  }
+
+  @override
+  void sendChatMessage(String conversationId, String message) {
+    final cidPtr = conversationId.toNativeUtf8();
+    final msgPtr = message.toNativeUtf8();
+    try {
+      final ptr = _chatSendMessage(cidPtr, msgPtr);
+      if (ptr.address != 0) {
+        try {
+          final jsonStr = ptr.toDartString();
+          final decoded = jsonDecode(jsonStr);
+          if (decoded is Map<String, dynamic> &&
+              (decoded.containsKey('code') || decoded.containsKey('error'))) {
+            final msg = decoded['message'] ?? decoded['error'] ?? 'Chat turn error';
+            throw StateError('Failed to send chat message: $msg');
+          }
+        } finally {
+          _freeString(ptr);
+        }
+      }
+    } finally {
+      malloc.free(cidPtr);
+      malloc.free(msgPtr);
+    }
+  }
+
+  @override
+  void cancelChatTurn(String conversationId) {
+    final cidPtr = conversationId.toNativeUtf8();
+    try {
+      final rc = _chatCancel(cidPtr);
+      if (rc != 0) {
+        throw StateError('Failed to cancel chat turn: code $rc');
+      }
+    } finally {
+      malloc.free(cidPtr);
+    }
+  }
+
+  @override
+  void resolveConfirmation(String turnId, bool approved) {
+    final turnPtr = turnId.toNativeUtf8();
+    try {
+      final rc = _chatResolveConf(turnPtr, approved ? 1 : 0);
+      if (rc != 0) {
+        throw StateError('Failed to resolve confirmation: code $rc');
+      }
+    } finally {
+      malloc.free(turnPtr);
+    }
+  }
 }
 
 /// Fallback / mock-free test harness bridge implementing exact live schema contracts.
@@ -1841,6 +2042,18 @@ class TestHarnessBridge implements AissistantBridge {
   String _lifecycleState = 'running';
   final Map<String, String> _settings = <String, String>{
     'assistant.theme_mode': '"system"',
+  };
+
+  final List<ConversationItem> _conversations = <ConversationItem>[
+    ConversationItem(
+      id: 'conv-default',
+      title: 'General Assistant',
+      createdAt: DateTime.fromMillisecondsSinceEpoch(1700000000000),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(1700000000000),
+    ),
+  ];
+  final Map<String, List<ChatTurnItem>> _chatTurns = <String, List<ChatTurnItem>>{
+    'conv-default': <ChatTurnItem>[],
   };
 
   final List<CapabilityItem> _capabilities = <CapabilityItem>[
@@ -3275,5 +3488,174 @@ class TestHarnessBridge implements AissistantBridge {
       memoryBudgetExceeded: false,
     ));
     return report;
+  }
+
+  void _appendAudit(String skillId, String payload) {
+    final seq = _auditLog.length + 1;
+    final item = AuditItem(
+      sequence: seq,
+      timestampMs: DateTime.now().millisecondsSinceEpoch,
+      actor: 'llm_orchestrator',
+      skillId: skillId,
+      payloadSummary: payload,
+      decision: 'allow',
+      executionStatus: 'success',
+      entryHash: 'hash-$seq',
+      prevHash: _auditLog.isNotEmpty ? _auditLog.last.entryHash : '0000000000000000000000000000000000000000000000000000000000000000',
+    );
+    _auditLog.add(item);
+    _eventController.add(AuditLogAppendedEvent(
+      sequence: seq,
+      actor: 'llm_orchestrator',
+      skillId: skillId,
+      decision: 'allow',
+      executionStatus: 'success',
+      entryHash: 'hash-$seq',
+    ));
+  }
+
+  @override
+  List<ConversationItem> listConversations() => List<ConversationItem>.unmodifiable(_conversations);
+
+  @override
+  ConversationItem createConversation({String? title}) {
+    final now = DateTime.now();
+    final conv = ConversationItem(
+      id: 'conv-${now.millisecondsSinceEpoch}',
+      title: title != null && title.isNotEmpty ? title : 'New Chat',
+      createdAt: now,
+      updatedAt: now,
+    );
+    _conversations.insert(0, conv);
+    _chatTurns[conv.id] = <ChatTurnItem>[];
+    return conv;
+  }
+
+  @override
+  List<ChatTurnItem> getConversationTurns(String conversationId) {
+    return List<ChatTurnItem>.from(_chatTurns[conversationId] ?? const <ChatTurnItem>[]);
+  }
+
+  @override
+  void deleteConversation(String conversationId) {
+    _conversations.removeWhere((c) => c.id == conversationId);
+    _chatTurns.remove(conversationId);
+  }
+
+  @override
+  List<ChatSearchItem> searchChatTurns(String query, {int limit = 20}) {
+    final q = query.toLowerCase();
+    final results = <ChatSearchItem>[];
+    for (final entry in _chatTurns.entries) {
+      final cid = entry.key;
+      for (final turn in entry.value) {
+        if (turn.content.toLowerCase().contains(q)) {
+          results.add(ChatSearchItem(
+            turnId: turn.id,
+            conversationId: cid,
+            turnIndex: turn.turnIndex,
+            role: turn.role,
+            content: turn.content,
+            snippet: turn.content.length > 50 ? '${turn.content.substring(0, 50)}...' : turn.content,
+            rank: 1.0,
+          ));
+          if (results.length >= limit) break;
+        }
+      }
+      if (results.length >= limit) break;
+    }
+    return results;
+  }
+
+  @override
+  void sendChatMessage(String conversationId, String message) {
+    final now = DateTime.now();
+    final userTurn = ChatTurnItem(
+      id: 'turn-user-${now.microsecondsSinceEpoch}',
+      conversationId: conversationId,
+      turnIndex: (_chatTurns[conversationId]?.length ?? 0) + 1,
+      role: 'user',
+      content: message,
+      timestamp: now,
+    );
+    _chatTurns.putIfAbsent(conversationId, () => <ChatTurnItem>[]).add(userTurn);
+
+    final cIdx = _conversations.indexWhere((c) => c.id == conversationId);
+    if (cIdx != -1) {
+      final oldC = _conversations[cIdx];
+      _conversations[cIdx] = ConversationItem(
+        id: oldC.id,
+        title: (oldC.title == 'New Chat' || oldC.title == 'General Assistant')
+            ? (message.length > 25 ? '${message.substring(0, 25)}...' : message)
+            : oldC.title,
+        createdAt: oldC.createdAt,
+        updatedAt: now,
+      );
+    }
+
+    _appendAudit('user_chat_message', message);
+
+    if (message.toLowerCase().contains('delete') ||
+        message.toLowerCase().contains('destroy') ||
+        message.toLowerCase().contains('format')) {
+      final turnId = 'turn-asst-${now.microsecondsSinceEpoch}';
+      Timer.run(() {
+        _eventController.add(ToolConfirmationRequiredEvent(
+          turnId: turnId,
+          toolName: 'system_execute_action',
+          riskTier: 'Destructive',
+          paramsJson: jsonEncode({'action': message}),
+          taintStatus: false,
+        ));
+      });
+      return;
+    }
+
+    final turnId = 'turn-asst-${now.microsecondsSinceEpoch}';
+    final responseText = 'Received: $message. Local AI model processed your request with high privacy.';
+    final words = responseText.split(' ');
+
+    Timer.run(() async {
+      for (var i = 0; i < words.length; i++) {
+        final token = i == 0 ? words[i] : ' ${words[i]}';
+        _eventController.add(ChatTokenDeltaEvent(turnId: turnId, token: token));
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      final asstTurn = ChatTurnItem(
+        id: turnId,
+        conversationId: conversationId,
+        turnIndex: (_chatTurns[conversationId]?.length ?? 0) + 1,
+        role: 'assistant',
+        content: responseText,
+        timestamp: DateTime.now(),
+      );
+      _chatTurns[conversationId]?.add(asstTurn);
+      _appendAudit('llm_generation_complete', 'Completed turn $turnId in $conversationId');
+      _eventController.add(ChatTurnCompleteEvent(turnId: turnId, citations: const <String>[]));
+    });
+  }
+
+  @override
+  void cancelChatTurn(String conversationId) {
+    _eventController.add(const ChatTurnCompleteEvent(turnId: 'cancelled', citations: <String>[]));
+  }
+
+  @override
+  void resolveConfirmation(String turnId, bool approved) {
+    _eventController.add(ToolConfirmationResolvedEvent(confirmationId: turnId, approved: approved));
+    _appendAudit('confirmation_resolution', 'Turn $turnId ${approved ? "approved" : "denied"}');
+    if (approved && _conversations.isNotEmpty) {
+      final cid = _conversations.first.id;
+      final asstTurn = ChatTurnItem(
+        id: turnId,
+        conversationId: cid,
+        turnIndex: (_chatTurns[cid]?.length ?? 0) + 1,
+        role: 'assistant',
+        content: 'Action confirmed and executed successfully.',
+        timestamp: DateTime.now(),
+      );
+      _chatTurns[cid]?.add(asstTurn);
+      _eventController.add(ChatTurnCompleteEvent(turnId: turnId, citations: const <String>[]));
+    }
   }
 }

@@ -1688,4 +1688,107 @@ mod tests {
         assert_eq!(c_abi::bridge_c_notify_power_transition(1), 0); // Resume
         assert_eq!(c_abi::bridge_c_shutdown(), 0);
     }
+
+    #[test]
+    fn test_chat_orchestrator_and_c_abi() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap();
+        let _ = c_abi::bridge_c_shutdown();
+
+        let bridge = Arc::new(CoreBridge::new_in_memory().unwrap());
+
+        // 1. Create a conversation
+        let conv = bridge
+            .chat_create_conversation(Some("Test Conversation"))
+            .unwrap();
+        assert_eq!(conv.title, "Test Conversation");
+        assert!(!conv.id.is_empty());
+
+        // 2. List conversations
+        let convs = bridge.chat_list_conversations(10, 0).unwrap();
+        assert_eq!(convs.len(), 1);
+        assert_eq!(convs[0].id, conv.id);
+
+        // 3. Attempt to send message without model loaded -> should fail with clear model error
+        let send_res = bridge.chat_send_message(&conv.id, "Hello world");
+        assert!(send_res.is_err());
+
+        // 4. Load a model
+        bridge.model_load("qwen2.5-0.5b-instruct-q4_k_m").unwrap();
+
+        // 5. Send message with loaded model
+        let (_sub_id, rx) = bridge.event_sink().subscribe(32);
+        assert!(bridge
+            .chat_send_message(&conv.id, "Hello offline AI")
+            .is_ok());
+
+        // Expect token deltas and turn complete
+        let mut got_delta = false;
+        let mut got_complete = false;
+        let start = std::time::Instant::now();
+        while start.elapsed() < std::time::Duration::from_secs(3) {
+            if let Ok(ev) = rx.recv_timeout(std::time::Duration::from_millis(100)) {
+                match ev {
+                    BridgeEvent::ChatTokenDelta { token, .. } => {
+                        assert!(!token.is_empty());
+                        got_delta = true;
+                    }
+                    BridgeEvent::ChatTurnComplete { .. } => {
+                        got_complete = true;
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        assert!(got_delta);
+        assert!(got_complete);
+
+        // 6. Get turns
+        let turns = bridge.chat_get_turns(&conv.id, None).unwrap();
+        assert!(turns.len() >= 2); // user turn + assistant turn
+        assert_eq!(turns[0].role, "user");
+        assert_eq!(turns[0].content, "Hello offline AI");
+        assert_eq!(turns[1].role, "assistant");
+        assert!(!turns[1].content.is_empty());
+
+        // 7. Test FTS5 search
+        let search_results = bridge.chat_search_turns("offline", 5).unwrap();
+        assert!(!search_results.is_empty());
+        assert_eq!(search_results[0].conversation_id, conv.id);
+
+        // 8. Test C-ABI round trips
+        assert_eq!(unsafe { c_abi::bridge_c_init(std::ptr::null()) }, 0);
+        let c_title = CString::new("C-ABI Chat").unwrap();
+        let conv_ptr = unsafe { c_abi::bridge_c_chat_create_conversation(c_title.as_ptr()) };
+        assert!(!conv_ptr.is_null());
+        let conv_json = unsafe { CStr::from_ptr(conv_ptr) }.to_str().unwrap();
+        assert!(conv_json.contains("C-ABI Chat"));
+        let parsed: serde_json::Value = serde_json::from_str(conv_json).unwrap();
+        let c_conv_id = parsed["id"].as_str().unwrap().to_string();
+        unsafe { c_abi::bridge_c_free_string(conv_ptr) };
+
+        let list_ptr = c_abi::bridge_c_chat_list_conversations(10, 0);
+        assert!(!list_ptr.is_null());
+        let list_json = unsafe { CStr::from_ptr(list_ptr) }.to_str().unwrap();
+        assert!(list_json.contains("C-ABI Chat"));
+        unsafe { c_abi::bridge_c_free_string(list_ptr) };
+
+        // Test cancel
+        let c_cid = CString::new(c_conv_id.clone()).unwrap();
+        assert_eq!(
+            unsafe { c_abi::bridge_c_chat_cancel_turn(c_cid.as_ptr()) },
+            0
+        );
+
+        // Test delete
+        assert_eq!(
+            unsafe { c_abi::bridge_c_chat_delete_conversation(c_cid.as_ptr()) },
+            0
+        );
+
+        // Also test delete on local bridge
+        assert!(bridge.chat_delete_conversation(&conv.id).is_ok());
+
+        assert_eq!(c_abi::bridge_c_shutdown(), 0);
+    }
 }

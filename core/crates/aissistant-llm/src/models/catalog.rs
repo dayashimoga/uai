@@ -298,7 +298,7 @@ pub fn register_custom_gguf<P: AsRef<std::path::Path>>(path: P) -> Result<ModelD
         .unwrap_or("custom-model");
     let clean_id = format!("custom-{}", stem.to_lowercase().replace(' ', "-"));
 
-    let name = model_name.unwrap_or_else(|| stem.replace('_', " ").replace('-', " "));
+    let name = model_name.unwrap_or_else(|| stem.replace(['_', '-'], " "));
 
     let tier = if file_size_bytes < 500 * 1024 * 1024 {
         ModelTier::Nano0_5B

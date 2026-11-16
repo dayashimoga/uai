@@ -10,8 +10,8 @@ use aissistant_llm::{
     ToolCallValidator,
 };
 use aissistant_security::{
-    Actor, AuditEntry, AuditExecutionStatus, PolicyContext, PolicyDecision, PolicyEngine,
-    TaintTracker,
+    Actor, AdversarialScanner, AuditEntry, AuditExecutionStatus, PolicyContext, PolicyDecision,
+    PolicyEngine, TaintTracker,
 };
 use aissistant_speech::{SentenceChunker, TtsEngine};
 use aissistant_storage::{
@@ -314,6 +314,21 @@ impl Orchestrator {
             ));
         }
 
+        // Scan input for prompt injection and taint escalation
+        let scanner = AdversarialScanner::new();
+        let injection_matches = scanner.scan(trimmed_text);
+        if !injection_matches.is_empty() {
+            if let Ok(mut tracker) = self.taint_tracker.write() {
+                tracker.mark_tainted(
+                    aissistant_security::TaintSource::ExternalData {
+                        label: format!("prompt_injection:{:?}", injection_matches[0].category),
+                    },
+                    current_time_ms() as u64,
+                    format!("Adversarial prompt injection pattern detected: {:?}", injection_matches[0].category),
+                );
+            }
+        }
+
         // Reset state machine for new turn
         self.state_machine.reset_for_new_turn()?;
 
@@ -431,12 +446,14 @@ impl Orchestrator {
         let inference_start = Instant::now();
         let cancel_handle = self.state_machine.cancellation_handle();
 
+        let assistant_turn_id = TurnId::generate();
         let mut assistant_text = String::new();
         let mut token_index = 0;
         let mut interrupted = false;
 
         {
             let cancel_ref = Some(cancel_handle.as_ref());
+            let stream_turn_id = assistant_turn_id.clone();
             let mut on_token = |chunk: TokenChunk| -> aissistant_llm::Result<()> {
                 if self.state_machine.state() == TurnState::Interrupted {
                     interrupted = true;
@@ -451,6 +468,7 @@ impl Orchestrator {
                 assistant_text.push_str(&chunk.token);
                 self.state_machine.record_token();
                 self.emit(OrchestratorEvent::TokenStreamed {
+                    turn_id: stream_turn_id.clone(),
                     token: chunk.token,
                     index: token_index,
                 });
@@ -463,12 +481,14 @@ impl Orchestrator {
                 Ok(())
             };
 
-            let _ = self.llm_engine.generate_stream(
-                &prompt,
-                &self.config.sampling_params,
-                cancel_ref,
-                &mut on_token,
-            );
+            self.llm_engine
+                .generate_stream(
+                    &prompt,
+                    &self.config.sampling_params,
+                    cancel_ref,
+                    &mut on_token,
+                )
+                .map_err(OrchestratorError::Llm)?;
         }
 
         // Check if interrupted mid-stream
@@ -476,7 +496,6 @@ impl Orchestrator {
             let _ = self.state_machine.transition_to(TurnState::Interrupted);
             let metrics = self.state_machine.finalize_metrics();
 
-            let assistant_turn_id = TurnId::generate();
             let assistant_turn = ConversationTurn {
                 id: assistant_turn_id.clone(),
                 conversation_id: conversation_id.clone(),
@@ -544,7 +563,7 @@ impl Orchestrator {
                 .map(|t| t.state().clone())
                 .unwrap_or(aissistant_security::TaintState::Clean);
 
-            let policy_context = PolicyContext::llm(taint_state);
+            let policy_context = PolicyContext::llm(taint_state.clone());
 
             let decision = {
                 let policy = self.policy_engine.read().map_err(|_| {
@@ -575,6 +594,7 @@ impl Orchestrator {
                         risk_tier,
                         reason,
                         created_at_ms: current_time_ms(),
+                        untrusted_input_tainted: taint_state.is_tainted(),
                     };
 
                     self.confirmation_manager.insert(pending.clone())?;
@@ -784,7 +804,6 @@ impl Orchestrator {
         // Transition 6: TurnCompleted
         self.transition(TurnState::TurnCompleted)?;
 
-        let assistant_turn_id = TurnId::generate();
         let assistant_turn = ConversationTurn {
             id: assistant_turn_id.clone(),
             conversation_id: conversation_id.clone(),
@@ -868,7 +887,7 @@ impl Orchestrator {
         id: &ConfirmationId,
         approved: bool,
     ) -> Result<TurnExecution> {
-        let pending = self.confirmation_manager.take(id)?;
+        let pending = self.confirmation_manager.take_by_id_or_turn(id.as_str())?;
         let skill_id = SkillId::new(&pending.tool_name)?;
 
         let existing_turns = self
@@ -878,7 +897,7 @@ impl Orchestrator {
 
         if !approved {
             self.emit(OrchestratorEvent::ConfirmationResolved {
-                id: id.clone(),
+                id: pending.id.clone(),
                 approved: false,
             });
 
@@ -936,7 +955,7 @@ impl Orchestrator {
 
         // User Approved Path
         self.emit(OrchestratorEvent::ConfirmationResolved {
-            id: id.clone(),
+            id: pending.id.clone(),
             approved: true,
         });
 
