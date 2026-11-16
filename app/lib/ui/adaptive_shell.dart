@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/assistant_controller.dart';
 import 'screens/audit_log_screen.dart';
+import 'screens/automation_screen.dart';
 import 'screens/capabilities_screen.dart';
 import 'screens/devices_screen.dart';
 import 'screens/diagnostics_screen.dart';
@@ -39,6 +40,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
       VisionScreen(controller: widget.controller),
       InterpreterScreen(controller: widget.controller),
       PersonaScreen(controller: widget.controller),
+      AutomationScreen(controller: widget.controller),
       DevicesScreen(controller: widget.controller),
       CapabilitiesScreen(controller: widget.controller),
       AuditLogScreen(controller: widget.controller),
@@ -80,6 +82,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         icon: Icon(Icons.psychology_outlined),
         selectedIcon: Icon(Icons.psychology),
         label: 'Persona',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.auto_mode_outlined),
+        selectedIcon: Icon(Icons.auto_mode),
+        label: 'Automations',
       ),
       NavigationDestination(
         icon: Icon(Icons.devices_outlined),
@@ -168,6 +175,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                   icon: Icon(Icons.psychology_outlined),
                   selectedIcon: Icon(Icons.psychology),
                   label: Text('Persona'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.auto_mode_outlined),
+                  selectedIcon: Icon(Icons.auto_mode),
+                  label: Text('Automations'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.devices_outlined),

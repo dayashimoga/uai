@@ -90,6 +90,11 @@ void main() {
     expect(find.text('Devices & Cross-Device Mesh'), findsOneWidget);
     expect(find.text('100% Offline LAN'), findsOneWidget);
 
+    // Navigate to Automations
+    await tester.tap(find.text('Automations'));
+    await tester.pumpAndSettle();
+    expect(find.text('Automations & Smart Home'), findsOneWidget);
+
     // Navigate to Capabilities
     await tester.tap(find.text('Capabilities'));
     await tester.pumpAndSettle();
