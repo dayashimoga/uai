@@ -412,8 +412,13 @@ impl Orchestrator {
             }
         }
 
-        // Add conversation history
-        for turn in &existing_turns {
+        // Add recent conversation history within active context window (older context is recalled via episodic hybrid search)
+        let context_turns = if existing_turns.len() > 20 {
+            &existing_turns[existing_turns.len() - 20..]
+        } else {
+            &existing_turns[..]
+        };
+        for turn in context_turns {
             session.add_turn(turn.role.as_str(), &turn.content);
         }
         // Add current user prompt

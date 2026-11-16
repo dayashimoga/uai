@@ -29,18 +29,18 @@ use crate::api::{
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
     bridge_lift_emergency_lockdown, bridge_list_personas, bridge_list_preferences,
     bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
-    bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown,
-    bridge_rotate_master_key, bridge_run_pipeline_benchmark, bridge_save_persona,
-    bridge_set_active_persona,
-    bridge_set_preference, bridge_set_setting, bridge_translate_text, bridge_update_permission,
-    bridge_verify_audit, bridge_vision_ocr_extract, bridge_voice_inject_audio,
-    bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
-    bridge_voice_stop_listening, init_bridge, shutdown_bridge, AutomationRuleItem,
-    SmartHomeCommandItem, SmartHomeEntityItem, UserPersonaItem,
+    bridge_notify_memory_pressure, bridge_notify_power_transition, bridge_query_audit,
+    bridge_request_shutdown, bridge_rotate_master_key, bridge_run_pipeline_benchmark,
+    bridge_save_persona, bridge_set_active_persona, bridge_set_preference, bridge_set_setting,
+    bridge_translate_text, bridge_update_permission, bridge_verify_audit,
+    bridge_vision_ocr_extract, bridge_voice_inject_audio, bridge_voice_set_keywords,
+    bridge_voice_set_mode, bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge,
+    shutdown_bridge, AutomationRuleItem, SmartHomeCommandItem, SmartHomeEntityItem,
+    UserPersonaItem,
 };
 use crate::device_bridge::DiscoveredPeerItem;
 use crate::error::FfiError;
-use crate::lifecycle::{MemoryPressureLevel, ShutdownReason};
+use crate::lifecycle::{MemoryPressureLevel, PowerTransition, ShutdownReason};
 
 /// Converts a Rust `String` into an owned heap-allocated C string.
 /// Caller is responsible for freeing via `bridge_c_free_string`.
@@ -315,6 +315,25 @@ pub extern "C" fn bridge_c_notify_memory_pressure(level: i32) -> i32 {
             MemoryPressureLevel::Moderate
         };
         bridge_notify_memory_pressure(p_level)
+    }));
+
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Delivers an OS power transition notification (transition: 0 = Suspend, 1 = Resume).
+/// Returns 0 on success, negative on error.
+#[no_mangle]
+pub extern "C" fn bridge_c_notify_power_transition(transition: i32) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let p_trans = if transition == 0 {
+            PowerTransition::Suspend
+        } else {
+            PowerTransition::Resume
+        };
+        bridge_notify_power_transition(p_trans)
     }));
 
     match result {

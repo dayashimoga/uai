@@ -196,6 +196,12 @@ pub enum BridgeEvent {
         /// Whether budget is exceeded.
         memory_budget_exceeded: bool,
     },
+
+    /// Host OS power state transition (sleep/wake/suspend/resume).
+    PowerTransition {
+        /// The event name ("suspend" or "resume").
+        event: String,
+    },
 }
 
 type CallbackFn = Box<dyn Fn(&BridgeEvent) + Send + Sync + 'static>;

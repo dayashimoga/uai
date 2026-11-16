@@ -151,6 +151,11 @@ abstract class BridgeEvent {
               payload['memory_budget_exceeded'] as bool? ?? false,
         );
 
+      case 'power_transition':
+        return PowerTransitionEvent(
+          event: payload['event'] as String? ?? 'suspend',
+        );
+
       default:
         return UnknownBridgeEvent(type: type, payload: payload);
     }
@@ -381,6 +386,14 @@ class PerformanceMetricsUpdatedEvent extends BridgeEvent {
     required this.idleBudgetBytes,
     required this.memoryBudgetExceeded,
   }) : super('performance_metrics_updated');
+}
+
+class PowerTransitionEvent extends BridgeEvent {
+  final String event;
+
+  const PowerTransitionEvent({
+    required this.event,
+  }) : super('power_transition');
 }
 
 class UnknownBridgeEvent extends BridgeEvent {

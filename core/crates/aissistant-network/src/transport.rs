@@ -327,6 +327,32 @@ impl QuicTransportEngine {
         }
         false
     }
+
+    /// Reconnects to a remote peer, discarding any existing stale session.
+    pub async fn reconnect_peer(
+        &self,
+        target_addr: SocketAddr,
+        expected_key: [u8; 32],
+        server_name: &str,
+    ) -> Result<QuicSession> {
+        self.disconnect_peer(&expected_key);
+        self.connect_peer(target_addr, Some(expected_key), server_name)
+            .await
+    }
+
+    /// Rebinds the transport endpoint to a new socket address (e.g. following Wi-Fi-to-hotspot transition).
+    pub fn rebind_endpoint(
+        &mut self,
+        new_bind_addr: SocketAddr,
+        trusted_keys: Vec<[u8; 32]>,
+        pairing_mode: bool,
+    ) -> Result<SocketAddr> {
+        self.close_all();
+        if let Some(endpoint) = self.endpoint.take() {
+            endpoint.close(0u32.into(), b"rebinding");
+        }
+        self.start_endpoint(new_bind_addr, trusted_keys, pairing_mode)
+    }
 }
 
 /// In-memory virtual transport session for deterministic unit and CI testing.
@@ -338,6 +364,7 @@ pub struct VirtualSession {
     tx: tokio::sync::mpsc::Sender<Vec<u8>>,
     rx: Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<Vec<u8>>>>,
     closed: Arc<std::sync::atomic::AtomicBool>,
+    drop_next: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl VirtualSession {
@@ -359,12 +386,25 @@ impl VirtualSession {
         self.remote_addr
     }
 
+    /// Injects a single packet drop on the next outbound transmission.
+    pub fn inject_drop_next(&self) {
+        self.drop_next
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Sends a data frame over the virtual session channel.
     pub async fn send(&self, data: &[u8]) -> Result<()> {
         if self.is_closed() {
             return Err(NetworkError::ConnectionClosed(
                 "Virtual session closed".into(),
             ));
+        }
+        if self
+            .drop_next
+            .swap(false, std::sync::atomic::Ordering::Relaxed)
+        {
+            // Simulated packet loss: payload silently discarded
+            return Ok(());
         }
         self.tx
             .send(data.to_vec())
@@ -410,6 +450,8 @@ pub fn create_virtual_session_pair(
     let (tx_b_to_a, rx_a) = tokio::sync::mpsc::channel(64);
     let closed_a = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let closed_b = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let drop_a = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let drop_b = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
     let session_a = VirtualSession {
         local_key: key_a,
@@ -418,6 +460,7 @@ pub fn create_virtual_session_pair(
         tx: tx_a_to_b,
         rx: Arc::new(tokio::sync::Mutex::new(rx_a)),
         closed: closed_a,
+        drop_next: drop_a,
     };
 
     let session_b = VirtualSession {
@@ -427,6 +470,7 @@ pub fn create_virtual_session_pair(
         tx: tx_b_to_a,
         rx: Arc::new(tokio::sync::Mutex::new(rx_b)),
         closed: closed_b,
+        drop_next: drop_b,
     };
 
     (session_a, session_b)

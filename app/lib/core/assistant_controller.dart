@@ -63,6 +63,7 @@ class AssistantController extends ChangeNotifier {
   bool _isHomeLoading = false;
   String? _homeError;
   bool _isLockdownActive = false;
+  String? _lastPowerTransition;
   PerformanceSnapshotModel? _performanceSnapshot;
   PipelineBenchmarkReportModel? _pipelineBenchmarkReport;
   bool _isPipelineBenchmarking = false;
@@ -122,6 +123,7 @@ class AssistantController extends ChangeNotifier {
   bool get isHomeLoading => _isHomeLoading;
   String? get homeError => _homeError;
   bool get isLockdownActive => _isLockdownActive;
+  String? get lastPowerTransition => _lastPowerTransition;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -291,6 +293,9 @@ class AssistantController extends ChangeNotifier {
         sqliteMemoryBytes: _performanceSnapshot?.sqliteMemoryBytes ?? 0,
         timestampMs: DateTime.now().millisecondsSinceEpoch,
       );
+    } else if (event is PowerTransitionEvent) {
+      _lastPowerTransition = event.event;
+      refreshDiagnostics();
     }
     notifyListeners();
   }
@@ -1198,6 +1203,12 @@ class AssistantController extends ChangeNotifier {
       _isPipelineBenchmarking = false;
       notifyListeners();
     }
+  }
+
+  Future<void> handlePowerTransition(String transition) async {
+    _bridge.notifyPowerTransition(transition);
+    _lastPowerTransition = transition;
+    notifyListeners();
   }
 
   @override

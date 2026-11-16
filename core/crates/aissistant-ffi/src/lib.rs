@@ -27,15 +27,16 @@ pub use api::{
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
     bridge_lift_emergency_lockdown, bridge_list_personas, bridge_list_preferences,
     bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
-    bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown,
-    bridge_rotate_master_key, bridge_run_pipeline_benchmark, bridge_save_persona,
-    bridge_set_active_persona, bridge_set_preference, bridge_set_setting, bridge_translate_text,
-    bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
-    bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode, get_bridge,
-    init_bridge, shutdown_bridge, AuditIntegrityReport, AuditItem, AutomationHistoryItem,
-    AutomationRuleItem, CapabilityItem, CoreBridge, DocumentRecordItem, HealthReport, HealthStatus,
-    InterpreterSessionStatusItem, InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem,
-    OcrDocumentItem, OcrTextLineItem, OcrWordItem, PerformanceSnapshot, PipelineBenchmarkReport,
+    bridge_notify_memory_pressure, bridge_notify_power_transition, bridge_query_audit,
+    bridge_request_shutdown, bridge_rotate_master_key, bridge_run_pipeline_benchmark,
+    bridge_save_persona, bridge_set_active_persona, bridge_set_preference, bridge_set_setting,
+    bridge_translate_text, bridge_update_permission, bridge_verify_audit,
+    bridge_vision_ocr_extract, bridge_voice_inject_audio, bridge_voice_set_keywords,
+    bridge_voice_set_mode, get_bridge, init_bridge, shutdown_bridge, AuditIntegrityReport,
+    AuditItem, AutomationHistoryItem, AutomationRuleItem, CapabilityItem, CoreBridge,
+    DocumentRecordItem, HealthReport, HealthStatus, InterpreterSessionStatusItem,
+    InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem, OcrDocumentItem,
+    OcrTextLineItem, OcrWordItem, PerformanceSnapshot, PipelineBenchmarkReport,
     SmartHomeCommandItem, SmartHomeCommandResultItem, SmartHomeEntityItem, TranslationResultItem,
     UserPersonaItem, UserPreferenceItem, WorkflowActionItem, WorkflowExecutionReportItem,
 };
@@ -46,7 +47,8 @@ pub use device_bridge::{
 pub use error::{FfiError, FfiResult};
 pub use events::{BridgeEvent, EventStreamSink};
 pub use lifecycle::{
-    CancellationToken, CoreRuntime, LifecycleState, MemoryPressureLevel, ShutdownReason,
+    CancellationToken, CoreRuntime, LifecycleState, MemoryPressureLevel, PowerTransition,
+    ShutdownReason,
 };
 pub use model_bridge::{
     BenchmarkReport, HardwareOverview, ModelCatalogItem, ModelManagerSnapshot, ModelSupervisor,
@@ -1613,5 +1615,44 @@ mod tests {
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);
+    }
+
+    #[test]
+    fn test_power_transition_lifecycle() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap();
+        use std::time::Duration;
+        let _ = c_abi::bridge_c_shutdown();
+
+        let bridge = Arc::new(CoreBridge::new_in_memory().unwrap());
+        let (_sub_id, rx) = bridge.event_sink().subscribe(16);
+
+        // Notify suspend
+        assert!(bridge
+            .notify_power_transition(PowerTransition::Suspend)
+            .is_ok());
+
+        // Event stream should receive PowerTransition { event: "suspend" }
+        let event_suspend = rx.recv_timeout(Duration::from_millis(500)).unwrap();
+        match event_suspend {
+            BridgeEvent::PowerTransition { event } => assert_eq!(event, "suspend"),
+            other => panic!("Expected PowerTransition suspend, got: {other:?}"),
+        }
+
+        // Notify resume
+        assert!(bridge
+            .notify_power_transition(PowerTransition::Resume)
+            .is_ok());
+        let event_resume = rx.recv_timeout(Duration::from_millis(500)).unwrap();
+        match event_resume {
+            BridgeEvent::PowerTransition { event } => assert_eq!(event, "resume"),
+            other => panic!("Expected PowerTransition resume, got: {other:?}"),
+        }
+
+        // Verify C-ABI
+        assert_eq!(c_abi::bridge_c_notify_power_transition(0), -1); // No global bridge initialized yet
+        assert_eq!(unsafe { c_abi::bridge_c_init(std::ptr::null()) }, 0);
+        assert_eq!(c_abi::bridge_c_notify_power_transition(0), 0); // Suspend
+        assert_eq!(c_abi::bridge_c_notify_power_transition(1), 0); // Resume
+        assert_eq!(c_abi::bridge_c_shutdown(), 0);
     }
 }

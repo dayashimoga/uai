@@ -124,6 +124,27 @@ impl MemoryPressureLevel {
     }
 }
 
+/// Host OS power transition event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PowerTransition {
+    /// Host system is entering sleep / standby / hibernate.
+    Suspend,
+    /// Host system resumed from sleep / standby / hibernate.
+    Resume,
+}
+
+impl PowerTransition {
+    /// Returns static string representation.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Suspend => "suspend",
+            Self::Resume => "resume",
+        }
+    }
+}
+
 /// Thread-safe cooperative cancellation token for background workers.
 #[derive(Debug, Clone, Default)]
 pub struct CancellationToken {
@@ -284,6 +305,34 @@ impl CoreRuntime {
                     )?;
                     Ok(())
                 })?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Handles host operating system power transitions (sleep/suspend/resume/wake).
+    pub fn notify_power_transition(
+        &self,
+        transition: PowerTransition,
+        db: Option<&SqliteDb>,
+    ) -> FfiResult<()> {
+        self.event_sink.broadcast(BridgeEvent::PowerTransition {
+            event: transition.as_str().to_string(),
+        });
+
+        match transition {
+            PowerTransition::Suspend => {
+                // Checkpoint WAL and trim SQLite cache memory before sleep
+                if let Some(database) = db {
+                    database.trim_memory().map_err(FfiError::Storage)?;
+                }
+            }
+            PowerTransition::Resume => {
+                // Check integrity on wake
+                if let Some(database) = db {
+                    let _ = database.check_integrity();
+                }
             }
         }
 

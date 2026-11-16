@@ -35,6 +35,7 @@ abstract class AissistantBridge {
   String getLifecycleState();
   void requestShutdown(String reason);
   void notifyMemoryPressure(int level);
+  void notifyPowerTransition(String event);
   void startVoiceListening({VoiceMode mode = VoiceMode.pushToTalk});
   void stopVoiceListening();
   void setVoiceMode(VoiceMode mode);
@@ -135,6 +136,8 @@ typedef _BridgeReqShutdownDart = int Function(Pointer<Utf8> reason);
 
 typedef _BridgeNotifyMemC = Int32 Function(Int32 level);
 typedef _BridgeNotifyMemDart = int Function(int level);
+typedef _BridgeNotifyPowerC = Int32 Function(Int32 transition);
+typedef _BridgeNotifyPowerDart = int Function(int transition);
 
 typedef _BridgeVoiceStartC = Int32 Function(Uint32 mode);
 typedef _BridgeVoiceStartDart = int Function(int mode);
@@ -371,6 +374,7 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeGetStringDart _getLifecycleState;
   late final _BridgeReqShutdownDart _requestShutdown;
   late final _BridgeNotifyMemDart _notifyMemoryPressure;
+  late final _BridgeNotifyPowerDart _notifyPowerTransition;
   late final _BridgeVoiceStartDart _voiceStart;
   late final _BridgeVoiceStopDart _voiceStop;
   late final _BridgeVoiceSetModeDart _voiceSetMode;
@@ -444,6 +448,7 @@ class NativeFfiBridge implements AissistantBridge {
     _getLifecycleState = _lib.lookupFunction<_BridgeGetStringC, _BridgeGetStringDart>('bridge_c_get_lifecycle_state');
     _requestShutdown = _lib.lookupFunction<_BridgeReqShutdownC, _BridgeReqShutdownDart>('bridge_c_request_shutdown');
     _notifyMemoryPressure = _lib.lookupFunction<_BridgeNotifyMemC, _BridgeNotifyMemDart>('bridge_c_notify_memory_pressure');
+    _notifyPowerTransition = _lib.lookupFunction<_BridgeNotifyPowerC, _BridgeNotifyPowerDart>('bridge_c_notify_power_transition');
     _voiceStart = _lib.lookupFunction<_BridgeVoiceStartC, _BridgeVoiceStartDart>('bridge_c_voice_start_listening');
     _voiceStop = _lib.lookupFunction<_BridgeVoiceStopC, _BridgeVoiceStopDart>('bridge_c_voice_stop_listening');
     _voiceSetMode = _lib.lookupFunction<_BridgeVoiceSetModeC, _BridgeVoiceSetModeDart>('bridge_c_voice_set_mode');
@@ -663,6 +668,12 @@ class NativeFfiBridge implements AissistantBridge {
   @override
   void notifyMemoryPressure(int level) {
     _notifyMemoryPressure(level);
+  }
+
+  @override
+  void notifyPowerTransition(String event) {
+    final code = event.toLowerCase() == 'suspend' ? 0 : 1;
+    _notifyPowerTransition(code);
   }
 
   @override
@@ -1999,6 +2010,11 @@ class TestHarnessBridge implements AissistantBridge {
       _status = HealthStatus.degraded;
     }
     _eventController.add(MemoryPressureEvent(level: level >= 1 ? 'critical' : 'moderate'));
+  }
+
+  @override
+  void notifyPowerTransition(String event) {
+    _eventController.add(PowerTransitionEvent(event: event));
   }
 
   bool _isVoiceListening = false;

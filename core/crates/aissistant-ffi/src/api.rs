@@ -32,7 +32,8 @@ use crate::device_bridge::{
 use crate::error::{FfiError, FfiResult};
 use crate::events::{BridgeEvent, EventStreamSink};
 use crate::lifecycle::{
-    CancellationToken, CoreRuntime, LifecycleState, MemoryPressureLevel, ShutdownReason,
+    CancellationToken, CoreRuntime, LifecycleState, MemoryPressureLevel, PowerTransition,
+    ShutdownReason,
 };
 use crate::model_bridge::{
     BenchmarkReport, HardwareOverview, ModelManagerSnapshot, ModelSupervisor,
@@ -1240,6 +1241,20 @@ impl CoreBridge {
         self.runtime.notify_memory_pressure(level, Some(&self.db))
     }
 
+    /// Delivers an operating system power transition notification (suspend / sleep or resume / wake).
+    pub fn notify_power_transition(&self, transition: PowerTransition) -> FfiResult<()> {
+        if transition == PowerTransition::Suspend {
+            if let Ok(mut voice_sup) = self.voice_supervisor.lock() {
+                voice_sup.clear_buffers();
+            }
+            if let Ok(mut model_sup) = self.model_supervisor.lock() {
+                model_sup.on_memory_pressure(false);
+            }
+        }
+        self.runtime
+            .notify_power_transition(transition, Some(&self.db))
+    }
+
     /// Returns the device ID of this core instance.
     #[must_use]
     pub fn device_id(&self) -> String {
@@ -2360,6 +2375,12 @@ pub fn bridge_request_shutdown(reason: ShutdownReason) -> FfiResult<()> {
 pub fn bridge_notify_memory_pressure(level: MemoryPressureLevel) -> FfiResult<()> {
     let bridge = get_bridge()?;
     bridge.notify_memory_pressure(level)
+}
+
+/// Convenience entry point: notifies the global bridge of an OS power transition.
+pub fn bridge_notify_power_transition(transition: PowerTransition) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.notify_power_transition(transition)
 }
 
 /// Convenience entry point: starts voice listening on the global bridge.
