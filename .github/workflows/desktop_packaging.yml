@@ -1,0 +1,164 @@
+name: Desktop Release Packaging
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic version tag (e.g. 1.0.0)'
+        required: false
+        default: '1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-package:
+    name: Package Desktop (Windows x86_64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Flutter Environment
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Build Rust Core (aissistant-ffi)
+        run: cargo build --manifest-path core/Cargo.toml -p aissistant-ffi --release
+
+      - name: Build Flutter Windows Application
+        working-directory: app
+        run: flutter build windows --release
+
+      - name: Package Windows Release Bundle
+        shell: pwsh
+        run: |
+          $ver = "${{ github.event.inputs.version || github.ref_name }}"
+          if ($ver -like "v*") { $ver = $ver.Substring(1) }
+          & packaging/desktop/windows/package_windows.ps1 -Version $ver
+
+      - name: Upload Windows Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aissistant-desktop-windows
+          path: dist/aissistant-windows-x64-*
+
+  build-linux-packages:
+    name: Package Desktop (Linux x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake clang ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libasound2-dev libpipewire-0.3-dev libdbus-1-dev \
+            dpkg-dev file
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Flutter Environment
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Build Rust Core (aissistant-ffi)
+        run: cargo build --manifest-path core/Cargo.toml -p aissistant-ffi --release
+
+      - name: Build Flutter Linux Application
+        working-directory: app
+        run: flutter build linux --release
+
+      - name: Package Debian (.deb) & AppImage
+        run: |
+          VER="${{ github.event.inputs.version || github.ref_name }}"
+          VER="${VER#v}"
+          chmod +x packaging/desktop/linux/*.sh
+          ./packaging/desktop/linux/package_deb.sh "${VER}" "amd64"
+          ./packaging/desktop/linux/package_appimage.sh "${VER}" "x86_64"
+
+      - name: Upload Linux Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aissistant-desktop-linux
+          path: |
+            dist/*.deb*
+            dist/*.AppImage*
+
+  build-macos-package:
+    name: Package Desktop (macOS Universal)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Flutter Environment
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Build and Package macOS DMG
+        run: |
+          VER="${{ github.event.inputs.version || github.ref_name }}"
+          VER="${VER#v}"
+          chmod +x packaging/desktop/macos/*.sh
+          ./packaging/desktop/macos/package_macos.sh "${VER}"
+
+      - name: Upload macOS Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aissistant-desktop-macos
+          path: dist/*.dmg*
+
+  aggregate-desktop-checksums:
+    name: Unified Desktop SHA-256 Manifest
+    needs: [build-windows-package, build-linux-packages, build-macos-package]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aissistant-desktop-windows
+          path: dist/
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aissistant-desktop-linux
+          path: dist/
+
+      - name: Download macOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aissistant-desktop-macos
+          path: dist/
+
+      - name: Aggregate SHA256SUMS
+        run: |
+          cd dist
+          cat *.sha256 > SHA256SUMS_DESKTOP.txt || true
+          echo "Generated unified desktop checksum manifest:"
+          cat SHA256SUMS_DESKTOP.txt
+
+      - name: Upload Unified Manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: aissistant-desktop-checksums
+          path: dist/SHA256SUMS_DESKTOP.txt

@@ -1,0 +1,18 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Universal AI Assistant
+GenericName=AI Assistant
+Comment=100% Offline-First Personal AI Assistant with Voice, Local LLM, and Cross-Device P2P
+Exec=aissistant %u
+Icon=aissistant
+Terminal=false
+Categories=Utility;AudioVideo;ArtificialIntelligence;Network;
+StartupWMClass=aissistant
+Keywords=ai;assistant;offline;speech;local;voice;llama;llm;
+MimeType=x-scheme-handler/aissistant;
+Actions=NewWindow;
+
+[Desktop Action NewWindow]
+Name=Open New Window
+Exec=aissistant

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# AppRun entry point for Universal AI Assistant AppImage
+set -e
+
+APPDIR="${APPDIR:-$(dirname "$(readlink -f "$0")")}"
+export PATH="${APPDIR}/usr/bin:${PATH}"
+export LD_LIBRARY_PATH="${APPDIR}/usr/lib:${APPDIR}/usr/lib/aissistant:${LD_LIBRARY_PATH:-}"
+export XDG_DATA_DIRS="${APPDIR}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+
+exec "${APPDIR}/usr/bin/aissistant" "$@"
