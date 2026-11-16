@@ -32,13 +32,14 @@ pub use api::{
     bridge_save_persona, bridge_set_active_persona, bridge_set_preference, bridge_set_setting,
     bridge_translate_text, bridge_update_permission, bridge_verify_audit,
     bridge_vision_ocr_extract, bridge_voice_inject_audio, bridge_voice_set_keywords,
-    bridge_voice_set_mode, get_bridge, init_bridge, shutdown_bridge, AuditIntegrityReport,
-    AuditItem, AutomationHistoryItem, AutomationRuleItem, CapabilityItem, CoreBridge,
-    DocumentRecordItem, HealthReport, HealthStatus, InterpreterSessionStatusItem,
-    InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem, OcrDocumentItem,
-    OcrTextLineItem, OcrWordItem, PerformanceSnapshot, PipelineBenchmarkReport,
-    SmartHomeCommandItem, SmartHomeCommandResultItem, SmartHomeEntityItem, TranslationResultItem,
-    UserPersonaItem, UserPreferenceItem, WorkflowActionItem, WorkflowExecutionReportItem,
+    bridge_voice_set_mode, get_bridge, init_bridge, shutdown_bridge, AudioDeviceInfoItem,
+    AudioDevicesSnapshot, AuditIntegrityReport, AuditItem, AutomationHistoryItem,
+    AutomationRuleItem, CapabilityItem, CoreBridge, DocumentRecordItem, HealthReport, HealthStatus,
+    InterpreterSessionStatusItem, InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem,
+    OcrDocumentItem, OcrTextLineItem, OcrWordItem, PerformanceSnapshot, PipelineBenchmarkReport,
+    SmartHomeCommandItem, SmartHomeCommandResultItem, SmartHomeEntityItem, SpeechModelBundleStatus,
+    TranslationResultItem, UserPersonaItem, UserPreferenceItem, WorkflowActionItem,
+    WorkflowExecutionReportItem,
 };
 pub use device_bridge::{
     DeviceSupervisor, DiscoveredPeerItem, PairedDeviceItem, PairingSessionInfo,
@@ -711,6 +712,37 @@ mod tests {
         let stop_res = c_abi::bridge_c_voice_stop_listening();
         assert_eq!(stop_res, 0);
 
+        // Hardware audio devices enumeration via C-ABI
+        let dev_ptr = c_abi::bridge_c_list_audio_devices();
+        assert!(!dev_ptr.is_null());
+        let dev_json = unsafe { CStr::from_ptr(dev_ptr) }.to_str().unwrap();
+        let snapshot: AudioDevicesSnapshot = serde_json::from_str(dev_json).unwrap();
+        assert!(!snapshot.input_devices.is_empty());
+        assert!(!snapshot.output_devices.is_empty());
+        unsafe { c_abi::bridge_c_free_string(dev_ptr) };
+
+        // Audio device & language selection via C-ABI
+        let mic_name = CString::new("Default System Microphone").unwrap();
+        let dev_select_res = unsafe { c_abi::bridge_c_voice_set_device(mic_name.as_ptr()) };
+        assert_eq!(dev_select_res, 0);
+
+        let lang_tag = CString::new("es").unwrap();
+        let lang_select_res = unsafe { c_abi::bridge_c_voice_set_language(lang_tag.as_ptr()) };
+        assert_eq!(lang_select_res, 0);
+
+        // Speech models status & download bootstrapping via C-ABI
+        let status_ptr = c_abi::bridge_c_speech_models_status();
+        assert!(!status_ptr.is_null());
+        unsafe { c_abi::bridge_c_free_string(status_ptr) };
+
+        let dl_ptr = c_abi::bridge_c_download_speech_models();
+        assert!(!dl_ptr.is_null());
+        let dl_json = unsafe { CStr::from_ptr(dl_ptr) }.to_str().unwrap();
+        let bundle: SpeechModelBundleStatus = serde_json::from_str(dl_json).unwrap();
+        assert!(bundle.all_ready);
+        assert!(bundle.vad_ready && bundle.stt_ready && bundle.tts_ready);
+        unsafe { c_abi::bridge_c_free_string(dl_ptr) };
+
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);
     }
@@ -984,6 +1016,36 @@ mod tests {
         let err_str = unsafe { CStr::from_ptr(err_ptr) }.to_str().unwrap();
         assert!(err_str.contains("message") || err_str.contains("code"));
         unsafe { c_abi::bridge_c_free_string(err_ptr) };
+
+        // Test screen capture via C-ABI
+        let screen_ptr = c_abi::bridge_c_capture_screen();
+        assert!(!screen_ptr.is_null());
+        let screen_json = unsafe { CStr::from_ptr(screen_ptr) }.to_str().unwrap();
+        let screen_doc: OcrDocumentItem = serde_json::from_str(screen_json).unwrap();
+        assert!(screen_doc.lines.len() >= 2);
+        assert!(screen_doc.full_text.contains("Universal AI Assistant"));
+        unsafe { c_abi::bridge_c_free_string(screen_ptr) };
+
+        // Test file-based OCR via C-ABI
+        let tmp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp_file.path(), payload).unwrap();
+        let path_c = CString::new(tmp_file.path().to_str().unwrap()).unwrap();
+
+        let file_ptr = unsafe { c_abi::bridge_c_vision_extract_file(path_c.as_ptr()) };
+        assert!(!file_ptr.is_null());
+        let file_json = unsafe { CStr::from_ptr(file_ptr) }.to_str().unwrap();
+        let file_doc: OcrDocumentItem = serde_json::from_str(file_json).unwrap();
+        assert_eq!(file_doc.lines.len(), 3);
+        assert!(file_doc.full_text.contains("Invoice #1042"));
+        unsafe { c_abi::bridge_c_free_string(file_ptr) };
+
+        // Test bridge_c_analyze_image with path
+        let analyze_ptr = unsafe { c_abi::bridge_c_analyze_image(path_c.as_ptr()) };
+        assert!(!analyze_ptr.is_null());
+        let analyze_json = unsafe { CStr::from_ptr(analyze_ptr) }.to_str().unwrap();
+        let analyze_doc: OcrDocumentItem = serde_json::from_str(analyze_json).unwrap();
+        assert_eq!(analyze_doc.lines.len(), 3);
+        unsafe { c_abi::bridge_c_free_string(analyze_ptr) };
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);

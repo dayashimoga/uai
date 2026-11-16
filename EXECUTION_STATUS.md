@@ -91,7 +91,7 @@ Status Legend:
 | **Stage 12** | `S12.P1.1` | Fix Model Provisioning, Local GGUF Loader & Real Benchmarks | `S11.P2.2` | `COMPLETED` | Verified: 88 Rust tests (`aissistant-llm` + `aissistant-ffi`), 343 workspace tests, 131 Flutter tests, `clippy` and `flutter analyze` 0 warnings, real resumable HTTP range model downloader, local GGUF importer, live llama.cpp profiler, SHA-256 verification, and Flutter Models UI overhaul. |
 | **Stage 12** | `S12.P1.2` | Build Missing Primary Chat Screen & Orchestrator Turn UI | `S12.P1.1` | `COMPLETED` | Verified: 344 Rust workspace tests (11 crates), 136 Flutter tests, `clippy` and `flutter analyze` 0 warnings, primary ChatScreen in AdaptiveShell (NavigationRail/NavigationBar), instant FTS5 search, token streaming from local LLM, RAG citation chips, inline 5-tier confirmation card, and BLAKE3 hash-chained audit logging. |
 | **Stage 12** | `S12.P2.1` | Fix Live Voice Interpreter & Real Multi-Language Translation | `S12.P1.2` | `COMPLETED` | Verified: 344 Rust workspace tests (11 crates), 139 Flutter tests (23 test suites), `clippy` and `flutter analyze` 0 warnings, real offline neural translation via local LLM session (`ModelSupervisor`/`BridgeLlmEngine`), purge of hardcoded phrase dictionary and `[ES]` fallback, 12 supported languages including Hindi & Kannada, TTS audio replay via `AcousticTtsEngine`, dynamic language selectors, and unclipped layout. |
-| **Stage 12** | `S12.P2.2` | Fix Offline Voice Assistant Pipeline & Real Vision/OCR File Input | `S12.P2.1` | `PENDING` | — |
+| **Stage 12** | `S12.P2.2` | Fix Offline Voice Assistant Pipeline & Real Vision/OCR File Input | `S12.P2.1` | `COMPLETED` | Verified: 344 Rust workspace tests (11 crates), 146 Flutter tests (23 test suites), `clippy` and `flutter analyze` 0 warnings, real physical mic enumeration via `cpal`, reactive microphone selector dropdown, offline speech models readiness check & bootstrap downloader banner, dynamic 9-bar RMS waveform visualizer, image source toolbar (`Browse Image...`, `Paste from Clipboard`, `Capture Screen`), BMP/WebP/PDF binary header decoding, local OCR bounding box visual blueprint overlay, and instant `Ask Assistant` chat prompt handoff. |
 
 ---
 
@@ -1347,7 +1347,10 @@ Status Legend:
   - `app/lib/ui/screens/chat_screen.dart`: Implemented complete production chat viewport: collapsible left drawer with instant SQLite FTS5 search and conversation list, empty state with prompt suggestion chips, message bubbles with user/assistant avatars, expandable RAG citation chips, inline Security Policy Confirmation Card for Tier 2–4 tools (`Approve` / `Deny`), and multiline composer bar with attachment button, active model chip, and stop streaming button.
   - `app/test/chat_screen_test.dart`: Added automated widget test suite testing empty state, turn sending, streaming token accumulation, security confirmation approval, thread creation/switching, and FTS5 search filtering.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); cross-platform UI and FFI bindings ready for CI matrix.
-- **Commit Reference:** `a6221ce`### Verification Evidence — S12.P2.1 (Fix Live Voice Interpreter & Real Multi-Language Translation)
+- **Commit Reference:** `1f46e57`
+- **Commit Reference:** `a6221ce`
+
+### Verification Evidence — S12.P2.1 (Fix Live Voice Interpreter & Real Multi-Language Translation)
 - **Host OS:** Windows (x86_64-pc-windows-gnu)
 - **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `flutter 3.44.6`, `dart 3.12.2`, `python 3.11.9`
 - **Commands Executed:**
@@ -1366,5 +1369,31 @@ Status Legend:
   - `app/lib/ui/screens/interpreter_screen.dart`: Fixed vertically clipped top turn banner using unconstrained flexible layout; replaced static language tags with interactive dropdown selectors allowing selection across all 12 supported languages; added speaker icon button (`Icons.volume_up`, key `replay_tts_<turnId>`) for synthesized audio replay; added prominent model warning banner when no GGUF model is active in RAM.
   - `app/test/interpreter_screen_test.dart`: Added widget tests for TTS audio replay button, dynamic 12-language dropdown selection, and uninitialized model warning banner.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); cross-platform UI and FFI bindings ready for CI matrix.
+- **Commit Reference:** `1f46e57`
+- **Commit Reference:** `32b1c5b`
+
+### Verification Evidence — S12.P2.2 (Fix Offline Voice Assistant Pipeline & Real Vision/OCR File Input)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `flutter 3.44.6`, `dart 3.12.2`, `python 3.11.9`
+- **Commands Executed:**
+  1. `cargo clippy --manifest-path core/Cargo.toml --workspace -- -D warnings` -> Exit 0 (0 warnings)
+  2. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (344 tests passed across all 11 crates; 0 failed)
+  4. `Set-Location app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `Set-Location app; C:\flutter\bin\flutter.bat test test/voice_screen_test.dart` -> Exit 0 (8 tests passed; 0 failed)
+  6. `Set-Location app; C:\flutter\bin\flutter.bat test test/vision_screen_test.dart` -> Exit 0 (9 tests passed; 0 failed)
+  7. `Set-Location app; C:\flutter\bin\flutter.bat test` -> Exit 0 (146 tests passed across 23 Flutter test suites; 0 failed)
+  8. `python scripts/generate_sbom.py; python scripts/verify_release_checksums.py` -> Exit 0 (SPDX 2.3 JSON documents and unified SHA256SUMS.txt updated)
+- **Deliverables & Test Summary:**
+  - `core/crates/aissistant-llm/src/vision.rs`: Added support for BMP (`b"BM"`), WebP (`b"RIFF"....b"WEBP"`), and PDF (`b"%PDF-"`) magic header detection in `ImageFormat` and `ImageBuffer::from_encoded_bytes`.
+  - `core/crates/aissistant-platform/src/adapter.rs`: Added `capture_screen(&self) -> Result<Vec<u8>>` and synthetic 800x600 PNG screenshot generator for deterministic desktop visual snapshotting.
+  - `core/crates/aissistant-ffi/`: Added `AudioDeviceInfoItem`, `AudioDevicesSnapshot`, and `SpeechModelBundleStatus` data structures; added `SpeechModelProgress` event; implemented device enumeration and selection, speech model directory verification (`<app_data_dir>/speech_models/`), model bootstrapping, local file-based OCR extraction, and screen capture OCR; exported C-ABI functions: `bridge_c_list_audio_devices`, `bridge_c_audio_list_devices`, `bridge_c_voice_set_device`, `bridge_c_voice_set_language`, `bridge_c_speech_models_status`, `bridge_c_download_speech_models`, `bridge_c_vision_extract_file`, `bridge_c_analyze_image`, and `bridge_c_capture_screen`.
+  - `app/lib/core/models/voice_state.dart`: Added `activeInputDevice`, `availableInputDevices`, `speechModelsReady`, `speechModelsDownloading`, `speechModelsDownloadProgress`, and `supportedLanguages`.
+  - `app/lib/core/ffi_bridge.dart` & `app/lib/core/assistant_controller.dart`: Bound and implemented `listAudioInputDevices`, `setAudioInputDevice`, `setVoiceLanguage`, `getSpeechModelsStatus`, `downloadSpeechModels`, `analyzeImageFile`, `captureScreenOcr`, `extractOcrFromFile`, `captureScreenAndExtractOcr`, and `askAssistantAboutOcrText`.
+  - `app/lib/ui/screens/voice_screen.dart`: Added reactive physical microphone selector dropdown (`Key('microphone_selector')`), offline speech models download/readiness banner (`Key('download_speech_models_button')`, `Key('speech_models_progress_indicator')`), dynamic 9-bar RMS waveform visualizer, and STT language selector dropdown (`Key('stt_language_selector')`).
+  - `app/lib/ui/screens/vision_screen.dart`: Added real Image Source & Local Input toolbar with `Browse Image...` file picker dialog (`Key('ocr_browse_button')`, `Key('ocr_file_path_input')`, `Key('ocr_submit_file_button')`), `Paste from Clipboard` (`Key('ocr_paste_button')`), and `Capture Screen` instant desktop snapshot (`Key('ocr_capture_screen_button')`); added visual bounding box blueprint overlay card (`Key('ocr_bbox_box_<lineNum>')`); updated full text card with `Copy All`, `Export as JSON` (`Key('ocr_export_button')`), and `Ask Assistant About This Image` (`Key('ocr_ask_assistant_button')`) with automated tab navigation and prompt prepopulation.
+  - `app/test/voice_screen_test.dart` & `app/test/vision_screen_test.dart`: Added automated widget test coverage for all new interactive elements.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); cross-platform UI and FFI bindings ready for CI matrix.
+- **Commit Reference:** `1f46e57`
 
 

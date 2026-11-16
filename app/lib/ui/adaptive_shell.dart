@@ -29,6 +29,31 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
   int _selectedIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.controller.selectedNavigationTab;
+    widget.controller.addListener(_onControllerChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    if (_selectedIndex != widget.controller.selectedNavigationTab) {
+      setState(() {
+        _selectedIndex = widget.controller.selectedNavigationTab;
+      });
+    }
+  }
+
+  void _onDestinationSelected(int idx) {
+    widget.controller.selectTab(idx);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isDesktop = width >= 640;
@@ -123,7 +148,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
           children: <Widget>[
             NavigationRail(
               selectedIndex: _selectedIndex,
-              onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
+              onDestinationSelected: _onDestinationSelected,
               extended: width >= 900,
               leading: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -226,7 +251,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
       body: screens[_selectedIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
+        onDestinationSelected: _onDestinationSelected,
         destinations: destinations,
       ),
     );

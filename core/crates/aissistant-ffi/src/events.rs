@@ -270,6 +270,18 @@ pub enum BridgeEvent {
         /// Whether execution was approved by user.
         approved: bool,
     },
+
+    /// Offline speech models download/readiness progress update.
+    SpeechModelProgress {
+        /// Current state ("downloading", "ready", "failed").
+        status: String,
+        /// Downloaded bytes.
+        downloaded_bytes: u64,
+        /// Total bytes.
+        total_bytes: u64,
+        /// Percentage (0 to 100).
+        percent: u32,
+    },
 }
 
 type CallbackFn = Box<dyn Fn(&BridgeEvent) + Send + Sync + 'static>;

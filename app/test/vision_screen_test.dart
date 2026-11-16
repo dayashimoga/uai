@@ -29,7 +29,7 @@ void main() {
 
   testWidgets('renders VisionScreen with offline header, sample selector, and empty state',
       (tester) async {
-    tester.view.physicalSize = const Size(1024, 1200);
+    tester.view.physicalSize = const Size(1024, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
@@ -47,7 +47,7 @@ void main() {
 
   testWidgets('triggers OCR extraction and displays metrics, full text, and line breakdown',
       (tester) async {
-    tester.view.physicalSize = const Size(1024, 1200);
+    tester.view.physicalSize = const Size(1024, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
@@ -74,13 +74,19 @@ void main() {
 
     // Verify Layout Breakdown Lines
     expect(find.text('Layout & Bounding Box Breakdown'), findsOneWidget);
-    expect(find.text('L1'), findsOneWidget);
-    expect(find.text('L2'), findsOneWidget);
-    expect(find.text('L3'), findsOneWidget);
+    expect(find.text('L1'), findsWidgets);
+    expect(find.text('L2'), findsWidgets);
+    expect(find.text('L3'), findsWidgets);
+
+    // Verify Visual Bounding Box Overlay Card
+    expect(find.text('Visual Detection Overlay & Bounding Boxes'), findsOneWidget);
+    expect(find.byKey(const Key('ocr_bbox_box_1')), findsOneWidget);
+    expect(find.byKey(const Key('ocr_bbox_box_2')), findsOneWidget);
+    expect(find.byKey(const Key('ocr_bbox_box_3')), findsOneWidget);
   });
 
   testWidgets('switches sample chips, extracts OCR, and clears OCR result', (tester) async {
-    tester.view.physicalSize = const Size(1024, 1200);
+    tester.view.physicalSize = const Size(1024, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
@@ -106,7 +112,7 @@ void main() {
 
   testWidgets('copies recognized text to clipboard and shows confirmation snackbar',
       (tester) async {
-    tester.view.physicalSize = const Size(1024, 1200);
+    tester.view.physicalSize = const Size(1024, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
@@ -126,7 +132,7 @@ void main() {
   });
 
   testWidgets('adaptive shell displays Vision destination and navigates to it', (tester) async {
-    tester.view.physicalSize = const Size(1024, 1200);
+    tester.view.physicalSize = const Size(1024, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
@@ -142,5 +148,93 @@ void main() {
 
     expect(find.text('Offline Vision & OCR'), findsOneWidget);
     expect(find.byKey(const Key('ocr_extract_button')), findsOneWidget);
+  });
+
+  testWidgets('browse button opens dialog and extracts OCR from local file path', (tester) async {
+    tester.view.physicalSize = const Size(1024, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(buildTestableWidget());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('ocr_browse_button')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('ocr_browse_button')));
+    await tester.pumpAndSettle();
+
+    // Dialog appears
+    expect(find.text('Open Local Image or Document'), findsOneWidget);
+    expect(find.byKey(const Key('ocr_file_path_input')), findsOneWidget);
+    expect(find.byKey(const Key('ocr_submit_file_button')), findsOneWidget);
+
+    // Enter file path
+    await tester.enterText(find.byKey(const Key('ocr_file_path_input')), 'C:/test/invoice.png');
+    await tester.tap(find.byKey(const Key('ocr_submit_file_button')));
+    await tester.pumpAndSettle();
+
+    expect(controller.activeOcrResult, isNotNull);
+    expect(find.text('Recognized Full Text'), findsOneWidget);
+    expect(find.byKey(const Key('ocr_bbox_box_1')), findsOneWidget);
+  });
+
+  testWidgets('capture screen button invokes screen capture OCR and displays result', (tester) async {
+    tester.view.physicalSize = const Size(1024, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(buildTestableWidget());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('ocr_capture_screen_button')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('ocr_capture_screen_button')));
+    await tester.pumpAndSettle();
+
+    expect(controller.activeOcrResult, isNotNull);
+    expect(find.text('Recognized Full Text'), findsOneWidget);
+    expect(find.textContaining('Universal AI Assistant Desktop Screen'), findsWidgets);
+  });
+
+  testWidgets('ask assistant button sends extracted OCR text to chat and switches tabs', (tester) async {
+    tester.view.physicalSize = const Size(1024, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(buildTestableWidget());
+    await tester.pumpAndSettle();
+
+    // Trigger OCR first
+    await tester.tap(find.byKey(const Key('ocr_extract_button')));
+    await tester.pumpAndSettle();
+
+    // Tap Ask Assistant
+    expect(find.byKey(const Key('ocr_ask_assistant_button')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('ocr_ask_assistant_button')));
+    await tester.pump();
+
+    expect(find.text('OCR prompt sent to Assistant Chat'), findsOneWidget);
+    expect(controller.selectedNavigationTab, equals(1));
+    expect(controller.pendingChatPrompt, contains('UNIVERSAL AI ASSISTANT'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('export button copies OCR document JSON to clipboard', (tester) async {
+    tester.view.physicalSize = const Size(1024, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(buildTestableWidget());
+    await tester.pumpAndSettle();
+
+    // Trigger OCR first
+    await tester.tap(find.byKey(const Key('ocr_extract_button')));
+    await tester.pumpAndSettle();
+
+    // Tap Export button
+    expect(find.byKey(const Key('ocr_export_button')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('ocr_export_button')));
+    await tester.pump();
+
+    expect(find.text('Exported OCR document JSON to clipboard'), findsOneWidget);
+    await tester.pumpAndSettle();
   });
 }

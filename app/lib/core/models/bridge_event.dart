@@ -207,6 +207,14 @@ abstract class BridgeEvent {
           approved: payload['approved'] as bool? ?? false,
         );
 
+      case 'speech_model_progress':
+        return SpeechModelProgressEvent(
+          status: payload['status'] as String? ?? 'ready',
+          downloadedBytes: (payload['downloaded_bytes'] as num?)?.toInt() ?? 0,
+          totalBytes: (payload['total_bytes'] as num?)?.toInt() ?? 0,
+          percent: (payload['percent'] as num?)?.toInt() ?? 0,
+        );
+
       default:
         return UnknownBridgeEvent(type: type, payload: payload);
     }
@@ -527,6 +535,20 @@ class ToolConfirmationResolvedEvent extends BridgeEvent {
     required this.confirmationId,
     required this.approved,
   }) : super('tool_confirmation_resolved');
+}
+
+class SpeechModelProgressEvent extends BridgeEvent {
+  final String status;
+  final int downloadedBytes;
+  final int totalBytes;
+  final int percent;
+
+  const SpeechModelProgressEvent({
+    required this.status,
+    required this.downloadedBytes,
+    required this.totalBytes,
+    required this.percent,
+  }) : super('speech_model_progress');
 }
 
 class UnknownBridgeEvent extends BridgeEvent {

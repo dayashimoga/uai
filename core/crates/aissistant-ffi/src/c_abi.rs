@@ -14,31 +14,33 @@ use aissistant_core::ErrorDescriptor;
 use crate::api::{
     bridge_automation_clear_history, bridge_automation_delete, bridge_automation_get,
     bridge_automation_history, bridge_automation_list, bridge_automation_save,
-    bridge_automation_toggle, bridge_automation_trigger, bridge_delete_persona,
-    bridge_delete_preference, bridge_device_cancel_pairing, bridge_device_confirm_pairing,
-    bridge_device_discovered_peers, bridge_device_paired_list, bridge_device_revoke,
-    bridge_device_set_permission, bridge_device_simulate_peer, bridge_device_start_pairing,
-    bridge_device_unpair, bridge_emergency_lockdown, bridge_enforce_memory_budget,
-    bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
-    bridge_get_lifecycle_state, bridge_get_performance_snapshot, bridge_get_preference,
-    bridge_get_setting, bridge_home_entity_control, bridge_home_entity_delete,
-    bridge_home_entity_get, bridge_home_entity_list, bridge_home_entity_upsert,
-    bridge_interpreter_clear_session, bridge_interpreter_get_turns, bridge_interpreter_replay_tts,
-    bridge_interpreter_start_session, bridge_interpreter_submit_turn,
-    bridge_interpreter_swap_languages, bridge_is_lockdown_active, bridge_knowledge_delete_document,
-    bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
-    bridge_lift_emergency_lockdown, bridge_list_personas, bridge_list_preferences,
+    bridge_automation_toggle, bridge_automation_trigger, bridge_capture_screen_and_ocr,
+    bridge_delete_persona, bridge_delete_preference, bridge_device_cancel_pairing,
+    bridge_device_confirm_pairing, bridge_device_discovered_peers, bridge_device_paired_list,
+    bridge_device_revoke, bridge_device_set_permission, bridge_device_simulate_peer,
+    bridge_device_start_pairing, bridge_device_unpair, bridge_download_speech_models,
+    bridge_emergency_lockdown, bridge_enforce_memory_budget, bridge_get_active_persona,
+    bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state,
+    bridge_get_performance_snapshot, bridge_get_preference, bridge_get_setting,
+    bridge_home_entity_control, bridge_home_entity_delete, bridge_home_entity_get,
+    bridge_home_entity_list, bridge_home_entity_upsert, bridge_interpreter_clear_session,
+    bridge_interpreter_get_turns, bridge_interpreter_replay_tts, bridge_interpreter_start_session,
+    bridge_interpreter_submit_turn, bridge_interpreter_swap_languages, bridge_is_lockdown_active,
+    bridge_knowledge_delete_document, bridge_knowledge_index_document,
+    bridge_knowledge_list_documents, bridge_knowledge_search, bridge_lift_emergency_lockdown,
+    bridge_list_audio_devices, bridge_list_personas, bridge_list_preferences,
     bridge_model_benchmark_run, bridge_model_cancel_download, bridge_model_delete,
     bridge_model_download, bridge_model_import_local_gguf, bridge_model_load,
     bridge_model_snapshot, bridge_model_unload, bridge_notify_memory_pressure,
     bridge_notify_power_transition, bridge_query_audit, bridge_request_shutdown,
     bridge_rotate_master_key, bridge_run_pipeline_benchmark, bridge_save_persona,
-    bridge_set_active_persona, bridge_set_preference, bridge_set_setting, bridge_translate_text,
-    bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
-    bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
-    bridge_voice_start_listening, bridge_voice_stop_listening, get_bridge, init_bridge,
-    shutdown_bridge, AutomationRuleItem, SmartHomeCommandItem, SmartHomeEntityItem,
-    UserPersonaItem,
+    bridge_set_active_persona, bridge_set_preference, bridge_set_setting,
+    bridge_speech_models_status, bridge_translate_text, bridge_update_permission,
+    bridge_verify_audit, bridge_vision_ocr_extract, bridge_vision_ocr_extract_file,
+    bridge_voice_inject_audio, bridge_voice_set_device, bridge_voice_set_keywords,
+    bridge_voice_set_language, bridge_voice_set_mode, bridge_voice_start_listening,
+    bridge_voice_stop_listening, get_bridge, init_bridge, shutdown_bridge, AutomationRuleItem,
+    SmartHomeCommandItem, SmartHomeEntityItem, UserPersonaItem,
 };
 use crate::device_bridge::DiscoveredPeerItem;
 use crate::error::FfiError;
@@ -1701,6 +1703,128 @@ pub unsafe extern "C" fn bridge_c_resolve_confirmation(
     approved: i32,
 ) -> i32 {
     unsafe { bridge_c_chat_resolve_confirmation(turn_id, approved) }
+}
+
+/// Enumerates all host audio hardware devices (microphones and speakers).
+#[no_mangle]
+pub extern "C" fn bridge_c_list_audio_devices() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_list_audio_devices));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_list_audio_devices".into(),
+        ))
+    }))
+}
+
+/// Alias for `bridge_c_list_audio_devices`.
+#[no_mangle]
+pub extern "C" fn bridge_c_audio_list_devices() -> *mut c_char {
+    bridge_c_list_audio_devices()
+}
+
+/// Sets active microphone input device.
+///
+/// # Safety
+/// `device_name` must point to a valid null-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_voice_set_device(device_name: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let name_str = unsafe { c_char_to_str(device_name)? };
+        bridge_voice_set_device(name_str)
+    }));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Sets active STT recognition language tag (e.g. "en", "es", "fr", "de", "hi", "kn").
+///
+/// # Safety
+/// `language` must point to a valid null-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_voice_set_language(language: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let lang_str = unsafe { c_char_to_str(language)? };
+        bridge_voice_set_language(lang_str)
+    }));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Checks readiness and disk presence of offline speech models.
+#[no_mangle]
+pub extern "C" fn bridge_c_speech_models_status() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_speech_models_status));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_speech_models_status".into(),
+        ))
+    }))
+}
+
+/// Prepares or bootstraps offline speech models bundle in app data directory.
+#[no_mangle]
+pub extern "C" fn bridge_c_download_speech_models() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_download_speech_models));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_download_speech_models".into(),
+        ))
+    }))
+}
+
+/// Extracts recognized text, bounding boxes, and metrics from a local image file on disk.
+///
+/// # Safety
+/// `file_path` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_vision_extract_file(file_path: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let path = unsafe { c_char_to_str(file_path)? };
+        bridge_vision_ocr_extract_file(path)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_vision_extract_file".into(),
+        ))
+    }))
+}
+
+/// Analyzes an image from file path or base64/raw bytes, returning OCR document extraction JSON.
+///
+/// # Safety
+/// `input` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_analyze_image(input: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let input_str = unsafe { c_char_to_str(input)? };
+        let p = std::path::Path::new(input_str);
+        if p.exists() && p.is_file() {
+            bridge_vision_ocr_extract_file(input_str)
+        } else {
+            let bytes = input_str.as_bytes();
+            bridge_vision_ocr_extract(bytes)
+        }
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_analyze_image".into(),
+        ))
+    }))
+}
+
+/// Captures a desktop screenshot and runs local OCR, returning OCR document extraction JSON.
+#[no_mangle]
+pub extern "C" fn bridge_c_capture_screen() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_capture_screen_and_ocr));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_capture_screen".into(),
+        ))
+    }))
 }
 
 /// Frees a C string previously allocated by `aissistant-ffi`.

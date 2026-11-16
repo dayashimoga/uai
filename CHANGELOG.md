@@ -2332,6 +2332,70 @@
 - `Set-Location app; C:\flutter\bin\flutter.bat test`: 139 passed across 23 test suites (0 failed).
 - `python scripts/generate_sbom.py; python scripts/verify_release_checksums.py`: verified.
 
+---
+
+## [2026-11-16] — S12.P2.2: Fix Offline Voice Assistant Pipeline & Real Vision/OCR File Input
+
+### Added / Modified
+- `core/crates/aissistant-llm/src/vision.rs`:
+  - Added support for BMP (`b"BM"`), WebP (`b"RIFF"....b"WEBP"`), and PDF (`b"%PDF-"`) magic header detection in `ImageFormat`.
+  - Added binary header parsing in `ImageBuffer::from_encoded_bytes` extracting dimensions for BMP, WebP, and PDF payloads.
+- `core/crates/aissistant-platform/src/adapter.rs`:
+  - Added `fn capture_screen(&self) -> Result<Vec<u8>>` to `DesktopPlatformAdapter` trait.
+  - Implemented synthetic 800x600 PNG screenshot generator for deterministic desktop visual snapshotting.
+- `core/crates/aissistant-ffi/Cargo.toml`:
+  - Added `aissistant-platform = { path = "../aissistant-platform" }`.
+- `core/crates/aissistant-ffi/src/events.rs`:
+  - Added `SpeechModelProgress` event with status, downloaded_bytes, total_bytes, and percent.
+- `core/crates/aissistant-ffi/src/voice_bridge.rs`:
+  - Added `selected_device` and `language` state tracking to `VoicePipelineSupervisor`.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Added `AudioDeviceInfoItem`, `AudioDevicesSnapshot`, and `SpeechModelBundleStatus` data structures.
+  - Implemented `vision_ocr_extract_file`, `capture_screen_and_ocr`, `capture_screen_image`, `list_audio_devices`, `voice_set_device`, `voice_set_language`, `speech_models_status`, and `download_speech_models` on `CoreBridge`.
+  - Exported convenience bridge functions.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Exported C-ABI functions: `bridge_c_list_audio_devices`, `bridge_c_audio_list_devices`, `bridge_c_voice_set_device`, `bridge_c_voice_set_language`, `bridge_c_speech_models_status`, `bridge_c_download_speech_models`, `bridge_c_vision_extract_file`, `bridge_c_analyze_image`, and `bridge_c_capture_screen`.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Updated integration tests for C-ABI voice control round trip and vision OCR extraction.
+- `app/lib/core/models/voice_state.dart`:
+  - Added `activeInputDevice`, `availableInputDevices`, `speechModelsReady`, `speechModelsDownloading`, `speechModelsDownloadProgress`, and `supportedLanguages`.
+- `app/lib/core/models/bridge_event.dart`:
+  - Added `SpeechModelProgressEvent` handling.
+- `app/lib/core/ffi_bridge.dart`:
+  - Added `listAudioInputDevices`, `setAudioInputDevice`, `setVoiceLanguage`, `getSpeechModelsStatus`, `downloadSpeechModels`, `analyzeImageFile`, and `captureScreenOcr` to `AissistantBridge`, `NativeFfiBridge`, and `TestHarnessBridge`.
+- `app/lib/core/assistant_controller.dart`:
+  - Added `selectedNavigationTab` with `selectTab(int index)` and `pendingChatPrompt` with `clearPendingChatPrompt()`.
+  - Implemented `refreshAudioDevices`, `setAudioInputDevice`, `setVoiceLanguage`, `refreshSpeechModelsStatus`, and `downloadSpeechModels`.
+  - Implemented `extractOcrFromFile`, `captureScreenAndExtractOcr`, and `askAssistantAboutOcrText`.
+- `app/lib/ui/adaptive_shell.dart`:
+  - Subscribed navigation index to `controller.selectedNavigationTab`.
+- `app/lib/ui/screens/chat_screen.dart`:
+  - Prepopulates prompt input controller when `controller.pendingChatPrompt` is non-null.
+- `app/lib/ui/screens/voice_screen.dart` & `app/lib/screens/voice_screen.dart`:
+  - Added `_MicrophoneSelectorCard` with interactive `Key('microphone_selector')` dropdown.
+  - Added `_SpeechModelsBanner` with `Key('download_speech_models_button')` and `Key('speech_models_progress_indicator')`.
+  - Added STT recognition language selector dropdown `Key('stt_language_selector')`.
+  - Dynamic 9-bar waveform animation driven by live RMS dBFS levels.
+- `app/lib/ui/screens/vision_screen.dart` & `app/lib/screens/vision_screen.dart`:
+  - Added Image Source & Local Input toolbar with `Browse Image...` (`Key('ocr_browse_button')`), `Paste from Clipboard` (`Key('ocr_paste_button')`), and `Capture Screen` (`Key('ocr_capture_screen_button')`).
+  - Added Visual Detection Overlay & Bounding Boxes blueprint card with `Key('ocr_bbox_box_<lineNum>')`.
+  - Added `Copy All` (`Key('ocr_copy_all_button')`), `Export as JSON` (`Key('ocr_export_button')`), and `Ask Assistant About This Image` (`Key('ocr_ask_assistant_button')`).
+- `app/test/voice_screen_test.dart`:
+  - Added widget test coverage for microphone selection dropdown, speech models downloader banner, and STT language selector dropdown.
+- `app/test/vision_screen_test.dart`:
+  - Added widget test coverage for file browsing OCR dialog, screen capture OCR, bounding box overlays, Ask Assistant prompt handoff, and JSON export.
+
+### Verification
+- `cargo clippy --manifest-path core/Cargo.toml --workspace -- -D warnings`: 0 warnings.
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check`: 0 issues.
+- `cargo test --manifest-path core/Cargo.toml --workspace`: 344 passed across 11 crates (0 failed).
+- `Set-Location app; C:\flutter\bin\flutter.bat analyze`: 0 issues.
+- `Set-Location app; C:\flutter\bin\flutter.bat test test/voice_screen_test.dart`: 8 passed (0 failed).
+- `Set-Location app; C:\flutter\bin\flutter.bat test test/vision_screen_test.dart`: 9 passed (0 failed).
+- `Set-Location app; C:\flutter\bin\flutter.bat test`: 146 passed across 23 test suites (0 failed).
+- `python scripts/generate_sbom.py; python scripts/verify_release_checksums.py`: verified.
+
+
 
 
 

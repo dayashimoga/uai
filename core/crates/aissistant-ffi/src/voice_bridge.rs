@@ -41,6 +41,8 @@ pub struct VoicePipelineSupervisor {
     virtual_device: VirtualAudioDevice,
     event_sink: Arc<EventStreamSink>,
     keywords: Vec<String>,
+    selected_device: Option<String>,
+    language: String,
 }
 
 impl std::fmt::Debug for VoicePipelineSupervisor {
@@ -49,6 +51,8 @@ impl std::fmt::Debug for VoicePipelineSupervisor {
             .field("mode", &self.mode)
             .field("is_listening", &self.is_listening.load(Ordering::Relaxed))
             .field("keywords", &self.keywords)
+            .field("selected_device", &self.selected_device)
+            .field("language", &self.language)
             .finish()
     }
 }
@@ -88,7 +92,36 @@ impl VoicePipelineSupervisor {
             virtual_device,
             event_sink,
             keywords: vec!["hey assistant".to_string()],
+            selected_device: None,
+            language: "en".to_string(),
         })
+    }
+
+    /// Sets the active input microphone device name.
+    pub fn set_selected_device(&mut self, device: &str) -> Result<(), FfiError> {
+        self.selected_device = Some(device.to_string());
+        Ok(())
+    }
+
+    /// Returns the currently selected audio input device name.
+    #[must_use]
+    pub fn selected_device(&self) -> Option<&str> {
+        self.selected_device.as_deref()
+    }
+
+    /// Sets the STT recognition language tag.
+    pub fn set_language(&mut self, language: &str) -> Result<(), FfiError> {
+        self.language = language.to_string();
+        self.stt_engine
+            .set_language(language)
+            .map_err(|e| FfiError::Voice(format!("Failed to set STT language: {e}")))?;
+        Ok(())
+    }
+
+    /// Returns the current STT recognition language tag.
+    #[must_use]
+    pub fn language(&self) -> &str {
+        &self.language
     }
 
     /// Starts audio listening in the specified mode.

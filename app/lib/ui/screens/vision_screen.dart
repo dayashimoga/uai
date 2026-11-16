@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -62,6 +64,73 @@ class _VisionScreenState extends State<VisionScreen> {
     widget.controller.extractOcr(sample.bytes);
   }
 
+  Future<void> _showBrowseFileDialog() async {
+    final textController = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Open Local Image or Document'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Text(
+              'Enter the absolute path to a local .png, .jpg, .jpeg, .webp, .bmp, or .pdf file:',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('ocr_file_path_input'),
+              controller: textController,
+              decoration: const InputDecoration(
+                hintText: '/path/to/document.png',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.insert_drive_file),
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            key: const Key('ocr_cancel_file_button'),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            key: const Key('ocr_submit_file_button'),
+            onPressed: () => Navigator.of(ctx).pop(textController.text.trim()),
+            child: const Text('Open & Extract'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result.isNotEmpty) {
+      await widget.controller.extractOcrFromFile(result);
+    }
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text?.trim() ?? '';
+    if (text.isNotEmpty) {
+      await widget.controller.extractOcr(text.codeUnits);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No text/image data found on clipboard'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  void _captureScreen() {
+    unawaited(widget.controller.captureScreenAndExtractOcr());
+  }
+
   void _copyToClipboard(String text) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -101,6 +170,8 @@ class _VisionScreenState extends State<VisionScreen> {
             children: <Widget>[
               _buildHeaderCard(theme),
               const SizedBox(height: 16),
+              _buildImageSourceToolbar(theme, isProcessing),
+              const SizedBox(height: 16),
               _buildSampleSelectorCard(theme, isProcessing),
               if (isProcessing) ...<Widget>[
                 const SizedBox(height: 16),
@@ -113,6 +184,8 @@ class _VisionScreenState extends State<VisionScreen> {
               if (ocr != null) ...<Widget>[
                 const SizedBox(height: 16),
                 _buildMetricsCard(theme, ocr),
+                const SizedBox(height: 16),
+                _buildBoundingBoxOverlayCard(theme, ocr),
                 const SizedBox(height: 16),
                 _buildFullTextCard(theme, ocr),
                 const SizedBox(height: 16),
@@ -181,6 +254,55 @@ class _VisionScreenState extends State<VisionScreen> {
                   avatar: const Icon(Icons.lock_outline, size: 16),
                   label: const Text('Local Privacy'),
                   backgroundColor: theme.colorScheme.surface,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageSourceToolbar(ThemeData theme, bool isProcessing) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              'Image Source & Local Input',
+              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Load an image or document from disk, paste text or clipboard bytes, or capture an instant desktop screen snapshot.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                ElevatedButton.icon(
+                  key: const Key('ocr_browse_button'),
+                  icon: const Icon(Icons.folder_open_outlined, size: 18),
+                  label: const Text('Browse Image...'),
+                  onPressed: isProcessing ? null : _showBrowseFileDialog,
+                ),
+                OutlinedButton.icon(
+                  key: const Key('ocr_paste_button'),
+                  icon: const Icon(Icons.paste_outlined, size: 18),
+                  label: const Text('Paste from Clipboard'),
+                  onPressed: isProcessing ? null : _pasteFromClipboard,
+                ),
+                OutlinedButton.icon(
+                  key: const Key('ocr_capture_screen_button'),
+                  icon: const Icon(Icons.screenshot_outlined, size: 18),
+                  label: const Text('Capture Screen'),
+                  onPressed: isProcessing ? null : _captureScreen,
                 ),
               ],
             ),
@@ -369,6 +491,91 @@ class _VisionScreenState extends State<VisionScreen> {
     );
   }
 
+  Widget _buildBoundingBoxOverlayCard(ThemeData theme, OcrDocumentItem ocr) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                Text(
+                  'Visual Detection Overlay & Bounding Boxes',
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: const Icon(Icons.aspect_ratio, size: 14),
+                  label: Text('${ocr.imageWidth} × ${ocr.imageHeight} px'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              height: 220,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: theme.colorScheme.outlineVariant),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final w = constraints.maxWidth;
+                    final h = constraints.maxHeight;
+
+                    return Stack(
+                      children: <Widget>[
+                        Positioned.fill(
+                          child: CustomPaint(
+                            painter: _BlueprintGridPainter(),
+                          ),
+                        ),
+                        for (final line in ocr.lines)
+                          Positioned(
+                            left: (line.bbox.x * w).clamp(0.0, (w - 60.0).clamp(0.0, w)),
+                            top: (line.bbox.y * h).clamp(0.0, (h - 26.0).clamp(0.0, h)),
+                            width: (line.bbox.width * w).clamp(40.0, w),
+                            height: (line.bbox.height * h).clamp(24.0, h),
+                            child: Container(
+                              key: Key('ocr_bbox_box_${line.lineNumber}'),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withAlpha(50),
+                                border: Border.all(
+                                  color: theme.colorScheme.primary,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'L${line.lineNumber}: ${line.text}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildFullTextCard(ThemeData theme, OcrDocumentItem ocr) {
     return Card(
       child: Padding(
@@ -383,11 +590,36 @@ class _VisionScreenState extends State<VisionScreen> {
                   'Recognized Full Text',
                   style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                 ),
-                TextButton.icon(
-                  key: const Key('ocr_copy_button'),
-                  icon: const Icon(Icons.copy, size: 16),
-                  label: const Text('Copy Text'),
-                  onPressed: () => _copyToClipboard(ocr.fullText),
+                Wrap(
+                  spacing: 4,
+                  children: <Widget>[
+                    TextButton.icon(
+                      key: const Key('ocr_copy_button'),
+                      icon: const Icon(Icons.copy, size: 16),
+                      label: const Text('Copy Text'),
+                      onPressed: () => _copyToClipboard(ocr.fullText),
+                    ),
+                    IconButton(
+                      key: const Key('ocr_copy_all_button'),
+                      tooltip: 'Copy All',
+                      icon: const Icon(Icons.content_copy, size: 16),
+                      onPressed: () => _copyToClipboard(ocr.fullText),
+                    ),
+                    IconButton(
+                      key: const Key('ocr_export_button'),
+                      tooltip: 'Export as JSON',
+                      icon: const Icon(Icons.download, size: 16),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: jsonEncode(ocr.toJson())));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Exported OCR document JSON to clipboard'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -399,6 +631,24 @@ class _VisionScreenState extends State<VisionScreen> {
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontFamily: 'monospace',
                 height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                key: const Key('ocr_ask_assistant_button'),
+                icon: const Icon(Icons.chat_outlined),
+                label: const Text('Ask Assistant About This Image'),
+                onPressed: () {
+                  widget.controller.askAssistantAboutOcrText(ocr.fullText);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('OCR prompt sent to Assistant Chat'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -554,4 +804,24 @@ class _ImageSample {
     required this.description,
     required this.bytes,
   });
+}
+
+class _BlueprintGridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF1E293B)
+      ..strokeWidth = 1.0;
+
+    const step = 20.0;
+    for (double x = 0; x <= size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 0; y <= size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

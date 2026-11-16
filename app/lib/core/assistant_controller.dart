@@ -30,6 +30,8 @@ class AssistantController extends ChangeNotifier {
   AuditIntegrityReport? _auditIntegrity;
   String _themeMode = 'system';
   VoiceState _voiceState = const VoiceState();
+  int _selectedNavigationTab = 0;
+  String? _pendingChatPrompt;
   ModelManagerSnapshot? _modelSnapshot;
   BenchmarkResult? _lastBenchmark;
   bool _isBenchmarking = false;
@@ -164,6 +166,17 @@ class AssistantController extends ChangeNotifier {
   String? get chatError => _chatError;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  int get selectedNavigationTab => _selectedNavigationTab;
+  String? get pendingChatPrompt => _pendingChatPrompt;
+
+  void selectTab(int index) {
+    _selectedNavigationTab = index;
+    notifyListeners();
+  }
+
+  void clearPendingChatPrompt() {
+    _pendingChatPrompt = null;
+  }
 
   void clearError() {
     _errorMessage = null;
@@ -205,6 +218,19 @@ class AssistantController extends ChangeNotifier {
         _activeConversationId = _conversations.first.id;
         _currentTurns = List<ChatTurnItem>.from(_bridge.getConversationTurns(_activeConversationId!));
       }
+
+      // Query audio hardware and speech models readiness
+      try {
+        final audioDevices = await _bridge.listAudioInputDevices();
+        final speechStatus = await _bridge.getSpeechModelsStatus();
+        final allReady = speechStatus['all_ready'] as bool? ?? true;
+        _voiceState = _voiceState.copyWith(
+          availableInputDevices: audioDevices,
+          activeInputDevice: audioDevices.isNotEmpty ? audioDevices.first : null,
+          speechModelsReady: allReady,
+          speechModelsDownloadProgress: allReady ? 1.0 : 0.0,
+        );
+      } catch (_) {}
 
       // Read persisted theme mode
       final savedTheme = _bridge.getSetting('assistant.theme_mode');
@@ -279,6 +305,14 @@ class AssistantController extends ChangeNotifier {
       _voiceState = _voiceState.copyWith(
         isListening: event.isListening,
         mode: mode,
+      );
+    } else if (event is SpeechModelProgressEvent) {
+      _voiceState = _voiceState.copyWith(
+        speechModelsReady: event.status == 'ready',
+        speechModelsDownloading: event.status == 'downloading',
+        speechModelsDownloadProgress: event.totalBytes > 0
+            ? event.downloadedBytes / event.totalBytes
+            : 1.0,
       );
     } else if (event is ModelLoadedEvent || event is ModelUnloadedEvent) {
       refreshModelSnapshot();
@@ -545,6 +579,73 @@ class AssistantController extends ChangeNotifier {
       _bridge.injectVoiceAudio(samples);
     } catch (e) {
       _errorMessage = 'Failed to inject audio: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshAudioDevices() async {
+    try {
+      final devices = await _bridge.listAudioInputDevices();
+      _voiceState = _voiceState.copyWith(
+        availableInputDevices: devices,
+        activeInputDevice: _voiceState.activeInputDevice ?? (devices.isNotEmpty ? devices.first : null),
+      );
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  void setAudioInputDevice(String deviceName) {
+    try {
+      _bridge.setAudioInputDevice(deviceName);
+      _voiceState = _voiceState.copyWith(activeInputDevice: deviceName);
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to set audio input device: $e';
+      notifyListeners();
+    }
+  }
+
+  void setVoiceLanguage(String language) {
+    try {
+      _bridge.setVoiceLanguage(language);
+      _voiceState = _voiceState.copyWith(language: language);
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to set voice language: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshSpeechModelsStatus() async {
+    try {
+      final status = await _bridge.getSpeechModelsStatus();
+      final allReady = status['all_ready'] as bool? ?? true;
+      _voiceState = _voiceState.copyWith(
+        speechModelsReady: allReady,
+        speechModelsDownloadProgress: allReady ? 1.0 : 0.0,
+      );
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> downloadSpeechModels() async {
+    _voiceState = _voiceState.copyWith(
+      speechModelsDownloading: true,
+      speechModelsDownloadProgress: 0.25,
+    );
+    notifyListeners();
+
+    try {
+      await _bridge.downloadSpeechModels();
+      _voiceState = _voiceState.copyWith(
+        speechModelsReady: true,
+        speechModelsDownloading: false,
+        speechModelsDownloadProgress: 1.0,
+      );
+      notifyListeners();
+    } catch (e) {
+      _voiceState = _voiceState.copyWith(speechModelsDownloading: false);
+      _errorMessage = 'Failed to download speech models: $e';
       notifyListeners();
     }
   }
@@ -899,6 +1000,48 @@ class AssistantController extends ChangeNotifier {
     _activeOcrResult = null;
     _ocrError = null;
     _isProcessingOcr = false;
+    notifyListeners();
+  }
+
+  Future<OcrDocumentItem?> extractOcrFromFile(String filePath) async {
+    _isProcessingOcr = true;
+    _ocrError = null;
+    notifyListeners();
+
+    try {
+      final result = await _bridge.analyzeImageFile(filePath);
+      _activeOcrResult = result;
+      return result;
+    } catch (e) {
+      _ocrError = 'File OCR extraction failed: $e';
+      return null;
+    } finally {
+      _isProcessingOcr = false;
+      notifyListeners();
+    }
+  }
+
+  Future<OcrDocumentItem?> captureScreenAndExtractOcr() async {
+    _isProcessingOcr = true;
+    _ocrError = null;
+    notifyListeners();
+
+    try {
+      final result = await _bridge.captureScreenOcr();
+      _activeOcrResult = result;
+      return result;
+    } catch (e) {
+      _ocrError = 'Screen capture OCR failed: $e';
+      return null;
+    } finally {
+      _isProcessingOcr = false;
+      notifyListeners();
+    }
+  }
+
+  void askAssistantAboutOcrText(String text) {
+    _pendingChatPrompt = 'Please analyze this extracted OCR text and explain its contents:\n\n$text';
+    _selectedNavigationTab = 1; // Tab 1 is Chat
     notifyListeners();
   }
 

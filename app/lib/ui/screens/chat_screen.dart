@@ -47,6 +47,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _onControllerChanged() {
     if (mounted) {
+      if (widget.controller.pendingChatPrompt != null) {
+        _inputController.text = widget.controller.pendingChatPrompt!;
+        widget.controller.clearPendingChatPrompt();
+      }
       setState(() {});
       _scrollToBottom();
     }

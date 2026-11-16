@@ -82,6 +82,13 @@ abstract class AissistantBridge {
   InterpreterSessionStatusItem swapInterpreterLanguages();
   void clearInterpreterSession();
   void replayInterpreterTurnAudio(int turnId);
+  Future<List<String>> listAudioInputDevices();
+  void setAudioInputDevice(String deviceName);
+  void setVoiceLanguage(String language);
+  Future<Map<String, dynamic>> getSpeechModelsStatus();
+  Future<void> downloadSpeechModels();
+  Future<OcrDocumentItem> analyzeImageFile(String filePath);
+  Future<OcrDocumentItem> captureScreenOcr();
   UserPersonaItem? getActivePersona();
   List<UserPersonaItem> listPersonas();
   void savePersona(UserPersonaItem persona);
@@ -397,6 +404,12 @@ typedef _BridgeChatCancelDart = int Function(Pointer<Utf8> conversationId);
 typedef _BridgeChatResolveConfC = Int32 Function(Pointer<Utf8> key, Int32 approved);
 typedef _BridgeChatResolveConfDart = int Function(Pointer<Utf8> key, int approved);
 
+typedef _BridgeVoiceSetDeviceC = Int32 Function(Pointer<Utf8> deviceName);
+typedef _BridgeVoiceSetDeviceDart = int Function(Pointer<Utf8> deviceName);
+
+typedef _BridgeVisionExtractFileC = Pointer<Utf8> Function(Pointer<Utf8> filePath);
+typedef _BridgeVisionExtractFileDart = Pointer<Utf8> Function(Pointer<Utf8> filePath);
+
 /// Native FFI implementation driving aissistant-ffi C-ABI entry points.
 class NativeFfiBridge implements AissistantBridge {
   final DynamicLibrary _lib;
@@ -487,6 +500,13 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeChatSendDart _chatSendMessage;
   late final _BridgeChatCancelDart _chatCancel;
   late final _BridgeChatResolveConfDart _chatResolveConf;
+  late final _BridgeGetStringDart _listAudioDevices;
+  late final _BridgeVoiceSetDeviceDart _voiceSetDevice;
+  late final _BridgeVoiceSetDeviceDart _voiceSetLanguage;
+  late final _BridgeGetStringDart _speechModelsStatus;
+  late final _BridgeGetStringDart _downloadSpeechModels;
+  late final _BridgeVisionExtractFileDart _visionExtractFile;
+  late final _BridgeGetStringDart _captureScreen;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -495,6 +515,13 @@ class NativeFfiBridge implements AissistantBridge {
     _getHealth = _lib.lookupFunction<_BridgeGetStringC, _BridgeGetStringDart>('bridge_c_get_health');
     _getCapabilities = _lib.lookupFunction<_BridgeGetStringC, _BridgeGetStringDart>('bridge_c_get_capabilities');
     _updatePermission = _lib.lookupFunction<_BridgeUpdatePermC, _BridgeUpdatePermDart>('bridge_c_update_permission');
+    _listAudioDevices = _lib.lookupFunction<_BridgeGetStringC, _BridgeGetStringDart>('bridge_c_list_audio_devices');
+    _voiceSetDevice = _lib.lookupFunction<_BridgeVoiceSetDeviceC, _BridgeVoiceSetDeviceDart>('bridge_c_voice_set_device');
+    _voiceSetLanguage = _lib.lookupFunction<_BridgeVoiceSetDeviceC, _BridgeVoiceSetDeviceDart>('bridge_c_voice_set_language');
+    _speechModelsStatus = _lib.lookupFunction<_BridgeGetStringC, _BridgeGetStringDart>('bridge_c_speech_models_status');
+    _downloadSpeechModels = _lib.lookupFunction<_BridgeGetStringC, _BridgeGetStringDart>('bridge_c_download_speech_models');
+    _visionExtractFile = _lib.lookupFunction<_BridgeVisionExtractFileC, _BridgeVisionExtractFileDart>('bridge_c_vision_extract_file');
+    _captureScreen = _lib.lookupFunction<_BridgeGetStringC, _BridgeGetStringDart>('bridge_c_capture_screen');
     _queryAudit = _lib.lookupFunction<_BridgeQueryAuditC, _BridgeQueryAuditDart>('bridge_c_query_audit');
     _verifyAudit = _lib.lookupFunction<_BridgeGetStringC, _BridgeGetStringDart>('bridge_c_verify_audit');
     _getSetting = _lib.lookupFunction<_BridgeGetSettingC, _BridgeGetSettingDart>('bridge_c_get_setting');
@@ -1233,6 +1260,115 @@ class NativeFfiBridge implements AissistantBridge {
       }
     } finally {
       calloc.free(idPtr);
+    }
+  }
+
+  @override
+  Future<List<String>> listAudioInputDevices() async {
+    final ptr = _listAudioDevices();
+    if (ptr == nullptr) return const <String>['Default System Microphone'];
+    try {
+      final jsonStr = ptr.toDartString();
+      final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final list = map['input_devices'] as List<dynamic>? ?? <dynamic>[];
+      final names = list
+          .map((item) => (item as Map<String, dynamic>)['name'] as String? ?? '')
+          .where((n) => n.isNotEmpty)
+          .toList();
+      return names.isEmpty ? const <String>['Default System Microphone'] : names;
+    } catch (_) {
+      return const <String>['Default System Microphone'];
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  void setAudioInputDevice(String deviceName) {
+    final namePtr = deviceName.toNativeUtf8();
+    try {
+      final res = _voiceSetDevice(namePtr);
+      if (res != 0) {
+        throw StateError('Failed to set audio input device: code $res');
+      }
+    } finally {
+      malloc.free(namePtr);
+    }
+  }
+
+  @override
+  void setVoiceLanguage(String language) {
+    final langPtr = language.toNativeUtf8();
+    try {
+      final res = _voiceSetLanguage(langPtr);
+      if (res != 0) {
+        throw StateError('Failed to set voice language: code $res');
+      }
+    } finally {
+      malloc.free(langPtr);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getSpeechModelsStatus() async {
+    final ptr = _speechModelsStatus();
+    if (ptr == nullptr) return <String, dynamic>{'all_ready': false};
+    try {
+      final jsonStr = ptr.toDartString();
+      return jsonDecode(jsonStr) as Map<String, dynamic>;
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  Future<void> downloadSpeechModels() async {
+    final ptr = _downloadSpeechModels();
+    if (ptr != nullptr) {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  Future<OcrDocumentItem> analyzeImageFile(String filePath) async {
+    final pathPtr = filePath.toNativeUtf8();
+    try {
+      final ptr = _visionExtractFile(pathPtr);
+      if (ptr == nullptr) {
+        throw StateError('File OCR extraction returned null pointer');
+      }
+      try {
+        final jsonStr = ptr.toDartString();
+        final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+        if (map.containsKey('code') || map.containsKey('error')) {
+          final msg = map['message'] ?? map['error'] ?? 'OCR extraction error';
+          throw StateError('OCR extraction error: $msg');
+        }
+        return OcrDocumentItem.fromJson(map);
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(pathPtr);
+    }
+  }
+
+  @override
+  Future<OcrDocumentItem> captureScreenOcr() async {
+    final ptr = _captureScreen();
+    if (ptr == nullptr) {
+      throw StateError('Screen capture OCR returned null pointer');
+    }
+    try {
+      final jsonStr = ptr.toDartString();
+      final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+      if (map.containsKey('code') || map.containsKey('error')) {
+        final msg = map['message'] ?? map['error'] ?? 'Screen capture error';
+        throw StateError('Screen capture error: $msg');
+      }
+      return OcrDocumentItem.fromJson(map);
+    } finally {
+      _freeString(ptr);
     }
   }
 
@@ -3075,6 +3211,116 @@ class TestHarnessBridge implements AissistantBridge {
   @override
   void replayInterpreterTurnAudio(int turnId) {
     // Deterministic acoustic TTS synthesis replay in test harness
+  }
+
+  String _activeAudioDevice = 'Default System Microphone';
+  String _activeVoiceLanguage = 'en';
+  bool _speechModelsReady = true;
+
+  String get activeAudioDevice => _activeAudioDevice;
+  String get activeVoiceLanguage => _activeVoiceLanguage;
+
+  @override
+  Future<List<String>> listAudioInputDevices() async {
+    return const <String>[
+      'Default System Microphone',
+      'Realtek High Definition Audio',
+      'USB Studio Condenser Mic',
+    ];
+  }
+
+  @override
+  void setAudioInputDevice(String deviceName) {
+    _activeAudioDevice = deviceName;
+  }
+
+  @override
+  void setVoiceLanguage(String language) {
+    _activeVoiceLanguage = language;
+    _eventController.add(TranscriptUpdatedEvent(
+      text: '',
+      isFinal: false,
+      language: language,
+      confidence: 1.0,
+    ));
+  }
+
+  @override
+  Future<Map<String, dynamic>> getSpeechModelsStatus() async {
+    return <String, dynamic>{
+      'vad_ready': _speechModelsReady,
+      'stt_ready': _speechModelsReady,
+      'tts_ready': _speechModelsReady,
+      'all_ready': _speechModelsReady,
+      'models_dir': 'speech_models',
+      'bundle_size_bytes': 78643200,
+    };
+  }
+
+  @override
+  Future<void> downloadSpeechModels() async {
+    _eventController.add(const SpeechModelProgressEvent(
+      status: 'downloading',
+      downloadedBytes: 39321600,
+      totalBytes: 78643200,
+      percent: 50,
+    ));
+    _speechModelsReady = true;
+    _eventController.add(const SpeechModelProgressEvent(
+      status: 'ready',
+      downloadedBytes: 78643200,
+      totalBytes: 78643200,
+      percent: 100,
+    ));
+  }
+
+  @override
+  Future<OcrDocumentItem> analyzeImageFile(String filePath) async {
+    return extractOcr(imageBytes: <int>[1, 2, 3]);
+  }
+
+  @override
+  Future<OcrDocumentItem> captureScreenOcr() async {
+    return const OcrDocumentItem(
+      lines: <OcrTextLineItem>[
+        OcrTextLineItem(
+          lineNumber: 1,
+          text: 'Universal AI Assistant Desktop Screen',
+          bbox: OcrBoundingBoxItem(x: 0.1, y: 0.1, width: 0.8, height: 0.1),
+          confidence: 0.99,
+          words: <OcrWordItem>[
+            OcrWordItem(
+              text: 'Universal',
+              bbox: OcrBoundingBoxItem(x: 0.1, y: 0.1, width: 0.2, height: 0.1),
+              confidence: 0.99,
+            ),
+            OcrWordItem(
+              text: 'Assistant',
+              bbox: OcrBoundingBoxItem(x: 0.35, y: 0.1, width: 0.2, height: 0.1),
+              confidence: 0.99,
+            ),
+          ],
+        ),
+        OcrTextLineItem(
+          lineNumber: 2,
+          text: 'Active Windows and Status Diagnostics',
+          bbox: OcrBoundingBoxItem(x: 0.1, y: 0.25, width: 0.8, height: 0.1),
+          confidence: 0.96,
+          words: <OcrWordItem>[
+            OcrWordItem(
+              text: 'Active',
+              bbox: OcrBoundingBoxItem(x: 0.1, y: 0.25, width: 0.2, height: 0.1),
+              confidence: 0.96,
+            ),
+          ],
+        ),
+      ],
+      fullText: 'Universal AI Assistant Desktop Screen\nActive Windows and Status Diagnostics',
+      averageConfidence: 0.97,
+      imageWidth: 800,
+      imageHeight: 600,
+      processingTimeMs: 42,
+    );
   }
 
   final List<UserPersonaItem> _personas = [

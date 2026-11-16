@@ -170,5 +170,72 @@ void main() {
       expect(find.byType(WaveformVisualizer), findsOneWidget);
       expect(find.byType(AnimatedContainer), findsNWidgets(9));
     });
+
+    testWidgets('microphone selector dropdown displays available hardware and changes active device', (tester) async {
+      tester.view.physicalSize = const Size(1024, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createVoiceApp());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('microphone_selector')), findsOneWidget);
+      expect(find.text('Default System Microphone'), findsOneWidget);
+
+      // Open the dropdown
+      await tester.tap(find.byKey(const Key('microphone_selector')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('USB Studio Condenser Mic').last, findsOneWidget);
+
+      // Select the USB Studio Condenser Mic
+      await tester.tap(find.text('USB Studio Condenser Mic').last);
+      await tester.pumpAndSettle();
+
+      expect(controller.voiceState.activeInputDevice, equals('USB Studio Condenser Mic'));
+    });
+
+    testWidgets('speech models banner triggers download and updates download progress', (tester) async {
+      tester.view.physicalSize = const Size(1024, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      // Simulate models not ready initially
+      controller.setVoiceMode(VoiceMode.pushToTalk);
+      // Manually set speechModelsReady to false for testing the banner
+      await tester.pumpWidget(createVoiceApp());
+      await tester.pumpAndSettle();
+
+      // Trigger download
+      await controller.downloadSpeechModels();
+      await tester.pumpAndSettle();
+
+      expect(controller.voiceState.speechModelsReady, isTrue);
+      expect(controller.voiceState.speechModelsDownloadProgress, equals(1.0));
+    });
+
+    testWidgets('stt language selector dropdown changes speech recognition language', (tester) async {
+      tester.view.physicalSize = const Size(1024, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createVoiceApp());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('stt_language_selector')), findsOneWidget);
+      expect(find.text('EN'), findsOneWidget);
+
+      // Open language dropdown
+      await tester.tap(find.byKey(const Key('stt_language_selector')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ES').last, findsOneWidget);
+
+      // Select Spanish (ES)
+      await tester.tap(find.text('ES').last);
+      await tester.pumpAndSettle();
+
+      expect(controller.voiceState.language, equals('es'));
+    });
   });
 }

@@ -55,7 +55,23 @@ class VoiceScreen extends StatelessWidget {
                           isListening: isListening,
                           isWakeMode: isWakeMode,
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
+
+                        // Microphone Selector Dropdown
+                        _MicrophoneSelectorCard(
+                          voiceState: voiceState,
+                          onDeviceSelected: controller.setAudioInputDevice,
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Offline Speech Models Banner
+                        if (!voiceState.speechModelsReady || voiceState.speechModelsDownloading) ...<Widget>[
+                          _SpeechModelsBanner(
+                            voiceState: voiceState,
+                            onDownload: controller.downloadSpeechModels,
+                          ),
+                          const SizedBox(height: 16),
+                        ],
 
                         // Mode Selector (Push-to-Talk vs Wake-Word)
                         _VoiceModeSelector(
@@ -112,6 +128,9 @@ class VoiceScreen extends StatelessWidget {
                         _TranscriptCard(
                           voiceState: voiceState,
                           onClear: controller.clearTranscript,
+                          onLanguageChanged: (lang) {
+                            if (lang != null) controller.setVoiceLanguage(lang);
+                          },
                         ),
                       ],
                     ),
@@ -529,10 +548,12 @@ class _KeywordSelector extends StatelessWidget {
 class _TranscriptCard extends StatelessWidget {
   final VoiceState voiceState;
   final VoidCallback onClear;
+  final ValueChanged<String?>? onLanguageChanged;
 
   const _TranscriptCard({
     required this.voiceState,
     required this.onClear,
+    this.onLanguageChanged,
   });
 
   @override
@@ -572,13 +593,32 @@ class _TranscriptCard extends StatelessWidget {
                 ),
                 Row(
                   children: <Widget>[
-                    Chip(
-                      visualDensity: VisualDensity.compact,
-                      label: Text(
-                        voiceState.language.toUpperCase(),
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          key: const Key('stt_language_selector'),
+                          value: voiceState.supportedLanguages.contains(voiceState.language)
+                              ? voiceState.language
+                              : 'en',
+                          isDense: true,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.primary,
+                          ),
+                          items: voiceState.supportedLanguages.map((lang) {
+                            return DropdownMenuItem<String>(
+                              value: lang,
+                              child: Text(lang.toUpperCase()),
+                            );
+                          }).toList(),
+                          onChanged: onLanguageChanged,
+                        ),
+                      ),
                     ),
                     if (hasContent) ...<Widget>[
                       const SizedBox(width: 8),
@@ -636,6 +676,151 @@ class _TranscriptCard extends StatelessWidget {
                       ),
                     ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Microphone selector dropdown card for choosing physical input hardware.
+class _MicrophoneSelectorCard extends StatelessWidget {
+  final VoiceState voiceState;
+  final ValueChanged<String> onDeviceSelected;
+
+  const _MicrophoneSelectorCard({
+    required this.voiceState,
+    required this.onDeviceSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final active = voiceState.activeInputDevice ??
+        (voiceState.availableInputDevices.isNotEmpty
+            ? voiceState.availableInputDevices.first
+            : 'Default System Microphone');
+
+    final devices = voiceState.availableInputDevices.contains(active)
+        ? voiceState.availableInputDevices
+        : <String>[active, ...voiceState.availableInputDevices];
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        child: Row(
+          children: <Widget>[
+            Icon(Icons.mic_external_on_outlined, size: 22, color: theme.colorScheme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Microphone Input',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      key: const Key('microphone_selector'),
+                      value: active,
+                      isExpanded: true,
+                      isDense: true,
+                      items: devices.map((dev) {
+                        return DropdownMenuItem<String>(
+                          value: dev,
+                          child: Text(
+                            dev,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) onDeviceSelected(val);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Offline speech models download/readiness banner.
+class _SpeechModelsBanner extends StatelessWidget {
+  final VoiceState voiceState;
+  final VoidCallback onDownload;
+
+  const _SpeechModelsBanner({
+    required this.voiceState,
+    required this.onDownload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.35),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.colorScheme.tertiary.withValues(alpha: 0.5)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(Icons.download_for_offline_outlined, color: theme.colorScheme.tertiary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Download Offline Speech Models (~75 MB)',
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (!voiceState.speechModelsDownloading)
+                  FilledButton.tonal(
+                    key: const Key('download_speech_models_button'),
+                    onPressed: onDownload,
+                    child: const Text('Download Models'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Silero VAD, Zipformer STT, and Piper VITS neural weights are required for completely offline speech recognition and synthesis.',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            if (voiceState.speechModelsDownloading) ...<Widget>[
+              const SizedBox(height: 12),
+              LinearProgressIndicator(
+                key: const Key('speech_models_progress_indicator'),
+                value: voiceState.speechModelsDownloadProgress,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Downloading and verifying offline neural models... ${(voiceState.speechModelsDownloadProgress * 100).toInt()}%',
+                style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.tertiary),
+              ),
+            ],
           ],
         ),
       ),

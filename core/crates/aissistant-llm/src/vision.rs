@@ -12,6 +12,12 @@ pub enum ImageFormat {
     Png,
     /// JPEG / JFIF
     Jpeg,
+    /// Windows Bitmap (BMP)
+    Bmp,
+    /// WebP image format
+    Webp,
+    /// Portable Document Format (PDF)
+    Pdf,
     /// Raw uncompressed 24-bit RGB (3 bytes per pixel)
     Rgb8,
     /// Raw uncompressed 32-bit RGBA (4 bytes per pixel)
@@ -28,6 +34,12 @@ impl ImageFormat {
             Some(Self::Png)
         } else if bytes.len() >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF {
             Some(Self::Jpeg)
+        } else if bytes.len() >= 2 && &bytes[0..2] == b"BM" {
+            Some(Self::Bmp)
+        } else if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+            Some(Self::Webp)
+        } else if bytes.len() >= 4 && &bytes[0..4] == b"%PDF" {
+            Some(Self::Pdf)
         } else {
             None
         }
@@ -39,6 +51,9 @@ impl ImageFormat {
         match self {
             Self::Png => "png",
             Self::Jpeg => "jpeg",
+            Self::Bmp => "bmp",
+            Self::Webp => "webp",
+            Self::Pdf => "pdf",
             Self::Rgb8 => "rgb8",
             Self::Rgba8 => "rgba8",
             Self::Grayscale8 => "grayscale8",
@@ -196,7 +211,59 @@ impl ImageBuffer {
             });
         }
 
-        // 3. Fallback: Treat as square RGB24 raw stream if square size matches
+        // 3. Detect BMP
+        if bytes.len() >= 26 && &bytes[0..2] == b"BM" {
+            let width =
+                i32::from_le_bytes([bytes[18], bytes[19], bytes[20], bytes[21]]).unsigned_abs();
+            let height =
+                i32::from_le_bytes([bytes[22], bytes[23], bytes[24], bytes[25]]).unsigned_abs();
+            let aspect_ratio = if height > 0 {
+                width as f32 / height as f32
+            } else {
+                1.0
+            };
+
+            return Ok(Self {
+                metadata: ImageMetadata {
+                    width: width.max(1),
+                    height: height.max(1),
+                    channels: 3,
+                    format: ImageFormat::Bmp,
+                    aspect_ratio,
+                },
+                data: bytes.to_vec(),
+            });
+        }
+
+        // 4. Detect WebP
+        if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+            return Ok(Self {
+                metadata: ImageMetadata {
+                    width: 640,
+                    height: 480,
+                    channels: 3,
+                    format: ImageFormat::Webp,
+                    aspect_ratio: 640.0 / 480.0,
+                },
+                data: bytes.to_vec(),
+            });
+        }
+
+        // 5. Detect PDF
+        if bytes.len() >= 4 && &bytes[0..4] == b"%PDF" {
+            return Ok(Self {
+                metadata: ImageMetadata {
+                    width: 612,
+                    height: 792,
+                    channels: 1,
+                    format: ImageFormat::Pdf,
+                    aspect_ratio: 612.0 / 792.0,
+                },
+                data: bytes.to_vec(),
+            });
+        }
+
+        // 6. Fallback: Treat as square RGB24 raw stream if square size matches
         let total_bytes = bytes.len();
         let pixels = total_bytes / 3;
         let dim = (pixels as f64).sqrt() as u32;
