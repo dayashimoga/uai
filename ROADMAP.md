@@ -288,3 +288,25 @@ Every stage (`Stage 0` – `Stage 11`) is divided into multiple phases (`P1`, `P
 - **`S11.P2.2` — v1.0.0 Production Release Tagging & Final Documentation Sign-Off**
   - *Dependencies:* `S11.P2.1`
   - *Deliverable:* Finalize release notes, user/admin documentation, platform certification badges, and tag `v1.0.0`.
+
+---
+
+## Stage 12: Production Runtime Enhancements & Live Pipeline Integration
+*Goal: Replace synthetic/mock states with real local model provisioning, streaming chat orchestration, live neural translation, and hardware voice/vision capture.*
+
+### Phase 12.1: Model Provisioning & Conversational Turn Loop (`S12.P1`)
+- **`S12.P1.1` — Fix Model Provisioning, Local GGUF Loader & Real Benchmarks**
+  - *Dependencies:* `S11.P2.2`
+  - *Deliverable:* Implement `ModelLifecycleState` state machine, scoped opt-in resumable HTTP GGUF downloader with incremental SHA-256 calculation, local `.gguf` file import, real `llama.cpp` session loading and live warm-up benchmarking (removing synthetic `16000.0 tok/s` stubs), and update `models_screen.dart` with download progress, delete, load/unload, and file picker.
+- **`S12.P1.2` — Build Missing Primary Chat Screen & Orchestrator Turn UI**
+  - *Dependencies:* `S12.P1.1`
+  - *Deliverable:* Add `Chat` to navigation shell, build full `ChatScreen` with FTS5 search history drawer, markdown/syntax-highlighted message view, citation chips, 5-tier confirmation cards, and wire to `aissistant-orchestrator` turn loop and live BLAKE3 audit logging.
+
+### Phase 12.2: Live Voice Translation & Multimodal Voice/Vision Pipelines (`S12.P2`)
+- **`S12.P2.1` — Fix Live Voice Interpreter & Real Multi-Language Translation**
+  - *Dependencies:* `S12.P1.2`
+  - *Deliverable:* Purge static translation dictionary and fake `[ES]` stubs, implement LLM-driven structured multilingual translation via GBNF grammar, real confidence scoring, fix top banner clipping, and add language pair selector bar with TTS playback replay.
+- **`S12.P2.2` — Fix Offline Voice Assistant Pipeline & Real Vision/OCR File Input**
+  - *Dependencies:* `S12.P2.1`
+  - *Deliverable:* Enumerate hardware audio devices (`cpal`) with mic selector, check/download `sherpa-onnx` speech models (~75 MB), animate 9-bar RMS waveform visualizer during speech capture, add drag-and-drop / clipboard / screen capture image input, and display interactive OCR bounding-box overlay.
+

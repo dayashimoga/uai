@@ -126,3 +126,11 @@
 - [x] `[S11.P1.2]` Mobile Release Packaging (Android APK/AAB & iOS IPA) *(Completed 2026-11-16)*
 - [x] `[S11.P2.1]` Full Acceptance Matrix Verification, SBOM & SHA-256 Manifests *(Completed 2026-11-16)*
 - [x] `[S11.P2.2]` v1.0.0 Production Release Tagging & Final Documentation Sign-Off *(Completed 2026-11-16)*
+
+---
+
+## Stage 12 Queue (Production Runtime Enhancements & Live Pipeline Integration)
+- [ ] `[S12.P1.1]` Fix Model Provisioning, Local GGUF Loader & Real Benchmarks
+- [ ] `[S12.P1.2]` Build Missing Primary Chat Screen & Orchestrator Turn UI
+- [ ] `[S12.P2.1]` Fix Live Voice Interpreter & Real Multi-Language Translation
+- [ ] `[S12.P2.2]` Fix Offline Voice Assistant Pipeline & Real Vision/OCR File Input
