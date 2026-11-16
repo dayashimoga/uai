@@ -122,7 +122,7 @@
 ---
 
 ## Stage 11 Queue (Packaging, Distribution & Final Certification)
-- [ ] `[S11.P1.1]` Desktop Release Packaging (Windows, Linux, macOS)
+- [x] `[S11.P1.1]` Desktop Release Packaging (Windows, Linux, macOS) *(Completed 2026-11-16)*
 - [ ] `[S11.P1.2]` Mobile Release Packaging (Android APK/AAB & iOS IPA)
 - [ ] `[S11.P2.1]` Full Acceptance Matrix Verification, SBOM & SHA-256 Manifests
 - [ ] `[S11.P2.2]` v1.0.0 Production Release Tagging & Final Documentation Sign-Off

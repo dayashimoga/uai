@@ -84,7 +84,7 @@ Status Legend:
 | **Stage 10** | `S10.P1.2` | Cryptographic Key Rotation, Revocation & Emergency Lockdown | `S10.P1.1` | `COMPLETED` | Verified [Commit `eddd455`]: 398 Rust workspace unit & integration tests passing (34 in `aissistant-ffi`, 16 in `aissistant-storage`), clippy zero warnings, fmt check passed, 108 Flutter tests passing (100%), `flutter analyze` zero issues, atomic SQLite `SecretStore::rotate_key` with zero data loss, QUIC peer revocation with active session termination, safe FFI/C-ABI exports, reactive `AssistantController` lockdown state, device revocation UI, and emergency lockdown banner & master key rotation in Settings UI verified. |
 | **Stage 10** | `S10.P2.1` | End-to-End Latency & Memory Footprint Optimization | `S10.P1.2` | `COMPLETED` | Verified [Commit `2966d63`]: 417 Rust workspace unit, property & benchmark tests passing (36 in `aissistant-ffi`, 5 in `performance_benchmark_test`, 53 in `aissistant-storage`, 23 in `aissistant-audio`, 28 in `aissistant-speech`), clippy zero warnings, fmt check passed, 110 Flutter tests passing (100%), `flutter analyze` zero issues, zero-allocation AudioRingBuffer & AudioResampler inner loops, zero-allocation AcousticKwsSpotter template matching, SqliteDb::trim_memory & cache tuning, PerformanceSnapshot & PipelineBenchmarkReport FFI/C-ABI exports, reactive AssistantController performance telemetry, and live Settings UI diagnostics card verified. |
 | **Stage 10** | `S10.P2.2` | Network Chaos, Sleep/Wake & Long-Running Soak Verification | `S10.P2.1` | `COMPLETED` | Verified [Commit `18aaca0`]: 422 Rust workspace tests passing (56 in `aissistant-storage`, 59 in `aissistant-network`, 29 in `aissistant-orchestrator`, 42 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 113 Flutter tests passing (100%), `flutter analyze` zero issues, `SqliteDb::recover_corrupt_wal` quarantine auto-recovery, `QuicTransportEngine` reconnect and endpoint rebinding resilience, `CoreRuntime::notify_power_transition` sleep/wake lifecycle with WAL checkpointing, 1,000-turn continuous conversation soak stress test (<10 ms/turn, 0 errors, full integrity), and Flutter controller soak & chaos test suite verified. |
-| **Stage 11** | `S11.P1.1` | Desktop Release Packaging (Windows, Linux, macOS) | `S10.P2.2` | `PENDING` | — |
+| **Stage 11** | `S11.P1.1` | Desktop Release Packaging (Windows, Linux, macOS) | `S10.P2.2` | `COMPLETED` | Verified [Commit `0f0b0b8`]: 422 Rust workspace tests passing, clippy zero warnings, fmt check passed, 117 Flutter tests passing (100% across 18 test suites), `flutter analyze` zero issues, Windows Inno Setup installer (`setup.iss`), MSIX manifest (`AppxManifest.xml`), PowerShell packaging pipeline (`package_windows.ps1`), Linux Debian packaging (`package_deb.sh`), AppImage generator (`package_appimage.sh`, `AppRun`), XDG desktop entry (`aissistant.desktop`), macOS bundle embedder (`package_macos.sh`), DMG generator (`create_dmg.sh`), GitHub Actions CI/CD matrix (`desktop_packaging.yml`), and automated packaging test suite verified. |
 | **Stage 11** | `S11.P1.2` | Mobile Release Packaging (Android APK/AAB & iOS IPA) | `S11.P1.1` | `PENDING` | — |
 | **Stage 11** | `S11.P2.1` | Full Acceptance Matrix Verification, SBOM & SHA-256 Manifests | `S11.P1.2` | `PENDING` | — |
 | **Stage 11** | `S11.P2.2` | v1.0.0 Production Release Tagging & Final Documentation Sign-Off | `S11.P2.1` | `PENDING` | — |
@@ -1227,3 +1227,26 @@ Status Legend:
   - `soak_chaos_test`: Verified Flutter `AssistantController` 50-turn soak stress loop, memory budget enforcement, OS suspend/resume lifecycle handling, and interleaved chaos event safety.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `18aaca0`
+
+### Verification Evidence — S11.P1.1 (Desktop Release Packaging: Windows, Linux, macOS)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `flutter 3.44.6`, `dart 3.12.2`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (Zero warnings across workspace)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (422 tests passed across all 11 workspace crates, 0 failures)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (117 tests passed across 18 Flutter test suites, including `desktop_packaging_test.dart`)
+- **Deliverables & Test Summary:**
+  - `packaging/desktop/windows/setup.iss`: Inno Setup installer script bundling `aissistant.exe`, `aissistant_ffi.dll`, `flutter_windows.dll`, and `data\` assets with Start Menu, Desktop, and autostart registry options.
+  - `packaging/desktop/windows/AppxManifest.xml`: MSIX Windows package manifest declaring full trust, local microphone, and private network client/server capabilities.
+  - `packaging/desktop/windows/package_windows.ps1`: Automated build and packaging script compiling Rust core release, building Flutter Windows release, verifying native dynamic library bundling, creating portable ZIP distribution, and generating SHA-256 manifests.
+  - `packaging/desktop/linux/aissistant.desktop`: XDG-compliant desktop entry specifying executable paths, categories (`Utility;AudioVideo;ArtificialIntelligence;Network;`), icon, and window class.
+  - `packaging/desktop/linux/package_deb.sh`: Debian packaging script creating standard package structure (`DEBIAN/control`, `/usr/bin/aissistant`, `/usr/lib/aissistant/libaissistant_ffi.so`, `/usr/share/applications/`) and building `.deb` packages with `dpkg-deb`.
+  - `packaging/desktop/linux/package_appimage.sh` & `AppRun`: Portable AppDir generator bundling GTK3 runtime, Flutter executable, and `libaissistant_ffi.so`.
+  - `packaging/desktop/macos/package_macos.sh`: macOS packaging pipeline building `libaissistant_ffi.dylib`, Flutter macOS release, embedding the dylib into `Contents/Frameworks/`, and applying code signatures.
+  - `packaging/desktop/macos/create_dmg.sh`: DMG builder script staging `Universal AI Assistant.app` and `/Applications` drag-and-drop symlink, generating compressed UDZO disk images via `hdiutil` with SHA-256 digests.
+  - `.github/workflows/desktop_packaging.yml`: Multi-platform matrix CI/CD packaging pipeline covering Windows (`windows-latest`), Linux (`ubuntu-latest`), and macOS (`macos-latest`), assembling release artifacts and unified `SHA256SUMS_DESKTOP.txt` within the 30 GB budget.
+  - `desktop_packaging_test`: Automated Flutter test verifying existence and content validity of all desktop packaging manifests, scripts, permissions, and CI/CD workflow steps.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS runners.
+- **Commit Reference:** `0f0b0b8`
