@@ -313,6 +313,26 @@ const MIGRATIONS: &[Migration] = &[
             CREATE INDEX IF NOT EXISTS idx_automation_history_executed_at ON automation_history(executed_at_ms);
         ",
     },
+    Migration {
+        version: 9,
+        description: "Local smart-home entity registry, offline state cache and capability indices",
+        sql: "
+            CREATE TABLE IF NOT EXISTS smart_home_entities (
+                id TEXT PRIMARY KEY,
+                domain TEXT NOT NULL,
+                name TEXT NOT NULL,
+                state_json TEXT NOT NULL,
+                attributes_json TEXT NOT NULL,
+                protocol TEXT NOT NULL,
+                is_available INTEGER NOT NULL,
+                last_updated_ms INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_smart_home_domain ON smart_home_entities(domain);
+            CREATE INDEX IF NOT EXISTS idx_smart_home_protocol ON smart_home_entities(protocol);
+            CREATE INDEX IF NOT EXISTS idx_smart_home_available ON smart_home_entities(is_available);
+        ",
+    },
 ];
 
 /// Migration runner applying incremental DDL changes within ACID transactions.
@@ -385,21 +405,21 @@ mod tests {
 
         // Initial run
         let version = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version, 8);
-        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 8);
+        assert_eq!(version, 9);
+        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 9);
 
         // Verify tables exist
         let tables_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts', 'semantic_embeddings', 'paired_devices', 'peer_permissions', 'documents', 'document_chunks', 'document_chunks_fts', 'user_personas', 'user_preferences', 'automations', 'automation_history');",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts', 'semantic_embeddings', 'paired_devices', 'peer_permissions', 'documents', 'document_chunks', 'document_chunks_fts', 'user_personas', 'user_preferences', 'automations', 'automation_history', 'smart_home_entities');",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(tables_count, 17);
+        assert_eq!(tables_count, 18);
 
         // Second run must be a no-op
         let version_again = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version_again, 8);
+        assert_eq!(version_again, 9);
     }
 }

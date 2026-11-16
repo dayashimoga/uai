@@ -16,6 +16,7 @@ import 'models/interpreter_models.dart';
 import 'models/knowledge_models.dart';
 import 'models/model_item.dart';
 import 'models/persona_models.dart';
+import 'models/smart_home_models.dart';
 import 'models/vision_models.dart';
 import 'models/voice_state.dart';
 
@@ -90,6 +91,11 @@ abstract class AissistantBridge {
   WorkflowExecutionReportItem triggerAutomation(String id);
   List<AutomationHistoryItem> listAutomationHistory({String? automationId, int limit = 50});
   int clearAutomationHistory({String? automationId});
+  List<SmartHomeEntityItem> listHomeEntities({String? domain});
+  SmartHomeEntityItem? getHomeEntity(String id);
+  void upsertHomeEntity(SmartHomeEntityItem item);
+  bool deleteHomeEntity(String id);
+  SmartHomeCommandResultItem controlHomeDevice(SmartHomeCommandItem command);
   Stream<BridgeEvent> get eventStream;
 }
 
@@ -299,6 +305,21 @@ typedef _BridgeAutomationHistoryDart = Pointer<Utf8> Function(Pointer<Utf8> auto
 typedef _BridgeAutomationClearHistC = Pointer<Utf8> Function(Pointer<Utf8> automationId);
 typedef _BridgeAutomationClearHistDart = Pointer<Utf8> Function(Pointer<Utf8> automationId);
 
+typedef _BridgeHomeListC = Pointer<Utf8> Function(Pointer<Utf8> domain);
+typedef _BridgeHomeListDart = Pointer<Utf8> Function(Pointer<Utf8> domain);
+
+typedef _BridgeHomeGetC = Pointer<Utf8> Function(Pointer<Utf8> id);
+typedef _BridgeHomeGetDart = Pointer<Utf8> Function(Pointer<Utf8> id);
+
+typedef _BridgeHomeUpsertC = Pointer<Utf8> Function(Pointer<Utf8> itemJson);
+typedef _BridgeHomeUpsertDart = Pointer<Utf8> Function(Pointer<Utf8> itemJson);
+
+typedef _BridgeHomeDeleteC = Pointer<Utf8> Function(Pointer<Utf8> id);
+typedef _BridgeHomeDeleteDart = Pointer<Utf8> Function(Pointer<Utf8> id);
+
+typedef _BridgeHomeControlC = Pointer<Utf8> Function(Pointer<Utf8> cmdJson);
+typedef _BridgeHomeControlDart = Pointer<Utf8> Function(Pointer<Utf8> cmdJson);
+
 /// Native FFI implementation driving aissistant-ffi C-ABI entry points.
 class NativeFfiBridge implements AissistantBridge {
   final DynamicLibrary _lib;
@@ -362,6 +383,11 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeAutomationTriggerDart _automationTrigger;
   late final _BridgeAutomationHistoryDart _automationHistory;
   late final _BridgeAutomationClearHistDart _automationClearHistory;
+  late final _BridgeHomeListDart _homeList;
+  late final _BridgeHomeGetDart _homeGet;
+  late final _BridgeHomeUpsertDart _homeUpsert;
+  late final _BridgeHomeDeleteDart _homeDelete;
+  late final _BridgeHomeControlDart _homeControl;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -422,6 +448,11 @@ class NativeFfiBridge implements AissistantBridge {
     _automationTrigger = _lib.lookupFunction<_BridgeAutomationTriggerC, _BridgeAutomationTriggerDart>('bridge_c_automation_trigger');
     _automationHistory = _lib.lookupFunction<_BridgeAutomationHistoryC, _BridgeAutomationHistoryDart>('bridge_c_automation_history');
     _automationClearHistory = _lib.lookupFunction<_BridgeAutomationClearHistC, _BridgeAutomationClearHistDart>('bridge_c_automation_clear_history');
+    _homeList = _lib.lookupFunction<_BridgeHomeListC, _BridgeHomeListDart>('bridge_c_home_entity_list');
+    _homeGet = _lib.lookupFunction<_BridgeHomeGetC, _BridgeHomeGetDart>('bridge_c_home_entity_get');
+    _homeUpsert = _lib.lookupFunction<_BridgeHomeUpsertC, _BridgeHomeUpsertDart>('bridge_c_home_entity_upsert');
+    _homeDelete = _lib.lookupFunction<_BridgeHomeDeleteC, _BridgeHomeDeleteDart>('bridge_c_home_entity_delete');
+    _homeControl = _lib.lookupFunction<_BridgeHomeControlC, _BridgeHomeControlDart>('bridge_c_home_entity_control');
     _freeString = _lib.lookupFunction<_BridgeFreeStringC, _BridgeFreeStringDart>('bridge_c_free_string');
   }
 
@@ -1401,6 +1432,129 @@ class NativeFfiBridge implements AissistantBridge {
       if (automationId != null) {
         malloc.free(idPtr);
       }
+    }
+  }
+
+  @override
+  List<SmartHomeEntityItem> listHomeEntities({String? domain}) {
+    final domPtr = domain != null ? domain.toNativeUtf8() : Pointer<Utf8>.fromAddress(0);
+    try {
+      final ptr = _homeList(domPtr);
+      if (ptr.address == 0) return [];
+      try {
+        final jsonStr = ptr.toDartString();
+        final decoded = jsonDecode(jsonStr);
+        if (decoded is List) {
+          return decoded
+              .map((e) => SmartHomeEntityItem.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        return [];
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      if (domain != null) {
+        malloc.free(domPtr);
+      }
+    }
+  }
+
+  @override
+  SmartHomeEntityItem? getHomeEntity(String id) {
+    final idPtr = id.toNativeUtf8();
+    try {
+      final ptr = _homeGet(idPtr);
+      if (ptr.address == 0) return null;
+      try {
+        final jsonStr = ptr.toDartString();
+        if (jsonStr == 'null') return null;
+        final decoded = jsonDecode(jsonStr);
+        if (decoded is Map<String, dynamic>) {
+          if (decoded.containsKey('code') || decoded.containsKey('error')) return null;
+          return SmartHomeEntityItem.fromJson(decoded);
+        }
+        return null;
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  void upsertHomeEntity(SmartHomeEntityItem item) {
+    final jsonStr = jsonEncode(item.toJson());
+    final jsonPtr = jsonStr.toNativeUtf8();
+    try {
+      final ptr = _homeUpsert(jsonPtr);
+      if (ptr.address != 0) {
+        try {
+          final res = ptr.toDartString();
+          if (res != 'null') {
+            final map = jsonDecode(res);
+            if (map is Map<String, dynamic> &&
+                (map.containsKey('code') || map.containsKey('error'))) {
+              throw StateError(
+                (map['message'] ?? 'Failed to upsert smart home entity').toString(),
+              );
+            }
+          }
+        } finally {
+          _freeString(ptr);
+        }
+      }
+    } finally {
+      malloc.free(jsonPtr);
+    }
+  }
+
+  @override
+  bool deleteHomeEntity(String id) {
+    final idPtr = id.toNativeUtf8();
+    try {
+      final ptr = _homeDelete(idPtr);
+      if (ptr.address == 0) return false;
+      try {
+        final res = ptr.toDartString();
+        final decoded = jsonDecode(res);
+        if (decoded is bool) return decoded;
+        return false;
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  SmartHomeCommandResultItem controlHomeDevice(SmartHomeCommandItem command) {
+    final jsonStr = jsonEncode(command.toJson());
+    final jsonPtr = jsonStr.toNativeUtf8();
+    try {
+      final ptr = _homeControl(jsonPtr);
+      if (ptr.address == 0) {
+        throw StateError('Control home device returned null pointer');
+      }
+      try {
+        final res = ptr.toDartString();
+        final map = jsonDecode(res);
+        if (map is Map<String, dynamic>) {
+          if (map.containsKey('code') || map.containsKey('error')) {
+            throw StateError(
+              (map['message'] ?? 'Failed to control home device').toString(),
+            );
+          }
+          return SmartHomeCommandResultItem.fromJson(map);
+        }
+        throw StateError('Invalid control result response');
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(jsonPtr);
     }
   }
 }
@@ -2477,5 +2631,112 @@ class TestHarnessBridge implements AissistantBridge {
       _automationHistory.clear();
       return count;
     }
+  }
+
+  final List<SmartHomeEntityItem> _homeEntities = [
+    const SmartHomeEntityItem(
+      id: 'light.living_room',
+      domain: SmartHomeDomain.light,
+      name: 'Living Room Light',
+      stateJson: '{"state":"on","brightness":200}',
+      attributesJson: '{"friendly_name":"Living Room Light"}',
+      protocol: SmartHomeProtocol.homeAssistant,
+      isAvailable: true,
+      lastUpdatedMs: 1731670000000,
+    ),
+    const SmartHomeEntityItem(
+      id: 'climate.hall',
+      domain: SmartHomeDomain.climate,
+      name: 'Hall Thermostat',
+      stateJson: '{"state":"heat","target_temperature":22.0}',
+      attributesJson: '{"friendly_name":"Main Thermostat"}',
+      protocol: SmartHomeProtocol.mqtt,
+      isAvailable: true,
+      lastUpdatedMs: 1731670000000,
+    ),
+  ];
+
+  @override
+  List<SmartHomeEntityItem> listHomeEntities({String? domain}) {
+    if (domain != null && domain.isNotEmpty) {
+      final dom = SmartHomeDomain.fromString(domain);
+      return _homeEntities.where((e) => e.domain == dom).toList();
+    }
+    return List.unmodifiable(_homeEntities);
+  }
+
+  @override
+  SmartHomeEntityItem? getHomeEntity(String id) {
+    return _homeEntities.cast<SmartHomeEntityItem?>().firstWhere(
+      (e) => e?.id == id,
+      orElse: () => null,
+    );
+  }
+
+  @override
+  void upsertHomeEntity(SmartHomeEntityItem item) {
+    final idx = _homeEntities.indexWhere((e) => e.id == item.id);
+    if (idx >= 0) {
+      _homeEntities[idx] = item;
+    } else {
+      _homeEntities.add(item);
+    }
+  }
+
+  @override
+  bool deleteHomeEntity(String id) {
+    final idx = _homeEntities.indexWhere((e) => e.id == id);
+    if (idx >= 0) {
+      _homeEntities.removeAt(idx);
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  SmartHomeCommandResultItem controlHomeDevice(SmartHomeCommandItem command) {
+    final entity = getHomeEntity(command.entityId);
+    if (entity == null) {
+      throw StateError('Device ${command.entityId} not found');
+    }
+    final newState = Map<String, dynamic>.from(entity.stateMap);
+    switch (command.command) {
+      case 'turn_on':
+        newState['state'] = 'on';
+        if (command.brightness != null) newState['brightness'] = command.brightness;
+        if (command.colorHex != null) newState['color_hex'] = command.colorHex;
+        break;
+      case 'turn_off':
+        newState['state'] = 'off';
+        break;
+      case 'toggle':
+        newState['state'] = entity.isTurnedOn ? 'off' : 'on';
+        break;
+      case 'set_temperature':
+        newState['state'] = 'heat';
+        if (command.targetCelsius != null) {
+          newState['target_temperature'] = command.targetCelsius;
+        }
+        break;
+      case 'set_position':
+        final pos = command.positionPercent ?? 0;
+        newState['state'] = pos == 0 ? 'closed' : 'open';
+        newState['position'] = pos;
+        break;
+    }
+    final updated = entity.copyWith(
+      stateJson: jsonEncode(newState),
+      lastUpdatedMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    upsertHomeEntity(updated);
+    return SmartHomeCommandResultItem(
+      success: true,
+      entityId: command.entityId,
+      command: command.command,
+      dispatchedVia: entity.protocol.value,
+      dispatchAction: '${entity.protocol.value}:dispatch:${command.command}',
+      dispatchPayloadJson: jsonEncode(command.toJson()),
+      newStateJson: jsonEncode(newState),
+    );
   }
 }

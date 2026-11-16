@@ -18,8 +18,9 @@ pub use api::{
     bridge_device_simulate_peer, bridge_device_start_pairing, bridge_device_unpair,
     bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
     bridge_get_lifecycle_state, bridge_get_preference, bridge_get_setting,
-    bridge_interpreter_clear_session, bridge_interpreter_get_turns,
-    bridge_interpreter_start_session, bridge_interpreter_submit_turn,
+    bridge_home_entity_control, bridge_home_entity_delete, bridge_home_entity_get,
+    bridge_home_entity_list, bridge_home_entity_upsert, bridge_interpreter_clear_session,
+    bridge_interpreter_get_turns, bridge_interpreter_start_session, bridge_interpreter_submit_turn,
     bridge_interpreter_swap_languages, bridge_knowledge_delete_document,
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
     bridge_list_personas, bridge_list_preferences, bridge_model_benchmark_run, bridge_model_load,
@@ -31,7 +32,8 @@ pub use api::{
     AuditItem, AutomationHistoryItem, AutomationRuleItem, CapabilityItem, CoreBridge,
     DocumentRecordItem, HealthReport, HealthStatus, InterpreterSessionStatusItem,
     InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem, OcrDocumentItem,
-    OcrTextLineItem, OcrWordItem, TranslationResultItem, UserPersonaItem, UserPreferenceItem,
+    OcrTextLineItem, OcrWordItem, SmartHomeCommandItem, SmartHomeCommandResultItem,
+    SmartHomeEntityItem, TranslationResultItem, UserPersonaItem, UserPreferenceItem,
     WorkflowActionItem, WorkflowExecutionReportItem,
 };
 pub use device_bridge::{
@@ -1251,6 +1253,134 @@ mod tests {
         let del_str = unsafe { CStr::from_ptr(del_ptr) }.to_str().unwrap();
         assert_eq!(del_str, "true");
         unsafe { c_abi::bridge_c_free_string(del_ptr) };
+
+        let cleanup = c_abi::bridge_c_shutdown();
+        assert_eq!(cleanup, 0);
+    }
+
+    #[test]
+    fn test_smart_home_c_abi() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap();
+        let _ = c_abi::bridge_c_shutdown();
+        let res = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
+        assert_eq!(res, 0);
+
+        // 1. Initial list (empty)
+        let list_ptr = unsafe { c_abi::bridge_c_home_entity_list(std::ptr::null()) };
+        let list_str = unsafe { CStr::from_ptr(list_ptr) }.to_str().unwrap();
+        let list: Vec<SmartHomeEntityItem> = serde_json::from_str(list_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(list_ptr) };
+        assert!(list.is_empty());
+
+        // 2. Upsert light entity
+        let light = SmartHomeEntityItem {
+            id: "light.living_room".to_string(),
+            domain: "light".to_string(),
+            name: "Living Room Light".to_string(),
+            state_json: serde_json::json!({"state": "off", "brightness": 0}).to_string(),
+            attributes_json: serde_json::json!({"room": "living"}).to_string(),
+            protocol: "home_assistant".to_string(),
+            is_available: true,
+            last_updated_ms: 1000,
+        };
+        let light_json = serde_json::to_string(&light).unwrap();
+        let light_c = CString::new(light_json).unwrap();
+        let up_ptr = unsafe { c_abi::bridge_c_home_entity_upsert(light_c.as_ptr()) };
+        let up_str = unsafe { CStr::from_ptr(up_ptr) }.to_str().unwrap();
+        assert_eq!(up_str, "null");
+        unsafe { c_abi::bridge_c_free_string(up_ptr) };
+
+        // 3. Upsert thermostat entity
+        let thermostat = SmartHomeEntityItem {
+            id: "climate.hall".to_string(),
+            domain: "climate".to_string(),
+            name: "Hall Thermostat".to_string(),
+            state_json: serde_json::json!({"state": "heat", "temperature": 20.0}).to_string(),
+            attributes_json: serde_json::json!({}).to_string(),
+            protocol: "mqtt".to_string(),
+            is_available: true,
+            last_updated_ms: 1000,
+        };
+        let thermo_json = serde_json::to_string(&thermostat).unwrap();
+        let thermo_c = CString::new(thermo_json).unwrap();
+        let up_ptr2 = unsafe { c_abi::bridge_c_home_entity_upsert(thermo_c.as_ptr()) };
+        unsafe { c_abi::bridge_c_free_string(up_ptr2) };
+
+        // 4. List all entities (2 total)
+        let list_all_ptr = unsafe { c_abi::bridge_c_home_entity_list(std::ptr::null()) };
+        let list_all_str = unsafe { CStr::from_ptr(list_all_ptr) }.to_str().unwrap();
+        let all_entities: Vec<SmartHomeEntityItem> = serde_json::from_str(list_all_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(list_all_ptr) };
+        assert_eq!(all_entities.len(), 2);
+
+        // 5. List with domain filter "climate" (1 total)
+        let filter_c = CString::new("climate").unwrap();
+        let list_clim_ptr = unsafe { c_abi::bridge_c_home_entity_list(filter_c.as_ptr()) };
+        let list_clim_str = unsafe { CStr::from_ptr(list_clim_ptr) }.to_str().unwrap();
+        let clim_entities: Vec<SmartHomeEntityItem> = serde_json::from_str(list_clim_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(list_clim_ptr) };
+        assert_eq!(clim_entities.len(), 1);
+        assert_eq!(clim_entities[0].id, "climate.hall");
+
+        // 6. Get single entity by ID
+        let id_c = CString::new("light.living_room").unwrap();
+        let get_ptr = unsafe { c_abi::bridge_c_home_entity_get(id_c.as_ptr()) };
+        let get_str = unsafe { CStr::from_ptr(get_ptr) }.to_str().unwrap();
+        let fetched: Option<SmartHomeEntityItem> = serde_json::from_str(get_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(get_ptr) };
+        assert!(fetched.is_some());
+        assert_eq!(fetched.unwrap().name, "Living Room Light");
+
+        // 7. Control light: turn_on with brightness
+        let cmd_light = SmartHomeCommandItem {
+            entity_id: "light.living_room".to_string(),
+            command: "turn_on".to_string(),
+            brightness: Some(220),
+            color_hex: Some("#FFCC00".to_string()),
+            target_celsius: None,
+            position_percent: None,
+        };
+        let cmd_light_json = serde_json::to_string(&cmd_light).unwrap();
+        let cmd_light_c = CString::new(cmd_light_json).unwrap();
+        let ctrl_ptr = unsafe { c_abi::bridge_c_home_entity_control(cmd_light_c.as_ptr()) };
+        let ctrl_str = unsafe { CStr::from_ptr(ctrl_ptr) }.to_str().unwrap();
+        let ctrl_res: SmartHomeCommandResultItem = serde_json::from_str(ctrl_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(ctrl_ptr) };
+        assert!(ctrl_res.success);
+        assert_eq!(ctrl_res.dispatched_via, "home_assistant");
+        assert!(ctrl_res.new_state_json.contains("\"brightness\":220"));
+
+        // 8. Control thermostat: set_temperature to 23.0
+        let cmd_thermo = SmartHomeCommandItem {
+            entity_id: "climate.hall".to_string(),
+            command: "set_temperature".to_string(),
+            brightness: None,
+            color_hex: None,
+            target_celsius: Some(23.0),
+            position_percent: None,
+        };
+        let cmd_thermo_json = serde_json::to_string(&cmd_thermo).unwrap();
+        let cmd_thermo_c = CString::new(cmd_thermo_json).unwrap();
+        let ctrl_ptr2 = unsafe { c_abi::bridge_c_home_entity_control(cmd_thermo_c.as_ptr()) };
+        let ctrl_str2 = unsafe { CStr::from_ptr(ctrl_ptr2) }.to_str().unwrap();
+        let ctrl_res2: SmartHomeCommandResultItem = serde_json::from_str(ctrl_str2).unwrap();
+        unsafe { c_abi::bridge_c_free_string(ctrl_ptr2) };
+        assert!(ctrl_res2.success);
+        assert_eq!(ctrl_res2.dispatched_via, "mqtt");
+        assert!(ctrl_res2.new_state_json.contains("23.0"));
+
+        // 9. Delete entity
+        let del_ptr = unsafe { c_abi::bridge_c_home_entity_delete(id_c.as_ptr()) };
+        let del_str = unsafe { CStr::from_ptr(del_ptr) }.to_str().unwrap();
+        assert_eq!(del_str, "true");
+        unsafe { c_abi::bridge_c_free_string(del_ptr) };
+
+        // Verify entity deleted
+        let get_del_ptr = unsafe { c_abi::bridge_c_home_entity_get(id_c.as_ptr()) };
+        let get_del_str = unsafe { CStr::from_ptr(get_del_ptr) }.to_str().unwrap();
+        let fetched_del: Option<SmartHomeEntityItem> = serde_json::from_str(get_del_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(get_del_ptr) };
+        assert!(fetched_del.is_none());
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);

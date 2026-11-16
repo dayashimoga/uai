@@ -20,8 +20,9 @@ use crate::api::{
     bridge_device_simulate_peer, bridge_device_start_pairing, bridge_device_unpair,
     bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
     bridge_get_lifecycle_state, bridge_get_preference, bridge_get_setting,
-    bridge_interpreter_clear_session, bridge_interpreter_get_turns,
-    bridge_interpreter_start_session, bridge_interpreter_submit_turn,
+    bridge_home_entity_control, bridge_home_entity_delete, bridge_home_entity_get,
+    bridge_home_entity_list, bridge_home_entity_upsert, bridge_interpreter_clear_session,
+    bridge_interpreter_get_turns, bridge_interpreter_start_session, bridge_interpreter_submit_turn,
     bridge_interpreter_swap_languages, bridge_knowledge_delete_document,
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
     bridge_list_personas, bridge_list_preferences, bridge_model_benchmark_run, bridge_model_load,
@@ -30,7 +31,8 @@ use crate::api::{
     bridge_set_setting, bridge_translate_text, bridge_update_permission, bridge_verify_audit,
     bridge_vision_ocr_extract, bridge_voice_inject_audio, bridge_voice_set_keywords,
     bridge_voice_set_mode, bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge,
-    shutdown_bridge, AutomationRuleItem, UserPersonaItem,
+    shutdown_bridge, AutomationRuleItem, SmartHomeCommandItem, SmartHomeEntityItem,
+    UserPersonaItem,
 };
 use crate::device_bridge::DiscoveredPeerItem;
 use crate::error::FfiError;
@@ -1097,6 +1099,106 @@ pub unsafe extern "C" fn bridge_c_automation_clear_history(
     serialize_to_c_json(result.unwrap_or_else(|_| {
         Err(FfiError::PanicCaught(
             "Panic in bridge_c_automation_clear_history".into(),
+        ))
+    }))
+}
+
+/// Lists registered smart-home entities, optionally filtered by domain.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `domain` can be null or a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_home_entity_list(domain: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let dom = if domain.is_null() {
+            None
+        } else {
+            Some(unsafe { c_char_to_str(domain) }?)
+        };
+        bridge_home_entity_list(dom)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_home_entity_list".into(),
+        ))
+    }))
+}
+
+/// Retrieves a registered smart-home entity by ID.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_home_entity_get(id: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(id) }?;
+        bridge_home_entity_get(id_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_home_entity_get".into(),
+        ))
+    }))
+}
+
+/// Saves or updates a smart-home entity record.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `item_json` must point to a valid null-terminated UTF-8 JSON string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_home_entity_upsert(item_json: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let json_str = unsafe { c_char_to_str(item_json) }?;
+        let item: SmartHomeEntityItem = serde_json::from_str(json_str).map_err(|e| {
+            FfiError::Serialization(format!("Invalid SmartHomeEntityItem JSON: {e}"))
+        })?;
+        bridge_home_entity_upsert(item)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_home_entity_upsert".into(),
+        ))
+    }))
+}
+
+/// Deletes a registered smart-home entity by ID.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_home_entity_delete(id: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(id) }?;
+        bridge_home_entity_delete(id_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_home_entity_delete".into(),
+        ))
+    }))
+}
+
+/// Controls a local smart-home device.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `cmd_json` must point to a valid null-terminated UTF-8 JSON string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_home_entity_control(cmd_json: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let json_str = unsafe { c_char_to_str(cmd_json) }?;
+        let cmd: SmartHomeCommandItem = serde_json::from_str(json_str).map_err(|e| {
+            FfiError::Serialization(format!("Invalid SmartHomeCommandItem JSON: {e}"))
+        })?;
+        bridge_home_entity_control(cmd)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_home_entity_control".into(),
         ))
     }))
 }

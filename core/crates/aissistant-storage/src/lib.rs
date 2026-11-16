@@ -16,6 +16,7 @@ pub mod persona_store;
 pub mod pool;
 pub mod secret_store;
 pub mod settings_store;
+pub mod smart_home_store;
 pub mod vector_store;
 
 pub use audit_store::AuditStore;
@@ -45,6 +46,9 @@ pub use persona_store::{
 pub use pool::SqliteDb;
 pub use secret_store::SecretStore;
 pub use settings_store::SettingsStore;
+pub use smart_home_store::{
+    SmartHomeDomain, SmartHomeEntityRecord, SmartHomeProtocol, SmartHomeStore,
+};
 pub use vector_store::{
     blob_to_vec, cosine_similarity, l2_norm, vec_to_blob, VectorMemoryStore, VectorRecord,
     VectorSearchResult,

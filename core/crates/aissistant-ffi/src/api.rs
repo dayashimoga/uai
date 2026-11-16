@@ -14,11 +14,14 @@ use aissistant_security::{
     Actor, AeadKey, AuditEntry, AuditExecutionStatus, DeviceIdentity, PolicyDecision, PolicyEngine,
     GENESIS_PREV_HASH,
 };
-use aissistant_skills::{AutomationEngine, WorkflowAction, WorkflowExecutionReport};
+use aissistant_skills::{
+    AutomationEngine, SmartHomeCommand, WorkflowAction, WorkflowExecutionReport,
+};
 use aissistant_storage::{
     AuditStore, AutomationHistoryRecord, AutomationRuleRecord, AutomationStore,
     AutomationTriggerType, FileBoundKeystore, KeystoreProvider, PersonaStore, PersonaTone,
-    ResponseVerbosity, SecretStore, SettingsStore, SqliteDb, UserPersona, UserPreference,
+    ResponseVerbosity, SecretStore, SettingsStore, SmartHomeDomain, SmartHomeEntityRecord,
+    SmartHomeProtocol, SmartHomeStore, SqliteDb, UserPersona, UserPreference,
 };
 use serde::{Deserialize, Serialize};
 
@@ -521,6 +524,82 @@ impl From<WorkflowExecutionReport> for WorkflowExecutionReportItem {
     }
 }
 
+/// FFI view of a registered smart-home entity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SmartHomeEntityItem {
+    pub id: String,
+    pub domain: String,
+    pub name: String,
+    pub state_json: String,
+    pub attributes_json: String,
+    pub protocol: String,
+    pub is_available: bool,
+    pub last_updated_ms: i64,
+}
+
+impl From<SmartHomeEntityRecord> for SmartHomeEntityItem {
+    fn from(r: SmartHomeEntityRecord) -> Self {
+        Self {
+            id: r.id,
+            domain: r.domain.as_str().to_string(),
+            name: r.name,
+            state_json: r.state_json,
+            attributes_json: r.attributes_json,
+            protocol: r.protocol.as_str().to_string(),
+            is_available: r.is_available,
+            last_updated_ms: r.last_updated_ms,
+        }
+    }
+}
+
+impl TryFrom<SmartHomeEntityItem> for SmartHomeEntityRecord {
+    type Error = FfiError;
+
+    fn try_from(item: SmartHomeEntityItem) -> Result<Self, Self::Error> {
+        let domain = SmartHomeDomain::from_str(&item.domain)
+            .map_err(|e| FfiError::InvalidParameter(e.to_string()))?;
+        let protocol = SmartHomeProtocol::from_str(&item.protocol)
+            .map_err(|e| FfiError::InvalidParameter(e.to_string()))?;
+        Ok(Self {
+            id: item.id,
+            domain,
+            name: item.name,
+            state_json: item.state_json,
+            attributes_json: item.attributes_json,
+            protocol,
+            is_available: item.is_available,
+            last_updated_ms: item.last_updated_ms,
+        })
+    }
+}
+
+/// FFI view of a smart home actuation command.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SmartHomeCommandItem {
+    pub entity_id: String,
+    pub command: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub brightness: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_hex: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_celsius: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position_percent: Option<u8>,
+}
+
+/// FFI result of a smart home device command actuation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SmartHomeCommandResultItem {
+    pub success: bool,
+    pub entity_id: String,
+    pub command: String,
+    pub dispatched_via: String,
+    pub dispatch_action: String,
+    pub dispatch_payload_json: String,
+    pub new_state_json: String,
+}
+
 /// Core bridge orchestrating subsystem access and safe FFI dispatch.
 pub struct CoreBridge {
     db: SqliteDb,
@@ -529,6 +608,7 @@ pub struct CoreBridge {
     secret_store: SecretStore,
     persona_store: PersonaStore,
     pub(crate) automation_store: AutomationStore,
+    pub(crate) smart_home_store: SmartHomeStore,
     capability_registry: RwLock<CapabilityRegistry>,
     policy_engine: RwLock<PolicyEngine>,
     event_sink: Arc<EventStreamSink>,
@@ -571,6 +651,7 @@ impl CoreBridge {
         let secret_store = SecretStore::new(db.clone(), master_key);
         let persona_store = PersonaStore::new(db.clone());
         let automation_store = AutomationStore::new(db.clone());
+        let smart_home_store = SmartHomeStore::new(db.clone());
         let capability_registry = RwLock::new(CapabilityRegistry::for_current_host());
         let policy_engine = RwLock::new(PolicyEngine::new());
         let identity = DeviceIdentity::generate();
@@ -597,6 +678,7 @@ impl CoreBridge {
             secret_store,
             persona_store,
             automation_store,
+            smart_home_store,
             capability_registry,
             policy_engine,
             event_sink,
@@ -640,6 +722,7 @@ impl CoreBridge {
         let secret_store = SecretStore::new(db.clone(), master_key);
         let persona_store = PersonaStore::new(db.clone());
         let automation_store = AutomationStore::new(db.clone());
+        let smart_home_store = SmartHomeStore::new(db.clone());
 
         let capability_registry = RwLock::new(CapabilityRegistry::for_current_host());
         let policy_engine = RwLock::new(PolicyEngine::new());
@@ -667,6 +750,7 @@ impl CoreBridge {
             secret_store,
             persona_store,
             automation_store,
+            smart_home_store,
             capability_registry,
             policy_engine,
             event_sink,
@@ -1662,6 +1746,165 @@ impl CoreBridge {
         let count = self.automation_store.clear_history(automation_id)?;
         Ok(count)
     }
+
+    // Smart Home Offline Integration
+
+    /// Lists registered smart-home entities, optionally filtered by domain.
+    pub fn home_list_entities(&self, domain: Option<&str>) -> FfiResult<Vec<SmartHomeEntityItem>> {
+        let domain_filter = if let Some(d) = domain {
+            Some(
+                SmartHomeDomain::from_str(d)
+                    .map_err(|e| FfiError::InvalidParameter(e.to_string()))?,
+            )
+        } else {
+            None
+        };
+        let entities = self.smart_home_store.list_entities(domain_filter)?;
+        Ok(entities.into_iter().map(Into::into).collect())
+    }
+
+    /// Retrieves a registered smart-home entity by ID.
+    pub fn home_get_entity(&self, id: &str) -> FfiResult<Option<SmartHomeEntityItem>> {
+        let entity = self.smart_home_store.get_entity(id)?;
+        Ok(entity.map(Into::into))
+    }
+
+    /// Saves or updates a smart-home entity record.
+    pub fn home_upsert_entity(&self, item: SmartHomeEntityItem) -> FfiResult<()> {
+        let record: SmartHomeEntityRecord = item.try_into()?;
+        self.smart_home_store.upsert_entity(&record)?;
+        Ok(())
+    }
+
+    /// Deletes a smart-home entity by ID.
+    pub fn home_delete_entity(&self, id: &str) -> FfiResult<bool> {
+        let deleted = self.smart_home_store.delete_entity(id)?;
+        Ok(deleted)
+    }
+
+    /// Actuates a local smart-home device, updating cached state and formatting protocol dispatches.
+    pub fn home_control_device(
+        &self,
+        cmd: SmartHomeCommandItem,
+    ) -> FfiResult<SmartHomeCommandResultItem> {
+        let entity = self
+            .smart_home_store
+            .get_entity(&cmd.entity_id)?
+            .ok_or_else(|| {
+                FfiError::InvalidParameter(format!("Device '{}' not found", cmd.entity_id))
+            })?;
+
+        let smart_cmd = match cmd.command.as_str() {
+            "turn_on" => SmartHomeCommand::TurnOn {
+                brightness: cmd.brightness,
+                color_hex: cmd.color_hex,
+            },
+            "turn_off" => SmartHomeCommand::TurnOff,
+            "toggle" => SmartHomeCommand::Toggle,
+            "set_temperature" => {
+                let target = cmd.target_celsius.ok_or_else(|| {
+                    FfiError::InvalidParameter(
+                        "Missing target_celsius for set_temperature".to_string(),
+                    )
+                })?;
+                SmartHomeCommand::SetTemperature {
+                    target_celsius: target,
+                }
+            }
+            "set_position" => {
+                let pos = cmd.position_percent.ok_or_else(|| {
+                    FfiError::InvalidParameter(
+                        "Missing position_percent for set_position".to_string(),
+                    )
+                })?;
+                SmartHomeCommand::SetPosition {
+                    position_percent: pos,
+                }
+            }
+            other => {
+                return Err(FfiError::InvalidParameter(format!(
+                    "Unknown command: '{other}'"
+                )));
+            }
+        };
+
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as i64);
+
+        let new_state_val = match &smart_cmd {
+            SmartHomeCommand::TurnOn {
+                brightness,
+                color_hex,
+            } => {
+                let mut map = serde_json::Map::new();
+                map.insert("state".to_string(), serde_json::json!("on"));
+                if let Some(b) = brightness {
+                    map.insert("brightness".to_string(), serde_json::json!(b));
+                }
+                if let Some(c) = color_hex {
+                    map.insert("color_hex".to_string(), serde_json::json!(c));
+                }
+                serde_json::Value::Object(map)
+            }
+            SmartHomeCommand::TurnOff => serde_json::json!({"state": "off"}),
+            SmartHomeCommand::Toggle => {
+                let current_state: serde_json::Value =
+                    serde_json::from_str(&entity.state_json).unwrap_or(serde_json::json!({}));
+                let is_on = current_state.get("state").and_then(|v| v.as_str()) == Some("on");
+                if is_on {
+                    serde_json::json!({"state": "off"})
+                } else {
+                    serde_json::json!({"state": "on"})
+                }
+            }
+            SmartHomeCommand::SetTemperature { target_celsius } => {
+                serde_json::json!({
+                    "state": "heat",
+                    "target_temperature": target_celsius
+                })
+            }
+            SmartHomeCommand::SetPosition { position_percent } => {
+                serde_json::json!({
+                    "state": if *position_percent == 0 { "closed" } else { "open" },
+                    "position": position_percent
+                })
+            }
+        };
+
+        let new_state_str = new_state_val.to_string();
+        self.smart_home_store
+            .update_state(&cmd.entity_id, &new_state_str, now_ms)?;
+
+        let (dispatch_action, dispatch_payload) = match entity.protocol {
+            SmartHomeProtocol::Mqtt => {
+                let (subtopic, payload) = smart_cmd.to_mqtt_payload(entity.domain);
+                (
+                    format!("mqtt:publish:{subtopic}"),
+                    serde_json::json!({"payload": payload}),
+                )
+            }
+            SmartHomeProtocol::HomeAssistant => {
+                let (service, ha_json) =
+                    smart_cmd.to_home_assistant_payload(&cmd.entity_id, entity.domain);
+                (format!("ha:service:{service}"), ha_json)
+            }
+            SmartHomeProtocol::MatterLocal => (
+                "matter:cluster_command".to_string(),
+                serde_json::json!({"command": cmd.command}),
+            ),
+        };
+
+        Ok(SmartHomeCommandResultItem {
+            success: true,
+            entity_id: cmd.entity_id,
+            command: cmd.command,
+            dispatched_via: entity.protocol.as_str().to_string(),
+            dispatch_action,
+            dispatch_payload_json: dispatch_payload.to_string(),
+            new_state_json: new_state_str,
+        })
+    }
 }
 
 // Global Singleton Bridge Management
@@ -2072,6 +2315,38 @@ pub fn bridge_automation_history(
 pub fn bridge_automation_clear_history(automation_id: Option<&str>) -> FfiResult<usize> {
     let bridge = get_bridge()?;
     bridge.clear_automation_history(automation_id)
+}
+
+/// Convenience entry point: lists smart-home entities.
+pub fn bridge_home_entity_list(domain: Option<&str>) -> FfiResult<Vec<SmartHomeEntityItem>> {
+    let bridge = get_bridge()?;
+    bridge.home_list_entities(domain)
+}
+
+/// Convenience entry point: gets a smart-home entity by ID.
+pub fn bridge_home_entity_get(id: &str) -> FfiResult<Option<SmartHomeEntityItem>> {
+    let bridge = get_bridge()?;
+    bridge.home_get_entity(id)
+}
+
+/// Convenience entry point: saves or updates a smart-home entity.
+pub fn bridge_home_entity_upsert(item: SmartHomeEntityItem) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.home_upsert_entity(item)
+}
+
+/// Convenience entry point: deletes a smart-home entity.
+pub fn bridge_home_entity_delete(id: &str) -> FfiResult<bool> {
+    let bridge = get_bridge()?;
+    bridge.home_delete_entity(id)
+}
+
+/// Convenience entry point: controls a smart-home device.
+pub fn bridge_home_entity_control(
+    cmd: SmartHomeCommandItem,
+) -> FfiResult<SmartHomeCommandResultItem> {
+    let bridge = get_bridge()?;
+    bridge.home_control_device(cmd)
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

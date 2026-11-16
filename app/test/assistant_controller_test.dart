@@ -4,6 +4,7 @@ import 'package:aissistant/core/ffi_bridge.dart';
 import 'package:aissistant/core/models/automation_models.dart';
 import 'package:aissistant/core/models/device_models.dart';
 import 'package:aissistant/core/models/health_report.dart';
+import 'package:aissistant/core/models/smart_home_models.dart';
 import 'package:aissistant/core/models/voice_state.dart';
 
 void main() {
@@ -216,6 +217,72 @@ void main() {
       expect(deleted, isTrue);
       expect(controller.automations.length, 2);
       expect(controller.automations.any((r) => r.id == 'auto_test_custom'), isFalse);
+    });
+
+    test('manages smart home entities: lists, filters, controls, upserts and deletes devices', () async {
+      await controller.initialize();
+
+      // 1. Initial list from bridge
+      expect(controller.homeEntities.length, 2);
+      expect(controller.homeEntities.first.id, 'light.living_room');
+      expect(controller.homeEntities.first.isTurnedOn, isTrue);
+      expect(controller.homeEntities.first.brightness, 200);
+
+      // 2. Filter by domain
+      await controller.loadHomeEntities(domain: 'climate');
+      expect(controller.homeEntities.length, 1);
+      expect(controller.homeEntities.first.id, 'climate.hall');
+      expect(controller.homeEntities.first.targetTemperature, 22.0);
+
+      // Reload all
+      await controller.loadHomeEntities();
+      expect(controller.homeEntities.length, 2);
+
+      // 3. Actuate device: turn off light
+      final offResult = await controller.controlHomeDevice(
+        const SmartHomeCommandItem(
+          entityId: 'light.living_room',
+          command: 'turn_off',
+        ),
+      );
+      expect(offResult, isNotNull);
+      expect(offResult!.success, isTrue);
+      final updatedLight = controller.homeEntities.firstWhere((e) => e.id == 'light.living_room');
+      expect(updatedLight.isTurnedOn, isFalse);
+
+      // 4. Actuate thermostat: set temperature
+      final tempResult = await controller.controlHomeDevice(
+        const SmartHomeCommandItem(
+          entityId: 'climate.hall',
+          command: 'set_temperature',
+          targetCelsius: 24.5,
+        ),
+      );
+      expect(tempResult, isNotNull);
+      expect(tempResult!.success, isTrue);
+      final updatedThermo = controller.homeEntities.firstWhere((e) => e.id == 'climate.hall');
+      expect(updatedThermo.targetTemperature, 24.5);
+
+      // 5. Upsert new entity
+      const newFan = SmartHomeEntityItem(
+        id: 'fan.bedroom',
+        domain: SmartHomeDomain.fan,
+        name: 'Bedroom Ceiling Fan',
+        stateJson: '{"state":"off","speed":0}',
+        attributesJson: '{"speeds":3}',
+        protocol: SmartHomeProtocol.matterLocal,
+        isAvailable: true,
+        lastUpdatedMs: 1731670000000,
+      );
+      await controller.upsertHomeEntity(newFan);
+      expect(controller.homeEntities.length, 3);
+      expect(controller.homeEntities.any((e) => e.id == 'fan.bedroom'), isTrue);
+
+      // 6. Delete entity
+      final delRes = await controller.deleteHomeEntity('fan.bedroom');
+      expect(delRes, isTrue);
+      expect(controller.homeEntities.length, 2);
+      expect(controller.homeEntities.any((e) => e.id == 'fan.bedroom'), isFalse);
     });
   });
 }

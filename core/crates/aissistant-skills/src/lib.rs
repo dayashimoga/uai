@@ -12,6 +12,7 @@ pub mod error;
 pub mod file;
 pub mod registry;
 pub mod sandbox;
+pub mod smart_home;
 pub mod utility;
 pub mod workflow;
 
@@ -27,6 +28,10 @@ pub use file::{
 };
 pub use registry::SkillRegistry;
 pub use sandbox::{SandboxedSkill, DEFAULT_SKILL_TIMEOUT_MS};
+pub use smart_home::{
+    HomeDeviceControlSkill, HomeDeviceDiscoverSkill, HomeDeviceListSkill, HomeDeviceStateSkill,
+    SmartHomeCommand,
+};
 pub use utility::{CalcSkill, ConvertSkill, TelemetrySkill, TimeSkill, TimerSkill};
 pub use workflow::{
     ActionResult, AutomationEngine, AutomationRule, TriggerConfig, WorkflowAction,

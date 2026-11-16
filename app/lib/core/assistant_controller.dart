@@ -13,6 +13,7 @@ import 'models/interpreter_models.dart';
 import 'models/knowledge_models.dart';
 import 'models/model_item.dart';
 import 'models/persona_models.dart';
+import 'models/smart_home_models.dart';
 import 'models/vision_models.dart';
 import 'models/voice_state.dart';
 
@@ -57,6 +58,9 @@ class AssistantController extends ChangeNotifier {
   bool _isAutomationLoading = false;
   String? _automationError;
   WorkflowExecutionReportItem? _lastWorkflowReport;
+  List<SmartHomeEntityItem> _homeEntities = <SmartHomeEntityItem>[];
+  bool _isHomeLoading = false;
+  String? _homeError;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -104,6 +108,9 @@ class AssistantController extends ChangeNotifier {
   bool get isAutomationLoading => _isAutomationLoading;
   String? get automationError => _automationError;
   WorkflowExecutionReportItem? get lastWorkflowReport => _lastWorkflowReport;
+  List<SmartHomeEntityItem> get homeEntities => List<SmartHomeEntityItem>.unmodifiable(_homeEntities);
+  bool get isHomeLoading => _isHomeLoading;
+  String? get homeError => _homeError;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -134,6 +141,7 @@ class AssistantController extends ChangeNotifier {
       _preferences = List<UserPreferenceItem>.from(_bridge.listPreferences());
       _automations = List<AutomationRuleItem>.from(_bridge.listAutomations());
       _automationHistory = List<AutomationHistoryItem>.from(_bridge.listAutomationHistory());
+      _homeEntities = List<SmartHomeEntityItem>.from(_bridge.listHomeEntities());
 
       // Read persisted theme mode
       final savedTheme = _bridge.getSetting('assistant.theme_mode');
@@ -552,6 +560,7 @@ class AssistantController extends ChangeNotifier {
       _preferences = List<UserPreferenceItem>.from(_bridge.listPreferences());
       _automations = List<AutomationRuleItem>.from(_bridge.listAutomations());
       _automationHistory = List<AutomationHistoryItem>.from(_bridge.listAutomationHistory());
+      _homeEntities = List<SmartHomeEntityItem>.from(_bridge.listHomeEntities());
       notifyListeners();
     } catch (e) {
       _errorMessage = 'Failed to refresh documents: $e';
@@ -996,6 +1005,69 @@ class AssistantController extends ChangeNotifier {
       return 0;
     } finally {
       _isAutomationLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadHomeEntities({String? domain}) async {
+    _isHomeLoading = true;
+    _homeError = null;
+    notifyListeners();
+    try {
+      _homeEntities = List<SmartHomeEntityItem>.from(_bridge.listHomeEntities(domain: domain));
+    } catch (e) {
+      _homeError = 'Failed to load smart home entities: $e';
+    } finally {
+      _isHomeLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<SmartHomeCommandResultItem?> controlHomeDevice(SmartHomeCommandItem command) async {
+    _isHomeLoading = true;
+    _homeError = null;
+    notifyListeners();
+    try {
+      final result = _bridge.controlHomeDevice(command);
+      _homeEntities = List<SmartHomeEntityItem>.from(_bridge.listHomeEntities());
+      return result;
+    } catch (e) {
+      _homeError = 'Failed to control device: $e';
+      return null;
+    } finally {
+      _isHomeLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> upsertHomeEntity(SmartHomeEntityItem entity) async {
+    _isHomeLoading = true;
+    _homeError = null;
+    notifyListeners();
+    try {
+      _bridge.upsertHomeEntity(entity);
+      _homeEntities = List<SmartHomeEntityItem>.from(_bridge.listHomeEntities());
+    } catch (e) {
+      _homeError = 'Failed to save entity: $e';
+    } finally {
+      _isHomeLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> deleteHomeEntity(String id) async {
+    _isHomeLoading = true;
+    _homeError = null;
+    notifyListeners();
+    try {
+      final res = _bridge.deleteHomeEntity(id);
+      _homeEntities = List<SmartHomeEntityItem>.from(_bridge.listHomeEntities());
+      return res;
+    } catch (e) {
+      _homeError = 'Failed to delete entity: $e';
+      return false;
+    } finally {
+      _isHomeLoading = false;
       notifyListeners();
     }
   }

@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use aissistant_orchestrator::{ToolDispatcher, ToolHandler};
 use aissistant_platform::{create_default_desktop_adapter, DesktopPlatformAdapter};
+use aissistant_storage::SmartHomeStore;
 
 use crate::desktop::{
     AppLaunchSkill, AppListSkill, ClipboardReadSkill, ClipboardWriteSkill, MediaTransportSkill,
@@ -16,6 +17,9 @@ use crate::file::{
     FileSearchSkill, FileWriteSkill, PathJail,
 };
 use crate::sandbox::SandboxedSkill;
+use crate::smart_home::{
+    HomeDeviceControlSkill, HomeDeviceDiscoverSkill, HomeDeviceListSkill, HomeDeviceStateSkill,
+};
 use crate::utility::{CalcSkill, ConvertSkill, TelemetrySkill, TimeSkill, TimerSkill};
 
 /// Central registry managing discovery, sandboxing, and registration of skills.
@@ -124,6 +128,37 @@ impl SkillRegistry {
                 SystemBatterySkill::new(active_adapter),
             ))),
         ]
+    }
+
+    /// Creates instances of all smart-home skills wrapped in `SandboxedSkill`.
+    #[must_use]
+    pub fn smart_home_skills(store: Arc<SmartHomeStore>) -> Vec<Arc<dyn ToolHandler>> {
+        vec![
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                HomeDeviceListSkill::new(store.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                HomeDeviceStateSkill::new(store.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                HomeDeviceControlSkill::new(store.clone()),
+            ))),
+            Arc::new(SandboxedSkill::with_default_timeout(Arc::new(
+                HomeDeviceDiscoverSkill::new(store),
+            ))),
+        ]
+    }
+
+    /// Registers all smart-home device control skills into the supplied tool dispatcher.
+    pub fn register_all_smart_home_skills(
+        &self,
+        dispatcher: &ToolDispatcher,
+        store: Arc<SmartHomeStore>,
+    ) -> Result<()> {
+        for skill in Self::smart_home_skills(store) {
+            dispatcher.register(skill)?;
+        }
+        Ok(())
     }
 
     /// Registers all built-in utility skills into the supplied tool dispatcher.
