@@ -2030,5 +2030,54 @@
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 110 unit and widget tests (0 failures across 16 test suites).
 - Commit reference: `2966d63`.
 
+---
+
+## [2026-11-16] — S10.P2.2: Network Chaos, Sleep/Wake & Long-Running Soak Verification
+
+### Added & Modified
+- `core/crates/aissistant-storage/src/pool.rs`:
+  - Added proactive WAL header validation (`is_wal_header_valid`) verifying the 32-byte SQLite WAL magic and page size.
+  - Implemented automatic corruption quarantine and recovery (`recover_corrupt_wal`) moving corrupt `-wal` sidecars to `<path>-wal.corrupt.<timestamp>` and purging `-shm`.
+  - Added structural integrity checks `check_integrity()` (`PRAGMA quick_check;`) and `check_full_integrity()` (`PRAGMA integrity_check;`).
+- `core/crates/aissistant-storage/tests/wal_chaos_recovery_test.rs`:
+  - Created automated WAL corruption and quarantine recovery integration suite verifying zero-crash fail-safe database recovery from damaged WAL headers.
+- `core/crates/aissistant-network/src/transport.rs`:
+  - Added `reconnect_peer` and `rebind_endpoint` to `QuicTransportEngine` for seamless network interface migration (Wi-Fi to hotspot) and connection recovery.
+  - Added `inject_drop_next` to `VirtualSession` for deterministic packet loss injection.
+- `core/crates/aissistant-network/tests/network_chaos_test.rs`:
+  - Created network chaos integration test suite verifying packet drop recovery, abrupt channel termination, and QUIC endpoint rebinding.
+- `core/crates/aissistant-ffi/src/lifecycle.rs`:
+  - Added `PowerTransition` enum (`Suspend`, `Resume`) and `CoreRuntime::notify_power_transition`.
+  - Checkpoints SQLite WAL and trims memory on suspend; validates database integrity on resume.
+- `core/crates/aissistant-ffi/src/events.rs`:
+  - Added `BridgeEvent::PowerTransition { event: String }` event variant.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Added `CoreBridge::notify_power_transition` and `bridge_notify_power_transition`.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Exposed safe C-ABI export `bridge_c_notify_power_transition`.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Re-exported `PowerTransition` and added `test_power_transition_lifecycle` integration test with global mutex isolation.
+- `core/crates/aissistant-orchestrator/src/orchestrator.rs`:
+  - Implemented 20-turn sliding context window for active conversation turns, ensuring bounded $O(1)$ prompt formatting while hybrid search retrieves deeper episodic memory across thousands of historical turns.
+- `core/crates/aissistant-orchestrator/tests/long_running_soak_test.rs`:
+  - Created 1,000-turn continuous conversation soak stress test verifying stable ~9.6 ms latency, periodic WAL trimming, 2,000 turns stored, and 100% database integrity pass.
+- `app/lib/core/models/bridge_event.dart`:
+  - Added `PowerTransitionEvent` model and event deserialization.
+- `app/lib/core/ffi_bridge.dart`:
+  - Added `notifyPowerTransition` bindings and implementations in `NativeFfiBridge` and `TestHarnessBridge`.
+- `app/lib/core/assistant_controller.dart`:
+  - Added `lastPowerTransition` state property and `handlePowerTransition` action.
+- `app/test/soak_chaos_test.dart`:
+  - Created 50-turn controller soak stress loop and interleaved chaos test suite.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed cleanly.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across workspace.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 422 tests (0 failures across all 11 workspace crates).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 113 tests (0 failures across 17 test suites).
+- Commit reference: `18aaca0`.
+
+
 
 
