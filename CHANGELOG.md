@@ -1969,4 +1969,66 @@
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 108 unit and widget tests (0 failures across 16 test suites).
 - Commit reference: `eddd455`.
 
+---
+
+## [2026-11-16] — S10.P2.1: End-to-End Latency & Memory Footprint Optimization
+
+### Added & Modified
+- `core/crates/aissistant-audio/src/ring_buffer.rs`:
+  - Implemented batch atomic synchronization in `push_slice` and `pop_slice` across `AudioRingBuffer`, `RingBufferProducer`, and `RingBufferConsumer`, reducing hundreds of atomic store/load pairs per audio frame.
+- `core/crates/aissistant-audio/src/resampler.rs`:
+  - Added scratch buffer reuse (`mono_scratch: Vec<f32>`) and pass-through slicing in `AudioResampler::process`, eliminating all steady-state heap allocations during multi-channel downmixing and fractional linear interpolation.
+- `core/crates/aissistant-speech/src/acoustic_kws.rs`:
+  - Optimized `AcousticKwsSpotter::match_template` to perform zero-allocation phonological and Pearson trajectory correlation matching via direct indexing over the history deque.
+- `core/crates/aissistant-storage/src/pool.rs`:
+  - Added `SqliteDb::trim_memory(&self)` executing `PRAGMA shrink_memory` and WAL checkpoints.
+  - Added `SqliteDb::set_cache_size(&self, cache_size: i32)` to dynamically constrain SQLite page cache.
+  - Added `SqliteDb::memory_used_bytes(&self)` calculating total database page memory footprint.
+  - Added unit test `test_trim_memory_and_cache_tuning`.
+- `core/crates/aissistant-ffi/Cargo.toml`:
+  - Added `sysinfo = { workspace = true }`.
+- `core/crates/aissistant-ffi/src/events.rs`:
+  - Added `BridgeEvent::PerformanceMetricsUpdated` variant.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Added `PerformanceSnapshot` and `PipelineBenchmarkReport` data models.
+  - Added `cold_start_ms` tracking in `CoreBridge::new_in_memory` and `new_with_path`.
+  - Implemented `CoreBridge::get_performance_snapshot()`, `enforce_memory_budget()`, `run_pipeline_benchmark()`, and `query_process_resident_memory_bytes()`.
+  - Exposed top-level convenience functions `bridge_get_performance_snapshot`, `bridge_enforce_memory_budget`, and `bridge_run_pipeline_benchmark`.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Exposed safe C-ABI functions: `bridge_c_get_performance_snapshot`, `bridge_c_enforce_memory_budget`, and `bridge_c_run_pipeline_benchmark` with `# Safety` documentation and panic catching.
+- `core/crates/aissistant-ffi/src/voice_bridge.rs`:
+  - Added `VoicePipelineSupervisor::clear_buffers(&mut self)` for memory reclamation.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Re-exported performance types and convenience functions.
+  - Added integration tests: `test_performance_snapshot_and_memory_budget_enforcement` and `test_pipeline_benchmark_and_c_abi`.
+- `core/crates/aissistant-ffi/tests/performance_benchmark_test.rs`:
+  - Created dedicated integration benchmark suite verifying:
+    - Cold start latency < 250 ms.
+    - Continuous wake-word processing < 1.0 ms per 20 ms frame (RTF < 0.1x).
+    - VAD window processing < 200 µs.
+    - Ring buffer push/pop throughput > 2.0 MSamples/sec.
+    - Resident memory RSS within idle target budget (<= 80 MB desktop / <= 60 MB mobile).
+- `app/lib/core/models/performance_models.dart`:
+  - Created `PerformanceSnapshotModel` and `PipelineBenchmarkReportModel`.
+- `app/lib/core/models/bridge_event.dart`:
+  - Added `PerformanceMetricsUpdatedEvent` deserialization and class model.
+- `app/lib/core/ffi_bridge.dart`:
+  - Added C-ABI typedefs and lookup functions in `NativeFfiBridge`.
+  - Implemented `getPerformanceSnapshot()`, `enforceMemoryBudget()`, and `runPipelineBenchmark()` in `NativeFfiBridge` and `TestHarnessBridge`.
+- `app/lib/core/assistant_controller.dart`:
+  - Added reactive performance snapshot and benchmark state, event listener, and actions `loadPerformanceSnapshot()`, `optimizeMemory()`, `runPipelineBenchmark()`.
+- `app/lib/ui/screens/settings_screen.dart`:
+  - Added "Performance & Memory Diagnostics (NFR-1..NFR-8)" card displaying RSS vs target budget chip, cold start, wake-word, STT, and TTS latency gauges, completed benchmark summary, and "Optimize Memory Now" / "Run Benchmark" action buttons.
+- `app/test/assistant_controller_test.dart` & `app/test/settings_screen_test.dart`:
+  - Added test cases verifying performance telemetry, memory optimization, and benchmark UI workflows.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed cleanly.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across workspace.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 417 unit, property, and benchmark tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 110 unit and widget tests (0 failures across 16 test suites).
+- Commit reference: `2966d63`.
+
+
 

@@ -116,7 +116,7 @@
 ## Stage 10 Queue (Security Hardening, Performance & Reliability)
 - [x] `[S10.P1.1]` Comprehensive Prompt-Injection, Sandbox Escape & Fuzzing Suite *(Completed 2026-11-16)*
 - [x] `[S10.P1.2]` Cryptographic Key Rotation, Revocation & Emergency Lockdown *(Completed 2026-11-16)*
-- [ ] `[S10.P2.1]` End-to-End Latency & Memory Footprint Optimization
+- [x] `[S10.P2.1]` End-to-End Latency & Memory Footprint Optimization *(Completed 2026-11-16)*
 - [ ] `[S10.P2.2]` Network Chaos, Sleep/Wake & Long-Running Soak Verification
 
 ---
