@@ -14,6 +14,7 @@ pub struct AudioResampler {
     phase: f64,
     last_sample: f32,
     has_last_sample: bool,
+    mono_scratch: Vec<f32>,
 }
 
 impl AudioResampler {
@@ -50,6 +51,7 @@ impl AudioResampler {
             phase: 0.0,
             last_sample: 0.0,
             has_last_sample: false,
+            mono_scratch: Vec::with_capacity(512),
         })
     }
 
@@ -96,24 +98,24 @@ impl AudioResampler {
         let num_frames = input.len() / ch;
         let start_len = output.len();
 
-        // 1. Downmix to temporary mono frames if multi-channel
-        // Stack or pre-allocated mono vector
-        let mono_input: Vec<f32> = if ch == 1 {
-            input.to_vec()
+        // 1. Downmix to temporary mono frames if multi-channel (reusing scratch buffer)
+        let mono_input: &[f32] = if ch == 1 {
+            input
         } else {
             let inv_ch = 1.0f32 / (ch as f32);
-            let mut mono = Vec::with_capacity(num_frames);
+            self.mono_scratch.clear();
+            self.mono_scratch.reserve(num_frames);
             for frame in 0..num_frames {
                 let offset = frame * ch;
                 let sum: f32 = input[offset..offset + ch].iter().sum();
-                mono.push(sum * inv_ch);
+                self.mono_scratch.push(sum * inv_ch);
             }
-            mono
+            &self.mono_scratch
         };
 
         // 2. Exact 1:1 pass-through if rates match
         if self.in_rate == self.out_rate {
-            output.extend_from_slice(&mono_input);
+            output.extend_from_slice(mono_input);
             if let Some(&last) = mono_input.last() {
                 self.last_sample = last;
                 self.has_last_sample = true;
@@ -123,6 +125,8 @@ impl AudioResampler {
 
         // 3. Fractional linear interpolation across stream boundaries
         let mut pos = self.phase;
+        let expected_out = ((num_frames as f64 - pos).max(0.0) / self.step).ceil() as usize;
+        output.reserve(expected_out);
 
         while pos < num_frames as f64 {
             let idx = pos.floor() as usize;

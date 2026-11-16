@@ -178,6 +178,24 @@ pub enum BridgeEvent {
         /// Reason or trigger description.
         reason: String,
     },
+
+    /// Performance metrics snapshot updated or benchmark completed.
+    PerformanceMetricsUpdated {
+        /// Cold start latency in milliseconds.
+        cold_start_ms: u64,
+        /// Wake-word processing time in microseconds.
+        wake_word_frame_micros: u64,
+        /// STT latency in milliseconds.
+        stt_latency_ms: u64,
+        /// TTS time to first audio in milliseconds.
+        tts_first_audio_ms: u64,
+        /// Resident memory in bytes.
+        resident_memory_bytes: u64,
+        /// Target idle budget in bytes.
+        idle_budget_bytes: u64,
+        /// Whether budget is exceeded.
+        memory_budget_exceeded: bool,
+    },
 }
 
 type CallbackFn = Box<dyn Fn(&BridgeEvent) + Send + Sync + 'static>;

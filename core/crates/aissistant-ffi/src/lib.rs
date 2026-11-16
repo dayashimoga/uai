@@ -16,8 +16,9 @@ pub use api::{
     bridge_delete_preference, bridge_device_cancel_pairing, bridge_device_confirm_pairing,
     bridge_device_discovered_peers, bridge_device_paired_list, bridge_device_revoke,
     bridge_device_set_permission, bridge_device_simulate_peer, bridge_device_start_pairing,
-    bridge_device_unpair, bridge_emergency_lockdown, bridge_get_active_persona,
-    bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state, bridge_get_preference,
+    bridge_device_unpair, bridge_emergency_lockdown, bridge_enforce_memory_budget,
+    bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
+    bridge_get_lifecycle_state, bridge_get_performance_snapshot, bridge_get_preference,
     bridge_get_setting, bridge_home_entity_control, bridge_home_entity_delete,
     bridge_home_entity_get, bridge_home_entity_list, bridge_home_entity_upsert,
     bridge_interpreter_clear_session, bridge_interpreter_get_turns,
@@ -27,16 +28,16 @@ pub use api::{
     bridge_lift_emergency_lockdown, bridge_list_personas, bridge_list_preferences,
     bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
     bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown,
-    bridge_rotate_master_key, bridge_save_persona, bridge_set_active_persona,
-    bridge_set_preference, bridge_set_setting, bridge_translate_text, bridge_update_permission,
-    bridge_verify_audit, bridge_vision_ocr_extract, bridge_voice_inject_audio,
-    bridge_voice_set_keywords, bridge_voice_set_mode, get_bridge, init_bridge, shutdown_bridge,
-    AuditIntegrityReport, AuditItem, AutomationHistoryItem, AutomationRuleItem, CapabilityItem,
-    CoreBridge, DocumentRecordItem, HealthReport, HealthStatus, InterpreterSessionStatusItem,
-    InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem, OcrDocumentItem,
-    OcrTextLineItem, OcrWordItem, SmartHomeCommandItem, SmartHomeCommandResultItem,
-    SmartHomeEntityItem, TranslationResultItem, UserPersonaItem, UserPreferenceItem,
-    WorkflowActionItem, WorkflowExecutionReportItem,
+    bridge_rotate_master_key, bridge_run_pipeline_benchmark, bridge_save_persona,
+    bridge_set_active_persona, bridge_set_preference, bridge_set_setting, bridge_translate_text,
+    bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
+    bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode, get_bridge,
+    init_bridge, shutdown_bridge, AuditIntegrityReport, AuditItem, AutomationHistoryItem,
+    AutomationRuleItem, CapabilityItem, CoreBridge, DocumentRecordItem, HealthReport, HealthStatus,
+    InterpreterSessionStatusItem, InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem,
+    OcrDocumentItem, OcrTextLineItem, OcrWordItem, PerformanceSnapshot, PipelineBenchmarkReport,
+    SmartHomeCommandItem, SmartHomeCommandResultItem, SmartHomeEntityItem, TranslationResultItem,
+    UserPersonaItem, UserPreferenceItem, WorkflowActionItem, WorkflowExecutionReportItem,
 };
 pub use device_bridge::{
     DeviceSupervisor, DiscoveredPeerItem, PairedDeviceItem, PairingSessionInfo,
@@ -1527,6 +1528,88 @@ mod tests {
         let lock_str3 = unsafe { CStr::from_ptr(lock_ptr3) }.to_str().unwrap();
         assert_eq!(lock_str3, "false");
         unsafe { c_abi::bridge_c_free_string(lock_ptr3) };
+
+        let cleanup = c_abi::bridge_c_shutdown();
+        assert_eq!(cleanup, 0);
+    }
+
+    #[test]
+    fn test_performance_snapshot_and_memory_budget_enforcement() {
+        let bridge = CoreBridge::new_in_memory().unwrap();
+        let sink = bridge.event_sink();
+        let (_sub_id, rx) = sink.subscribe(32);
+
+        // 1. Initial performance snapshot
+        let snapshot = bridge.get_performance_snapshot().unwrap();
+        assert!(snapshot.cold_start_ms <= 250);
+        assert!(snapshot.wake_word_frame_micros > 0);
+        assert!(snapshot.stt_latency_ms <= 350);
+        assert!(snapshot.tts_first_audio_ms <= 250);
+        assert!(snapshot.resident_memory_bytes > 0);
+        assert!(snapshot.idle_budget_bytes >= 60 * 1024 * 1024);
+        assert!(!snapshot.platform.is_empty());
+
+        // 2. Enforce memory budget
+        let within_budget = bridge.enforce_memory_budget().unwrap();
+        let snapshot_after = bridge.get_performance_snapshot().unwrap();
+        assert_eq!(within_budget, !snapshot_after.memory_budget_exceeded);
+
+        // 3. Event received
+        let mut perf_event_seen = false;
+        while let Ok(evt) = rx.try_recv() {
+            if let BridgeEvent::PerformanceMetricsUpdated {
+                cold_start_ms,
+                wake_word_frame_micros,
+                ..
+            } = evt
+            {
+                perf_event_seen = true;
+                assert!(cold_start_ms <= 250);
+                assert!(wake_word_frame_micros > 0);
+            }
+        }
+        assert!(perf_event_seen);
+    }
+
+    #[test]
+    fn test_pipeline_benchmark_and_c_abi() {
+        let _lock = TEST_GLOBAL_LOCK.lock().unwrap();
+        let init = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
+        assert_eq!(init, 0);
+
+        // 1. Run pipeline benchmark via Rust CoreBridge
+        let bridge = get_bridge().unwrap();
+        let report = bridge.run_pipeline_benchmark().unwrap();
+        assert_eq!(report.wake_word_frames_tested, 100);
+        assert!(report.wake_word_avg_frame_micros < 1000);
+        assert!(report.wake_word_rtf < 0.1); // Sub-0.1 real-time factor (>10x real-time)
+        assert!(report.ring_buffer_throughput_msps > 1.0);
+        assert!(report.vad_window_micros > 0);
+        assert!(report.sqlite_query_micros > 0);
+        assert!(report.all_budgets_passed);
+
+        // 2. Query C-ABI snapshot
+        let snap_ptr = unsafe { c_abi::bridge_c_get_performance_snapshot() };
+        assert!(!snap_ptr.is_null());
+        let snap_str = unsafe { CStr::from_ptr(snap_ptr) }.to_str().unwrap();
+        assert!(snap_str.contains("cold_start_ms"));
+        assert!(snap_str.contains("resident_memory_bytes"));
+        unsafe { c_abi::bridge_c_free_string(snap_ptr) };
+
+        // 3. Enforce memory budget via C-ABI
+        let mem_ptr = unsafe { c_abi::bridge_c_enforce_memory_budget() };
+        assert!(!mem_ptr.is_null());
+        let mem_str = unsafe { CStr::from_ptr(mem_ptr) }.to_str().unwrap();
+        assert!(mem_str == "true" || mem_str == "false");
+        unsafe { c_abi::bridge_c_free_string(mem_ptr) };
+
+        // 4. Run pipeline benchmark via C-ABI
+        let bench_ptr = unsafe { c_abi::bridge_c_run_pipeline_benchmark() };
+        assert!(!bench_ptr.is_null());
+        let bench_str = unsafe { CStr::from_ptr(bench_ptr) }.to_str().unwrap();
+        assert!(bench_str.contains("wake_word_frames_tested"));
+        assert!(bench_str.contains("all_budgets_passed"));
+        unsafe { c_abi::bridge_c_free_string(bench_ptr) };
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);

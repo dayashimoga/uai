@@ -135,6 +135,22 @@ abstract class BridgeEvent {
           reason: payload['reason'] as String? ?? '',
         );
 
+      case 'performance_metrics_updated':
+        return PerformanceMetricsUpdatedEvent(
+          coldStartMs: (payload['cold_start_ms'] as num?)?.toInt() ?? 0,
+          wakeWordFrameMicros:
+              (payload['wake_word_frame_micros'] as num?)?.toInt() ?? 0,
+          sttLatencyMs: (payload['stt_latency_ms'] as num?)?.toInt() ?? 0,
+          ttsFirstAudioMs:
+              (payload['tts_first_audio_ms'] as num?)?.toInt() ?? 0,
+          residentMemoryBytes:
+              (payload['resident_memory_bytes'] as num?)?.toInt() ?? 0,
+          idleBudgetBytes:
+              (payload['idle_budget_bytes'] as num?)?.toInt() ?? 0,
+          memoryBudgetExceeded:
+              payload['memory_budget_exceeded'] as bool? ?? false,
+        );
+
       default:
         return UnknownBridgeEvent(type: type, payload: payload);
     }
@@ -345,6 +361,26 @@ class EmergencyLockdownEvent extends BridgeEvent {
     required this.active,
     required this.reason,
   }) : super('emergency_lockdown');
+}
+
+class PerformanceMetricsUpdatedEvent extends BridgeEvent {
+  final int coldStartMs;
+  final int wakeWordFrameMicros;
+  final int sttLatencyMs;
+  final int ttsFirstAudioMs;
+  final int residentMemoryBytes;
+  final int idleBudgetBytes;
+  final bool memoryBudgetExceeded;
+
+  const PerformanceMetricsUpdatedEvent({
+    required this.coldStartMs,
+    required this.wakeWordFrameMicros,
+    required this.sttLatencyMs,
+    required this.ttsFirstAudioMs,
+    required this.residentMemoryBytes,
+    required this.idleBudgetBytes,
+    required this.memoryBudgetExceeded,
+  }) : super('performance_metrics_updated');
 }
 
 class UnknownBridgeEvent extends BridgeEvent {

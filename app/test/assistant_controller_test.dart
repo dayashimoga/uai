@@ -308,5 +308,25 @@ void main() {
       controller.liftEmergencyLockdown();
       expect(controller.isLockdownActive, isFalse);
     });
+
+    test('manages performance metrics, memory optimization, and pipeline benchmarks', () async {
+      await controller.initialize();
+      expect(controller.performanceSnapshot, isNotNull);
+      expect(controller.performanceSnapshot!.coldStartMs, 42);
+      expect(controller.performanceSnapshot!.residentMemoryMb, closeTo(24.0, 0.1));
+      expect(controller.performanceSnapshot!.memoryBudgetExceeded, isFalse);
+
+      // 1. Optimize memory
+      final withinBudget = await controller.optimizeMemory();
+      expect(withinBudget, isTrue);
+      expect(controller.performanceSnapshot!.residentMemoryMb, closeTo(20.0, 0.1));
+
+      // 2. Run pipeline benchmark
+      final report = await controller.runPipelineBenchmark();
+      expect(report, isNotNull);
+      expect(report!.allBudgetsPassed, isTrue);
+      expect(report.wakeWordAvgFrameMicros, 350);
+      expect(controller.pipelineBenchmarkReport, isNotNull);
+    });
   });
 }

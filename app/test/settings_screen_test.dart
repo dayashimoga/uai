@@ -102,5 +102,41 @@ void main() {
       expect(controller.isLockdownActive, isFalse);
       expect(find.text('EMERGENCY LOCKDOWN ACTIVE'), findsNothing);
     });
+
+    testWidgets('renders performance and memory diagnostics and optimizes memory', (tester) async {
+      await tester.pumpWidget(createTestApp(tester));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Performance & Memory Diagnostics (NFR-1..NFR-8)'), findsOneWidget);
+      expect(find.byKey(const Key('memory_budget_chip')), findsOneWidget);
+      expect(find.text('Budget Passed'), findsOneWidget);
+      expect(find.text('Cold Start'), findsOneWidget);
+      expect(find.text('Wake Word'), findsOneWidget);
+      expect(find.text('STT Latency'), findsOneWidget);
+      expect(find.text('TTS Latency'), findsOneWidget);
+
+      // Tap optimize memory
+      final optBtn = find.byKey(const Key('optimize_memory_button'));
+      expect(optBtn, findsOneWidget);
+      await tester.ensureVisible(optBtn);
+      await tester.tap(optBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Memory caches reclaimed. Resident RAM within budget!'), findsOneWidget);
+
+      // Dismiss first snackbar
+      ScaffoldMessenger.of(tester.element(optBtn)).hideCurrentSnackBar();
+      await tester.pumpAndSettle();
+
+      // Tap run benchmark
+      final benchBtn = find.byKey(const Key('run_pipeline_benchmark_button'));
+      expect(benchBtn, findsOneWidget);
+      await tester.ensureVisible(benchBtn);
+      await tester.tap(benchBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('All latency & throughput budgets passed!'), findsOneWidget);
+      expect(find.text('Pipeline Benchmark Completed'), findsOneWidget);
+    });
   });
 }

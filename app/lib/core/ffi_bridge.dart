@@ -16,6 +16,7 @@ import 'models/interpreter_models.dart';
 import 'models/knowledge_models.dart';
 import 'models/model_item.dart';
 import 'models/persona_models.dart';
+import 'models/performance_models.dart';
 import 'models/smart_home_models.dart';
 import 'models/vision_models.dart';
 import 'models/voice_state.dart';
@@ -101,6 +102,9 @@ abstract class AissistantBridge {
   void triggerEmergencyLockdown(String reason);
   void liftEmergencyLockdown();
   bool isLockdownActive();
+  PerformanceSnapshotModel getPerformanceSnapshot();
+  bool enforceMemoryBudget();
+  PipelineBenchmarkReportModel runPipelineBenchmark();
   Stream<BridgeEvent> get eventStream;
 }
 
@@ -340,6 +344,15 @@ typedef _BridgeLiftEmergencyLockdownDart = Pointer<Utf8> Function();
 typedef _BridgeIsLockdownActiveC = Pointer<Utf8> Function();
 typedef _BridgeIsLockdownActiveDart = Pointer<Utf8> Function();
 
+typedef _BridgeGetPerfSnapshotC = Pointer<Utf8> Function();
+typedef _BridgeGetPerfSnapshotDart = Pointer<Utf8> Function();
+
+typedef _BridgeEnforceMemBudgetC = Pointer<Utf8> Function();
+typedef _BridgeEnforceMemBudgetDart = Pointer<Utf8> Function();
+
+typedef _BridgeRunPipelineBenchC = Pointer<Utf8> Function();
+typedef _BridgeRunPipelineBenchDart = Pointer<Utf8> Function();
+
 /// Native FFI implementation driving aissistant-ffi C-ABI entry points.
 class NativeFfiBridge implements AissistantBridge {
   final DynamicLibrary _lib;
@@ -413,6 +426,9 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeEmergencyLockdownDart _emergencyLockdown;
   late final _BridgeLiftEmergencyLockdownDart _liftEmergencyLockdown;
   late final _BridgeIsLockdownActiveDart _isLockdownActive;
+  late final _BridgeGetPerfSnapshotDart _getPerformanceSnapshot;
+  late final _BridgeEnforceMemBudgetDart _enforceMemoryBudget;
+  late final _BridgeRunPipelineBenchDart _runPipelineBenchmark;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -483,6 +499,9 @@ class NativeFfiBridge implements AissistantBridge {
     _emergencyLockdown = _lib.lookupFunction<_BridgeEmergencyLockdownC, _BridgeEmergencyLockdownDart>('bridge_c_emergency_lockdown');
     _liftEmergencyLockdown = _lib.lookupFunction<_BridgeLiftEmergencyLockdownC, _BridgeLiftEmergencyLockdownDart>('bridge_c_lift_emergency_lockdown');
     _isLockdownActive = _lib.lookupFunction<_BridgeIsLockdownActiveC, _BridgeIsLockdownActiveDart>('bridge_c_is_lockdown_active');
+    _getPerformanceSnapshot = _lib.lookupFunction<_BridgeGetPerfSnapshotC, _BridgeGetPerfSnapshotDart>('bridge_c_get_performance_snapshot');
+    _enforceMemoryBudget = _lib.lookupFunction<_BridgeEnforceMemBudgetC, _BridgeEnforceMemBudgetDart>('bridge_c_enforce_memory_budget');
+    _runPipelineBenchmark = _lib.lookupFunction<_BridgeRunPipelineBenchC, _BridgeRunPipelineBenchDart>('bridge_c_run_pipeline_benchmark');
     _freeString = _lib.lookupFunction<_BridgeFreeStringC, _BridgeFreeStringDart>('bridge_c_free_string');
   }
 
@@ -1689,6 +1708,49 @@ class NativeFfiBridge implements AissistantBridge {
     try {
       final res = ptr.toDartString();
       return res == 'true';
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  PerformanceSnapshotModel getPerformanceSnapshot() {
+    final ptr = _getPerformanceSnapshot();
+    if (ptr.address == 0) {
+      throw Exception('Failed to retrieve performance snapshot: null pointer');
+    }
+    try {
+      final jsonStr = ptr.toDartString();
+      final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+      return PerformanceSnapshotModel.fromJson(map);
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  bool enforceMemoryBudget() {
+    final ptr = _enforceMemoryBudget();
+    if (ptr.address == 0) return false;
+    try {
+      final jsonStr = ptr.toDartString();
+      final res = jsonDecode(jsonStr);
+      return res == true;
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  PipelineBenchmarkReportModel runPipelineBenchmark() {
+    final ptr = _runPipelineBenchmark();
+    if (ptr.address == 0) {
+      throw Exception('Failed to run pipeline benchmark: null pointer');
+    }
+    try {
+      final jsonStr = ptr.toDartString();
+      final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+      return PipelineBenchmarkReportModel.fromJson(map);
     } finally {
       _freeString(ptr);
     }
@@ -2918,4 +2980,74 @@ class TestHarnessBridge implements AissistantBridge {
 
   @override
   bool isLockdownActive() => _isLockdownActive;
+
+  PerformanceSnapshotModel? _simulatedPerfSnapshot;
+
+  @override
+  PerformanceSnapshotModel getPerformanceSnapshot() {
+    return _simulatedPerfSnapshot ??= PerformanceSnapshotModel(
+      coldStartMs: 42,
+      wakeWordFrameMicros: 350,
+      sttLatencyMs: 210,
+      ttsFirstAudioMs: 120,
+      residentMemoryBytes: 24 * 1024 * 1024,
+      idleBudgetBytes: 80 * 1024 * 1024,
+      memoryBudgetExceeded: false,
+      platform: Platform.operatingSystem,
+      sqliteMemoryBytes: 819200,
+      timestampMs: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
+  @override
+  bool enforceMemoryBudget() {
+    _simulatedPerfSnapshot = PerformanceSnapshotModel(
+      coldStartMs: 42,
+      wakeWordFrameMicros: 320,
+      sttLatencyMs: 200,
+      ttsFirstAudioMs: 110,
+      residentMemoryBytes: 20 * 1024 * 1024,
+      idleBudgetBytes: 80 * 1024 * 1024,
+      memoryBudgetExceeded: false,
+      platform: Platform.operatingSystem,
+      sqliteMemoryBytes: 409600,
+      timestampMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    _eventController.add(const PerformanceMetricsUpdatedEvent(
+      coldStartMs: 42,
+      wakeWordFrameMicros: 320,
+      sttLatencyMs: 200,
+      ttsFirstAudioMs: 110,
+      residentMemoryBytes: 20 * 1024 * 1024,
+      idleBudgetBytes: 80 * 1024 * 1024,
+      memoryBudgetExceeded: false,
+    ));
+    return true;
+  }
+
+  @override
+  PipelineBenchmarkReportModel runPipelineBenchmark() {
+    const report = PipelineBenchmarkReportModel(
+      wakeWordFramesTested: 100,
+      wakeWordAvgFrameMicros: 350,
+      wakeWordRtf: 0.0175,
+      ringBufferThroughputMsps: 8.5,
+      coldStartMs: 42,
+      vadWindowMicros: 45,
+      sqliteQueryMicros: 120,
+      memoryBeforeBytes: 24 * 1024 * 1024,
+      memoryAfterBytes: 22 * 1024 * 1024,
+      allBudgetsPassed: true,
+    );
+    _eventController.add(const PerformanceMetricsUpdatedEvent(
+      coldStartMs: 42,
+      wakeWordFrameMicros: 350,
+      sttLatencyMs: 200,
+      ttsFirstAudioMs: 110,
+      residentMemoryBytes: 22 * 1024 * 1024,
+      idleBudgetBytes: 80 * 1024 * 1024,
+      memoryBudgetExceeded: false,
+    ));
+    return report;
+  }
 }

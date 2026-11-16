@@ -241,4 +241,9 @@ impl VoicePipelineSupervisor {
         self.wake_spotter.reset();
         self.stt_engine.reset();
     }
+
+    /// Trims and clears all audio buffers and intermediate acoustic features to reclaim memory.
+    pub fn clear_buffers(&mut self) {
+        self.reset();
+    }
 }

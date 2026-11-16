@@ -13,6 +13,7 @@ import 'models/interpreter_models.dart';
 import 'models/knowledge_models.dart';
 import 'models/model_item.dart';
 import 'models/persona_models.dart';
+import 'models/performance_models.dart';
 import 'models/smart_home_models.dart';
 import 'models/vision_models.dart';
 import 'models/voice_state.dart';
@@ -62,6 +63,10 @@ class AssistantController extends ChangeNotifier {
   bool _isHomeLoading = false;
   String? _homeError;
   bool _isLockdownActive = false;
+  PerformanceSnapshotModel? _performanceSnapshot;
+  PipelineBenchmarkReportModel? _pipelineBenchmarkReport;
+  bool _isPipelineBenchmarking = false;
+  bool _isOptimizingMemory = false;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -76,6 +81,10 @@ class AssistantController extends ChangeNotifier {
   ModelManagerSnapshot? get modelSnapshot => _modelSnapshot;
   BenchmarkResult? get lastBenchmark => _lastBenchmark;
   bool get isBenchmarking => _isBenchmarking;
+  PerformanceSnapshotModel? get performanceSnapshot => _performanceSnapshot;
+  PipelineBenchmarkReportModel? get pipelineBenchmarkReport => _pipelineBenchmarkReport;
+  bool get isPipelineBenchmarking => _isPipelineBenchmarking;
+  bool get isOptimizingMemory => _isOptimizingMemory;
   String? get activeModelId => _modelSnapshot?.activeModelId;
   List<ModelItem> get models => _modelSnapshot?.models ?? const <ModelItem>[];
   HardwareOverview? get hardware => _modelSnapshot?.hardware;
@@ -145,6 +154,7 @@ class AssistantController extends ChangeNotifier {
       _automationHistory = List<AutomationHistoryItem>.from(_bridge.listAutomationHistory());
       _homeEntities = List<SmartHomeEntityItem>.from(_bridge.listHomeEntities());
       _isLockdownActive = _bridge.isLockdownActive();
+      _performanceSnapshot = _bridge.getPerformanceSnapshot();
 
       // Read persisted theme mode
       final savedTheme = _bridge.getSetting('assistant.theme_mode');
@@ -268,6 +278,19 @@ class AssistantController extends ChangeNotifier {
       _isLockdownActive = event.active;
       refreshDevices();
       refreshAuditLog();
+    } else if (event is PerformanceMetricsUpdatedEvent) {
+      _performanceSnapshot = PerformanceSnapshotModel(
+        coldStartMs: event.coldStartMs,
+        wakeWordFrameMicros: event.wakeWordFrameMicros,
+        sttLatencyMs: event.sttLatencyMs,
+        ttsFirstAudioMs: event.ttsFirstAudioMs,
+        residentMemoryBytes: event.residentMemoryBytes,
+        idleBudgetBytes: event.idleBudgetBytes,
+        memoryBudgetExceeded: event.memoryBudgetExceeded,
+        platform: _performanceSnapshot?.platform ?? 'unknown',
+        sqliteMemoryBytes: _performanceSnapshot?.sqliteMemoryBytes ?? 0,
+        timestampMs: DateTime.now().millisecondsSinceEpoch,
+      );
     }
     notifyListeners();
   }
@@ -622,6 +645,7 @@ class AssistantController extends ChangeNotifier {
       _automationHistory = List<AutomationHistoryItem>.from(_bridge.listAutomationHistory());
       _homeEntities = List<SmartHomeEntityItem>.from(_bridge.listHomeEntities());
       _isLockdownActive = _bridge.isLockdownActive();
+      _performanceSnapshot = _bridge.getPerformanceSnapshot();
       notifyListeners();
     } catch (e) {
       _errorMessage = 'Failed to refresh documents: $e';
@@ -1129,6 +1153,49 @@ class AssistantController extends ChangeNotifier {
       return false;
     } finally {
       _isHomeLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadPerformanceSnapshot() async {
+    try {
+      _performanceSnapshot = _bridge.getPerformanceSnapshot();
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to load performance metrics: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<bool> optimizeMemory() async {
+    _isOptimizingMemory = true;
+    notifyListeners();
+    try {
+      final res = _bridge.enforceMemoryBudget();
+      _performanceSnapshot = _bridge.getPerformanceSnapshot();
+      return res;
+    } catch (e) {
+      _errorMessage = 'Failed to optimize memory: $e';
+      return false;
+    } finally {
+      _isOptimizingMemory = false;
+      notifyListeners();
+    }
+  }
+
+  Future<PipelineBenchmarkReportModel?> runPipelineBenchmark() async {
+    _isPipelineBenchmarking = true;
+    notifyListeners();
+    try {
+      final report = _bridge.runPipelineBenchmark();
+      _pipelineBenchmarkReport = report;
+      _performanceSnapshot = _bridge.getPerformanceSnapshot();
+      return report;
+    } catch (e) {
+      _errorMessage = 'Failed to run pipeline benchmark: $e';
+      return null;
+    } finally {
+      _isPipelineBenchmarking = false;
       notifyListeners();
     }
   }

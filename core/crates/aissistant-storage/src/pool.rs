@@ -84,6 +84,36 @@ impl SqliteDb {
             Ok(result)
         })
     }
+
+    /// Reclaims SQLite memory by executing `PRAGMA shrink_memory` and checkpointing WAL.
+    pub fn trim_memory(&self) -> Result<(), StorageError> {
+        self.with_conn(|conn| {
+            conn.execute_batch(
+                "PRAGMA shrink_memory;
+                 PRAGMA wal_checkpoint(PASSIVE);",
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Sets SQLite cache size in kibibytes (negative value) or pages (positive value).
+    pub fn set_cache_size(&self, cache_size: i32) -> Result<(), StorageError> {
+        self.with_conn(|conn| {
+            conn.execute(&format!("PRAGMA cache_size = {cache_size};"), [])?;
+            Ok(())
+        })
+    }
+
+    /// Returns estimated SQLite database size on disk/memory in bytes.
+    pub fn memory_used_bytes(&self) -> Result<i64, StorageError> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare("PRAGMA page_count;")?;
+            let page_count: i64 = stmt.query_row([], |r| r.get(0))?;
+            let mut stmt_size = conn.prepare("PRAGMA page_size;")?;
+            let page_size: i64 = stmt_size.query_row([], |r| r.get(0))?;
+            Ok(page_count.saturating_mul(page_size))
+        })
+    }
 }
 
 #[cfg(test)]
@@ -146,5 +176,14 @@ mod tests {
             .unwrap();
 
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_trim_memory_and_cache_tuning() {
+        let db = SqliteDb::open_in_memory().unwrap();
+        assert!(db.trim_memory().is_ok());
+        assert!(db.set_cache_size(-2000).is_ok());
+        let mem = db.memory_used_bytes().unwrap();
+        assert!(mem >= 0);
     }
 }

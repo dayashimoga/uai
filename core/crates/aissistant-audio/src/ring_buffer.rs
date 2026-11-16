@@ -162,22 +162,57 @@ impl AudioRingBuffer {
 
     /// Push a slice of samples into the buffer.
     ///
-    /// Real-time safe: Zero allocations, lock-free. Returns count of samples written.
+    /// Real-time safe: Zero allocations, lock-free, batch atomic synchronization.
     pub fn push_slice(&self, samples: &[f32]) -> usize {
         if samples.is_empty() {
             return 0;
         }
 
-        let mut written = 0;
-        for &sample in samples {
-            if self.push(sample).is_ok() {
-                written += 1;
-            } else {
-                // Strict mode overflow
-                break;
+        match self.storage.mode {
+            RingBufferMode::Strict => {
+                let w = self.storage.write_pos.load(Ordering::Relaxed);
+                let r = self.storage.read_pos.load(Ordering::Acquire);
+                let count = w.wrapping_sub(r);
+                let available = self.storage.capacity.saturating_sub(count);
+                let to_write = samples.len().min(available);
+                if to_write == 0 {
+                    self.storage.overruns.fetch_add(1, Ordering::Relaxed);
+                    return 0;
+                }
+
+                for (i, &sample) in samples.iter().take(to_write).enumerate() {
+                    let slot = (w.wrapping_add(i)) & self.storage.mask;
+                    unsafe {
+                        *self.storage.buffer[slot].get() = sample;
+                    }
+                }
+
+                self.storage
+                    .write_pos
+                    .store(w.wrapping_add(to_write), Ordering::Release);
+                self.storage
+                    .total_pushed
+                    .fetch_add(to_write as u64, Ordering::Relaxed);
+                if to_write < samples.len() {
+                    self.storage.overruns.fetch_add(1, Ordering::Relaxed);
+                }
+                to_write
+            }
+            RingBufferMode::Overwrite => {
+                let samples_to_push = if samples.len() > self.storage.capacity {
+                    &samples[samples.len() - self.storage.capacity..]
+                } else {
+                    samples
+                };
+                let mut written = 0;
+                for &sample in samples_to_push {
+                    if self.push(sample).is_ok() {
+                        written += 1;
+                    }
+                }
+                written
             }
         }
-        written
     }
 
     /// Pop a single sample from the buffer.
@@ -204,22 +239,34 @@ impl AudioRingBuffer {
 
     /// Pop multiple samples from the buffer into the provided slice.
     ///
-    /// Real-time safe: Zero allocations, lock-free. Returns count of samples read.
+    /// Real-time safe: Zero allocations, lock-free, batch atomic synchronization.
     pub fn pop_slice(&self, out: &mut [f32]) -> usize {
         if out.is_empty() {
             return 0;
         }
 
-        let mut read = 0;
-        while read < out.len() {
-            if let Some(sample) = self.pop() {
-                out[read] = sample;
-                read += 1;
-            } else {
-                break;
-            }
+        let r = self.storage.read_pos.load(Ordering::Relaxed);
+        let w = self.storage.write_pos.load(Ordering::Acquire);
+        let available = w.wrapping_sub(r);
+
+        if available == 0 {
+            self.storage.underruns.fetch_add(1, Ordering::Relaxed);
+            return 0;
         }
-        read
+
+        let to_read = out.len().min(available);
+        for (i, target) in out.iter_mut().take(to_read).enumerate() {
+            let slot = (r.wrapping_add(i)) & self.storage.mask;
+            *target = unsafe { *self.storage.buffer[slot].get() };
+        }
+
+        self.storage
+            .read_pos
+            .store(r.wrapping_add(to_read), Ordering::Release);
+        self.storage
+            .total_popped
+            .fetch_add(to_read as u64, Ordering::Relaxed);
+        to_read
     }
 
     /// Peek samples without advancing the read pointer.
@@ -310,17 +357,57 @@ impl RingBufferProducer {
         Ok(())
     }
 
-    /// Push a slice of samples.
+    /// Push a slice of samples with batch synchronization.
     pub fn push_slice(&self, samples: &[f32]) -> usize {
-        let mut written = 0;
-        for &s in samples {
-            if self.push(s).is_ok() {
-                written += 1;
-            } else {
-                break;
+        if samples.is_empty() {
+            return 0;
+        }
+
+        match self.storage.mode {
+            RingBufferMode::Strict => {
+                let w = self.storage.write_pos.load(Ordering::Relaxed);
+                let r = self.storage.read_pos.load(Ordering::Acquire);
+                let count = w.wrapping_sub(r);
+                let available = self.storage.capacity.saturating_sub(count);
+                let to_write = samples.len().min(available);
+                if to_write == 0 {
+                    self.storage.overruns.fetch_add(1, Ordering::Relaxed);
+                    return 0;
+                }
+
+                for (i, &sample) in samples.iter().take(to_write).enumerate() {
+                    let slot = (w.wrapping_add(i)) & self.storage.mask;
+                    unsafe {
+                        *self.storage.buffer[slot].get() = sample;
+                    }
+                }
+
+                self.storage
+                    .write_pos
+                    .store(w.wrapping_add(to_write), Ordering::Release);
+                self.storage
+                    .total_pushed
+                    .fetch_add(to_write as u64, Ordering::Relaxed);
+                if to_write < samples.len() {
+                    self.storage.overruns.fetch_add(1, Ordering::Relaxed);
+                }
+                to_write
+            }
+            RingBufferMode::Overwrite => {
+                let samples_to_push = if samples.len() > self.storage.capacity {
+                    &samples[samples.len() - self.storage.capacity..]
+                } else {
+                    samples
+                };
+                let mut written = 0;
+                for &sample in samples_to_push {
+                    if self.push(sample).is_ok() {
+                        written += 1;
+                    }
+                }
+                written
             }
         }
-        written
     }
 
     /// Capacity in samples.
@@ -374,18 +461,34 @@ impl RingBufferConsumer {
         Some(sample)
     }
 
-    /// Pop multiple samples into slice.
+    /// Pop multiple samples into slice with batch synchronization.
     pub fn pop_slice(&self, out: &mut [f32]) -> usize {
-        let mut read = 0;
-        while read < out.len() {
-            if let Some(s) = self.pop() {
-                out[read] = s;
-                read += 1;
-            } else {
-                break;
-            }
+        if out.is_empty() {
+            return 0;
         }
-        read
+
+        let r = self.storage.read_pos.load(Ordering::Relaxed);
+        let w = self.storage.write_pos.load(Ordering::Acquire);
+        let available = w.wrapping_sub(r);
+
+        if available == 0 {
+            self.storage.underruns.fetch_add(1, Ordering::Relaxed);
+            return 0;
+        }
+
+        let to_read = out.len().min(available);
+        for (i, target) in out.iter_mut().take(to_read).enumerate() {
+            let slot = (r.wrapping_add(i)) & self.storage.mask;
+            *target = unsafe { *self.storage.buffer[slot].get() };
+        }
+
+        self.storage
+            .read_pos
+            .store(r.wrapping_add(to_read), Ordering::Release);
+        self.storage
+            .total_popped
+            .fetch_add(to_read as u64, Ordering::Relaxed);
+        to_read
     }
 
     /// Peek samples without consuming.

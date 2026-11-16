@@ -578,24 +578,20 @@ impl AcousticKwsSpotter {
 
     /// Evaluates alignment similarity between feature frames and a keyword template.
     /// Returns confidence score in range `[0.0, 1.0]`.
+    ///
+    /// Performance optimized: Zero allocations during continuous template correlation.
     fn match_template(&self, template: &KeywordTemplate) -> f32 {
         let template_len = template.frames.len();
         if self.feature_history.len() < template_len {
             return 0.0;
         }
 
-        // Look at the recent window matching the template duration
-        let history_slice: Vec<&AcousticFeature> = self
-            .feature_history
-            .iter()
-            .rev()
-            .take(template_len)
-            .collect();
-        // Reverse so history_slice goes chronologically forward
-        let audio_frames: Vec<&AcousticFeature> = history_slice.into_iter().rev().collect();
+        let start_idx = self.feature_history.len() - template_len;
 
         // 1. Guard against all-silence or pure tone / static noise
-        let silence_count = audio_frames.iter().filter(|f| f.is_silence).count();
+        let silence_count = (0..template_len)
+            .filter(|&i| self.feature_history[start_idx + i].is_silence)
+            .count();
         if silence_count > template_len / 2 {
             return 0.0;
         }
@@ -603,11 +599,12 @@ impl AcousticKwsSpotter {
         // Spectral dynamics check: real speech features must vary over time
         let mut subband_variance = 0.0f32;
         for band in 0..4 {
-            let mean =
-                audio_frames.iter().map(|f| f.subbands[band]).sum::<f32>() / (template_len as f32);
-            let var = audio_frames
-                .iter()
-                .map(|f| (f.subbands[band] - mean).powi(2))
+            let mean = (0..template_len)
+                .map(|i| self.feature_history[start_idx + i].subbands[band])
+                .sum::<f32>()
+                / (template_len as f32);
+            let var = (0..template_len)
+                .map(|i| (self.feature_history[start_idx + i].subbands[band] - mean).powi(2))
                 .sum::<f32>()
                 / (template_len as f32);
             subband_variance += var;
@@ -623,7 +620,7 @@ impl AcousticKwsSpotter {
         let mut total_weight = 0.0f32;
 
         for (i, t_frame) in template.frames.iter().enumerate() {
-            let a_frame = audio_frames[i];
+            let a_frame = &self.feature_history[start_idx + i];
             if a_frame.is_silence {
                 total_weight += t_frame.weight;
                 continue;
@@ -680,8 +677,10 @@ impl AcousticKwsSpotter {
         let mut trajectory_dim_count = 0.0f32;
 
         for b in 0..4 {
-            let mean_a =
-                audio_frames.iter().map(|f| f.subbands[b]).sum::<f32>() / (template_len as f32);
+            let mean_a = (0..template_len)
+                .map(|i| self.feature_history[start_idx + i].subbands[b])
+                .sum::<f32>()
+                / (template_len as f32);
             let mean_t =
                 template.frames.iter().map(|f| f.subbands[b]).sum::<f32>() / (template_len as f32);
 
@@ -689,7 +688,8 @@ impl AcousticKwsSpotter {
             let mut var_a = 0.0f32;
             let mut var_t = 0.0f32;
 
-            for (a, t) in audio_frames.iter().zip(template.frames.iter()) {
+            for (i, t) in template.frames.iter().enumerate() {
+                let a = &self.feature_history[start_idx + i];
                 let da = a.subbands[b] - mean_a;
                 let dt = t.subbands[b] - mean_t;
                 cov += da * dt;

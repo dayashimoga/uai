@@ -18,8 +18,9 @@ use crate::api::{
     bridge_delete_preference, bridge_device_cancel_pairing, bridge_device_confirm_pairing,
     bridge_device_discovered_peers, bridge_device_paired_list, bridge_device_revoke,
     bridge_device_set_permission, bridge_device_simulate_peer, bridge_device_start_pairing,
-    bridge_device_unpair, bridge_emergency_lockdown, bridge_get_active_persona,
-    bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state, bridge_get_preference,
+    bridge_device_unpair, bridge_emergency_lockdown, bridge_enforce_memory_budget,
+    bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
+    bridge_get_lifecycle_state, bridge_get_performance_snapshot, bridge_get_preference,
     bridge_get_setting, bridge_home_entity_control, bridge_home_entity_delete,
     bridge_home_entity_get, bridge_home_entity_list, bridge_home_entity_upsert,
     bridge_interpreter_clear_session, bridge_interpreter_get_turns,
@@ -29,7 +30,8 @@ use crate::api::{
     bridge_lift_emergency_lockdown, bridge_list_personas, bridge_list_preferences,
     bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
     bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown,
-    bridge_rotate_master_key, bridge_save_persona, bridge_set_active_persona,
+    bridge_rotate_master_key, bridge_run_pipeline_benchmark, bridge_save_persona,
+    bridge_set_active_persona,
     bridge_set_preference, bridge_set_setting, bridge_translate_text, bridge_update_permission,
     bridge_verify_audit, bridge_vision_ocr_extract, bridge_voice_inject_audio,
     bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
@@ -1282,6 +1284,52 @@ pub unsafe extern "C" fn bridge_c_is_lockdown_active() -> *mut c_char {
     serialize_to_c_json(result.unwrap_or_else(|_| {
         Err(FfiError::PanicCaught(
             "Panic in bridge_c_is_lockdown_active".into(),
+        ))
+    }))
+}
+
+/// Retrieves a comprehensive performance, latency, and memory snapshot formatted as JSON.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// This function catches all panics internally. The returned pointer must be freed with `bridge_c_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_get_performance_snapshot() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_get_performance_snapshot));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_get_performance_snapshot".into(),
+        ))
+    }))
+}
+
+/// Enforces the memory budget by trimming caches and database pages.
+/// Returns whether the process is within target budget formatted as JSON boolean.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// This function catches all panics internally. The returned pointer must be freed with `bridge_c_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_enforce_memory_budget() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_enforce_memory_budget));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_enforce_memory_budget".into(),
+        ))
+    }))
+}
+
+/// Runs the pipeline latency benchmark suite and returns the report formatted as JSON.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// This function catches all panics internally. The returned pointer must be freed with `bridge_c_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_run_pipeline_benchmark() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_run_pipeline_benchmark));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_run_pipeline_benchmark".into(),
         ))
     }))
 }
