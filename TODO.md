@@ -19,7 +19,7 @@
 ---
 
 ## Environment & Remote Repository Tasks
-- [ ] `[ENV-01]` Connect local Git repository (`g:\aissistant`) to remote GitHub repository (requires user remote URL or `gh` CLI installation & auth).
+- [x] `[ENV-01]` Connect local Git repository (`g:\aissistant`) to remote GitHub repository: connected to `https://github.com/dayashimoga/uai.git`.
 - [x] `[ENV-02]` Verify Flutter SDK (`flutter` / `dart`) on host: verified at `C:\flutter\bin\flutter.bat` (Flutter 3.44.6, Dart 3.12.2).
 
 ---
