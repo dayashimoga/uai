@@ -436,7 +436,8 @@ impl ModelSupervisor {
         cancel_handle: Option<&LlmCancellationHandle>,
         on_token: &mut dyn FnMut(TokenChunk) -> aissistant_llm::Result<()>,
     ) -> aissistant_llm::Result<InferenceMetrics> {
-        self.engine.generate_stream(prompt, params, cancel_handle, on_token)
+        self.engine
+            .generate_stream(prompt, params, cancel_handle, on_token)
     }
 
     /// Handles system memory pressure, unloading models on critical events.

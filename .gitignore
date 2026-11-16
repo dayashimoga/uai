@@ -52,6 +52,8 @@ unlinked*.dsym
 
 # Local AI Models & Voice Assets (Never commit large binaries)
 /models/
+**/models/
+*.part
 *.gguf
 *.onnx
 *.bin

@@ -1007,6 +1007,35 @@ class AssistantController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> replayInterpreterTurnAudio(int turnId) async {
+    try {
+      _bridge.replayInterpreterTurnAudio(turnId);
+    } catch (e) {
+      _interpreterError = 'Failed to replay audio: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<InterpreterSessionStatusItem?> setInterpreterLanguages({
+    required String partyALang,
+    required String partyBLang,
+  }) async {
+    try {
+      final status = _bridge.startInterpreterSession(
+        partyALang: partyALang,
+        partyBLang: partyBLang,
+      );
+      _interpreterStatus = status;
+      _interpreterError = null;
+      notifyListeners();
+      return status;
+    } catch (e) {
+      _interpreterError = 'Failed to configure languages: $e';
+      notifyListeners();
+      return null;
+    }
+  }
+
   // Persona & Preference Management
 
   Future<void> loadPersonas() async {

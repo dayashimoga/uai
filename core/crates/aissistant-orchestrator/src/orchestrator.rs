@@ -324,7 +324,10 @@ impl Orchestrator {
                         label: format!("prompt_injection:{:?}", injection_matches[0].category),
                     },
                     current_time_ms() as u64,
-                    format!("Adversarial prompt injection pattern detected: {:?}", injection_matches[0].category),
+                    format!(
+                        "Adversarial prompt injection pattern detected: {:?}",
+                        injection_matches[0].category
+                    ),
                 );
             }
         }

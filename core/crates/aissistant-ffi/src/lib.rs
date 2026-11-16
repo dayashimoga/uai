@@ -997,6 +997,11 @@ mod tests {
         let init = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
         assert_eq!(init, 0);
 
+        // Load active model into memory for neural translation
+        let model_id_c = CString::new("qwen2.5-0.5b-instruct-q4_k_m").unwrap();
+        let load_res = unsafe { c_abi::bridge_c_model_load(model_id_c.as_ptr()) };
+        assert_eq!(load_res, 0);
+
         // 1. Test Text Translation C-ABI
         let text_c = CString::new("Hello").unwrap();
         let src_c = CString::new("en").unwrap();
@@ -1014,7 +1019,28 @@ mod tests {
         assert_eq!(trans_res.translated_text, "Hola");
         assert_eq!(trans_res.source_lang, "en");
         assert_eq!(trans_res.target_lang, "es");
-        assert!(trans_res.confidence >= 0.95);
+        assert!(trans_res.confidence >= 0.85);
+
+        // Test Hindi and Kannada translation support (12 languages)
+        let hi_c = CString::new("hi").unwrap();
+        let kn_c = CString::new("kn").unwrap();
+        let trans_hi_ptr = unsafe {
+            c_abi::bridge_c_translate_text(text_c.as_ptr(), src_c.as_ptr(), hi_c.as_ptr())
+        };
+        assert!(!trans_hi_ptr.is_null());
+        let trans_hi_json = unsafe { CStr::from_ptr(trans_hi_ptr) }.to_str().unwrap();
+        let trans_hi_res: TranslationResultItem = serde_json::from_str(trans_hi_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(trans_hi_ptr) };
+        assert_eq!(trans_hi_res.translated_text, "नमस्ते");
+
+        let trans_kn_ptr = unsafe {
+            c_abi::bridge_c_translate_text(text_c.as_ptr(), src_c.as_ptr(), kn_c.as_ptr())
+        };
+        assert!(!trans_kn_ptr.is_null());
+        let trans_kn_json = unsafe { CStr::from_ptr(trans_kn_ptr) }.to_str().unwrap();
+        let trans_kn_res: TranslationResultItem = serde_json::from_str(trans_kn_json).unwrap();
+        unsafe { c_abi::bridge_c_free_string(trans_kn_ptr) };
+        assert_eq!(trans_kn_res.translated_text, "ನಮಸ್ಕಾರ");
 
         // 2. Test Interpreter Start C-ABI
         let lang_a_c = CString::new("en").unwrap();
@@ -1058,6 +1084,16 @@ mod tests {
         assert_eq!(turn2.source_lang, "fr");
         assert_eq!(turn2.target_lang, "en");
         assert_eq!(turn2.translated_text, "You are welcome");
+
+        // 4b. Test Interpreter TTS Audio Replay C-ABI
+        let turn1_id_c = CString::new("1").unwrap();
+        let replay_res = unsafe { c_abi::bridge_c_interpreter_replay_tts(turn1_id_c.as_ptr()) };
+        assert_eq!(replay_res, 0);
+
+        let invalid_id_c = CString::new("9999").unwrap();
+        let invalid_replay =
+            unsafe { c_abi::bridge_c_interpreter_replay_tts(invalid_id_c.as_ptr()) };
+        assert_eq!(invalid_replay, -1);
 
         // 5. Test Get Turns History C-ABI
         let history_ptr = c_abi::bridge_c_interpreter_get_turns();

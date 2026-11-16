@@ -25,6 +25,8 @@ class LanguageItem {
     LanguageItem(code: 'pt', name: 'Portuguese', nativeName: 'Português'),
     LanguageItem(code: 'ru', name: 'Russian', nativeName: 'Русский'),
     LanguageItem(code: 'ko', name: 'Korean', nativeName: '한국어'),
+    LanguageItem(code: 'hi', name: 'Hindi', nativeName: 'हिन्दी'),
+    LanguageItem(code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ'),
   ];
 
   static LanguageItem findByCode(String code) {

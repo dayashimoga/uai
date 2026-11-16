@@ -2281,6 +2281,57 @@
 - `Set-Location app; C:\flutter\bin\flutter.bat test`: 136 passed across 23 test suites (0 failed).
 - `python scripts/generate_sbom.py; python scripts/verify_release_checksums.py`: verified.
 
+---
+
+## [2026-11-16] — Stage 12 Subphase S12.P2.1: Fix Live Voice Interpreter & Real Multi-Language Translation
+
+### Added & Modified
+- `core/crates/aissistant-llm/src/translation.rs`:
+  - Added `Hindi` (`hi`) and `Kannada` (`kn`) to `Language` enum, bringing the total supported languages to 12.
+  - Purged static `PHRASEBOOK` hardcoded demo lookup dictionary and removed the synthetic `[ES] ...` format fallback string.
+  - Added `TranslationEngine::translate_with_llm` to perform offline neural translation through the active `LlmEngine` using `TranslationPromptTemplate`.
+  - Added explicit descriptive error `ModelNotLoadedForTranslation` when translating with no GGUF model active in RAM.
+  - Updated unit tests verifying offline neural translation across multiple languages and verifying uninitialized model error detection.
+- `core/crates/aissistant-llm/src/engine/llama_engine.rs`:
+  - Added `synthesize_offline_translation` to dynamically stream translated tokens for formatted translation prompts.
+  - Added `LocalLlmEngine::new_loaded` helper for tests and offline operations.
+- `core/crates/aissistant-orchestrator/src/interpreter.rs`:
+  - Added `LlmEngine` integration to `InterpreterSession`.
+  - Wired `submit_turn_with_speaker` to delegate translations to `translate_with_llm`.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Added `tts_engine: Arc<Mutex<AcousticTtsEngine>>` and `llm_engine: Arc<BridgeLlmEngine>` to `CoreBridge`.
+  - Wired `interpreter_start_session` and `translate_text` to active `BridgeLlmEngine`.
+  - Implemented `interpreter_replay_tts(&self, turn_id: &str)` to synthesize audio replay chunks using `AcousticTtsEngine`.
+  - Exported `bridge_interpreter_replay_tts`.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Exported `bridge_c_interpreter_replay_tts(turn_id: *const c_char) -> i32`.
+  - Added alias `bridge_c_interpreter_start_session`.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Updated `test_translation_and_interpreter_c_abi` integration test to verify active model neural translation, Hindi/Kannada translation, and TTS audio replay via C-ABI.
+- `app/lib/core/models/interpreter_models.dart`:
+  - Added `LanguageItem(code: 'hi', name: 'Hindi', nativeName: 'हिन्दी')` and `LanguageItem(code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ')`.
+- `app/lib/core/ffi_bridge.dart`:
+  - Added `replayInterpreterTurnAudio(int turnId)` to `AissistantBridge`, `NativeFfiBridge`, and `TestHarnessBridge`.
+  - Added `bridge_c_interpreter_replay_tts` C-ABI binding.
+- `app/lib/core/assistant_controller.dart`:
+  - Added `replayInterpreterTurnAudio(int turnId)` and `setInterpreterLanguages({partyALang, partyBLang})`.
+- `app/lib/ui/screens/interpreter_screen.dart` & `app/lib/screens/interpreter_screen.dart`:
+  - Fixed top turn banner clipping bug using flexible layout with `Expanded(child: Text(..., overflow: TextOverflow.ellipsis))`.
+  - Replaced static language tags with interactive dropdown selectors allowing selection across all 12 supported languages.
+  - Added audio replay button (`Icons.volume_up`, key `replay_tts_<turnId>`) to turn cards.
+  - Added prominent model warning banner when no GGUF model is loaded in RAM.
+- `app/test/interpreter_screen_test.dart`:
+  - Added automated widget tests for TTS audio replay button, dynamic 12-language dropdown selection, and model warning banner.
+
+### Verification
+- `cargo clippy --manifest-path core/Cargo.toml --workspace -- -D warnings`: 0 warnings.
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check`: 0 issues.
+- `cargo test --manifest-path core/Cargo.toml --workspace`: 344 passed across 11 crates (0 failed).
+- `Set-Location app; C:\flutter\bin\flutter.bat analyze`: 0 issues.
+- `Set-Location app; C:\flutter\bin\flutter.bat test test/interpreter_screen_test.dart`: 10 passed (0 failed).
+- `Set-Location app; C:\flutter\bin\flutter.bat test`: 139 passed across 23 test suites (0 failed).
+- `python scripts/generate_sbom.py; python scripts/verify_release_checksums.py`: verified.
+
 
 
 

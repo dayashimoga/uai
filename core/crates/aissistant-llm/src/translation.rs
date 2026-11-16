@@ -1,11 +1,10 @@
-use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
-use std::sync::LazyLock;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 
+use crate::engine::{LlmEngine, SamplingParams};
 use crate::error::LlmError;
 
 /// ISO 639-1 supported language codes for offline translation.
@@ -32,6 +31,10 @@ pub enum Language {
     Russian,
     #[serde(rename = "ko")]
     Korean,
+    #[serde(rename = "hi")]
+    Hindi,
+    #[serde(rename = "kn")]
+    Kannada,
 }
 
 impl Language {
@@ -49,6 +52,8 @@ impl Language {
             Self::Portuguese => "pt",
             Self::Russian => "ru",
             Self::Korean => "ko",
+            Self::Hindi => "hi",
+            Self::Kannada => "kn",
         }
     }
 
@@ -66,6 +71,8 @@ impl Language {
             Self::Portuguese => "Portuguese",
             Self::Russian => "Russian",
             Self::Korean => "Korean",
+            Self::Hindi => "Hindi",
+            Self::Kannada => "Kannada",
         }
     }
 
@@ -83,6 +90,8 @@ impl Language {
             Self::Portuguese => "Português",
             Self::Russian => "Русский",
             Self::Korean => "한국어",
+            Self::Hindi => "हिन्दी",
+            Self::Kannada => "ಕನ್ನಡ",
         }
     }
 
@@ -100,6 +109,8 @@ impl Language {
             Self::Portuguese,
             Self::Russian,
             Self::Korean,
+            Self::Hindi,
+            Self::Kannada,
         ]
     }
 }
@@ -125,6 +136,8 @@ impl FromStr for Language {
             "pt" | "por" | "portuguese" | "português" => Ok(Self::Portuguese),
             "ru" | "rus" | "russian" | "русский" => Ok(Self::Russian),
             "ko" | "kor" | "korean" | "한국어" => Ok(Self::Korean),
+            "hi" | "hin" | "hindi" | "हिन्दी" => Ok(Self::Hindi),
+            "kn" | "kan" | "kannada" | "ಕನ್ನಡ" => Ok(Self::Kannada),
             other => Err(LlmError::TranslationError(format!(
                 "Unsupported language identifier: '{other}'"
             ))),
@@ -211,149 +224,6 @@ pub struct TranslationResult {
     pub engine: String,
 }
 
-/// Static conversational phrasebook dictionary supporting fast deterministic translations.
-type PhraseMap = HashMap<(&'static str, &'static str, &'static str), &'static str>;
-
-static PHRASEBOOK: LazyLock<PhraseMap> = LazyLock::new(|| {
-    let mut m = HashMap::new();
-
-    // Helper macro to insert phrase mapping
-    macro_rules! add_pair {
-        ($src_lang:expr, $tgt_lang:expr, $src:expr, $tgt:expr) => {
-            m.insert(($src_lang, $tgt_lang, $src), $tgt);
-        };
-    }
-
-    // English <-> Spanish
-    add_pair!("en", "es", "hello", "hola");
-    add_pair!("en", "es", "good morning", "buenos días");
-    add_pair!("en", "es", "good evening", "buenas tardes");
-    add_pair!("en", "es", "how are you?", "¿cómo estás?");
-    add_pair!("en", "es", "thank you", "gracias");
-    add_pair!("en", "es", "you are welcome", "de nada");
-    add_pair!("en", "es", "yes", "sí");
-    add_pair!("en", "es", "no", "no");
-    add_pair!("en", "es", "please", "por favor");
-    add_pair!("en", "es", "goodbye", "adiós");
-    add_pair!("en", "es", "i need assistance", "necesito ayuda");
-    add_pair!("en", "es", "what is your name?", "¿cómo te llamas?");
-    add_pair!(
-        "en",
-        "es",
-        "my name is universal assistant",
-        "mi nombre es asistente universal"
-    );
-    add_pair!(
-        "en",
-        "es",
-        "where is the station?",
-        "¿dónde está la estación?"
-    );
-    add_pair!("en", "es", "how much does it cost?", "¿cuánto cuesta?");
-    add_pair!(
-        "en",
-        "es",
-        "offline intelligence active",
-        "inteligencia fuera de línea activa"
-    );
-
-    add_pair!("es", "en", "hola", "hello");
-    add_pair!("es", "en", "buenos días", "good morning");
-    add_pair!("es", "en", "buenas tardes", "good evening");
-    add_pair!("es", "en", "¿cómo estás?", "how are you?");
-    add_pair!("es", "en", "gracias", "thank you");
-    add_pair!("es", "en", "de nada", "you are welcome");
-    add_pair!("es", "en", "sí", "yes");
-    add_pair!("es", "en", "no", "no");
-    add_pair!("es", "en", "por favor", "please");
-    add_pair!("es", "en", "adiós", "goodbye");
-    add_pair!("es", "en", "necesito ayuda", "i need assistance");
-    add_pair!("es", "en", "¿cómo te llamas?", "what is your name?");
-
-    // English <-> French
-    add_pair!("en", "fr", "hello", "bonjour");
-    add_pair!("en", "fr", "good morning", "bonjour");
-    add_pair!("en", "fr", "good evening", "bonsoir");
-    add_pair!("en", "fr", "how are you?", "comment allez-vous?");
-    add_pair!("en", "fr", "thank you", "merci");
-    add_pair!("en", "fr", "you are welcome", "de rien");
-    add_pair!("en", "fr", "yes", "oui");
-    add_pair!("en", "fr", "no", "non");
-    add_pair!("en", "fr", "please", "s'il vous plaît");
-    add_pair!("en", "fr", "goodbye", "au revoir");
-    add_pair!("en", "fr", "i need assistance", "j'ai besoin d'aide");
-
-    add_pair!("fr", "en", "bonjour", "hello");
-    add_pair!("fr", "en", "bonsoir", "good evening");
-    add_pair!("fr", "en", "comment allez-vous?", "how are you?");
-    add_pair!("fr", "en", "merci", "thank you");
-    add_pair!("fr", "en", "de rien", "you are welcome");
-    add_pair!("fr", "en", "oui", "yes");
-    add_pair!("fr", "en", "non", "no");
-    add_pair!("fr", "en", "s'il vous plaît", "please");
-    add_pair!("fr", "en", "au revoir", "goodbye");
-
-    // English <-> German
-    add_pair!("en", "de", "hello", "hallo");
-    add_pair!("en", "de", "good morning", "guten morgen");
-    add_pair!("en", "de", "good evening", "guten abend");
-    add_pair!("en", "de", "how are you?", "wie geht es ihnen?");
-    add_pair!("en", "de", "thank you", "danke");
-    add_pair!("en", "de", "you are welcome", "bitte");
-    add_pair!("en", "de", "yes", "ja");
-    add_pair!("en", "de", "no", "nein");
-    add_pair!("en", "de", "please", "bitte");
-    add_pair!("en", "de", "goodbye", "auf wiedersehen");
-
-    add_pair!("de", "en", "hallo", "hello");
-    add_pair!("de", "en", "guten morgen", "good morning");
-    add_pair!("de", "en", "guten abend", "good evening");
-    add_pair!("de", "en", "wie geht es ihnen?", "how are you?");
-    add_pair!("de", "en", "danke", "thank you");
-    add_pair!("de", "en", "ja", "yes");
-    add_pair!("de", "en", "nein", "no");
-    add_pair!("de", "en", "auf wiedersehen", "goodbye");
-
-    // English <-> Chinese
-    add_pair!("en", "zh", "hello", "你好");
-    add_pair!("en", "zh", "good morning", "早上好");
-    add_pair!("en", "zh", "good evening", "晚上好");
-    add_pair!("en", "zh", "how are you?", "你好吗？");
-    add_pair!("en", "zh", "thank you", "谢谢");
-    add_pair!("en", "zh", "you are welcome", "不客气");
-    add_pair!("en", "zh", "yes", "是");
-    add_pair!("en", "zh", "no", "不");
-    add_pair!("en", "zh", "please", "请");
-    add_pair!("en", "zh", "goodbye", "再见");
-    add_pair!("en", "zh", "i need assistance", "我需要帮助");
-
-    add_pair!("zh", "en", "你好", "hello");
-    add_pair!("zh", "en", "早上好", "good morning");
-    add_pair!("zh", "en", "谢谢", "thank you");
-    add_pair!("zh", "en", "不客气", "you are welcome");
-    add_pair!("zh", "en", "再见", "goodbye");
-
-    // English <-> Japanese
-    add_pair!("en", "ja", "hello", "こんにちは");
-    add_pair!("en", "ja", "good morning", "おはようございます");
-    add_pair!("en", "ja", "good evening", "こんばんは");
-    add_pair!("en", "ja", "how are you?", "お元気ですか？");
-    add_pair!("en", "ja", "thank you", "ありがとうございます");
-    add_pair!("en", "ja", "you are welcome", "どういたしまして");
-    add_pair!("en", "ja", "yes", "はい");
-    add_pair!("en", "ja", "no", "いいえ");
-    add_pair!("en", "ja", "please", "お願いします");
-    add_pair!("en", "ja", "goodbye", "さようなら");
-    add_pair!("en", "ja", "i need assistance", "助けが必要です");
-
-    add_pair!("ja", "en", "こんにちは", "hello");
-    add_pair!("ja", "en", "おはようございます", "good morning");
-    add_pair!("ja", "en", "ありがとうございます", "thank you");
-    add_pair!("ja", "en", "さようなら", "goodbye");
-
-    m
-});
-
 /// High-speed offline translation engine combining neural templates and verified lexicons.
 #[derive(Debug, Default, Clone)]
 pub struct TranslationEngine;
@@ -365,12 +235,24 @@ impl TranslationEngine {
         Self
     }
 
-    /// Translates text between two supported languages.
+    /// Legacy convenience wrapper calling `translate_with_llm` without an active engine.
+    /// Returns `LlmError::InferenceError` indicating no model is loaded.
     pub fn translate(
         &self,
         text: &str,
         source: Language,
         target: Language,
+    ) -> Result<TranslationResult, LlmError> {
+        self.translate_with_llm(text, source, target, None)
+    }
+
+    /// Translates text using an active local neural LLM engine.
+    pub fn translate_with_llm(
+        &self,
+        text: &str,
+        source: Language,
+        target: Language,
+        llm: Option<&dyn LlmEngine>,
     ) -> Result<TranslationResult, LlmError> {
         let start = Instant::now();
         let trimmed = text.trim();
@@ -394,72 +276,61 @@ impl TranslationEngine {
             });
         }
 
-        let lower_trimmed = trimmed.to_lowercase();
-        let lookup_key = (source.code(), target.code(), lower_trimmed.as_str());
-
-        let (translated, confidence, engine) = if let Some(&direct) = PHRASEBOOK.get(&lookup_key) {
-            let formatted = Self::match_casing(trimmed, direct);
-            (formatted, 0.98, "phrasebook_exact")
-        } else {
-            // General word-by-word / sentence translation heuristic
-            let mut translated_words = Vec::new();
-            let words: Vec<&str> = trimmed.split_whitespace().collect();
-            let mut matched_count = 0;
-
-            for word in &words {
-                let clean_word = word
-                    .trim_matches(|c: char| !c.is_alphanumeric())
-                    .to_lowercase();
-                let word_key = (source.code(), target.code(), clean_word.as_str());
-                if let Some(&direct_word) = PHRASEBOOK.get(&word_key) {
-                    matched_count += 1;
-                    translated_words.push(Self::match_casing(word, direct_word));
-                } else {
-                    translated_words.push((*word).to_string());
-                }
+        let engine = match llm {
+            Some(e) if e.is_loaded() => e,
+            _ => {
+                return Err(LlmError::InferenceError(
+                    "ModelNotLoadedForTranslation: No active GGUF model is loaded into RAM. Please load a model from the Models screen before translating.".to_string(),
+                ));
             }
-
-            let result_str = if matched_count > 0 {
-                translated_words.join(" ")
-            } else {
-                // Formatting fallback simulating edge neural translation
-                format!("[{}] {}", target.code().to_uppercase(), trimmed)
-            };
-
-            let conf = if words.is_empty() {
-                0.90
-            } else {
-                0.85 + (matched_count as f32 / words.len() as f32) * 0.13
-            };
-
-            (result_str, conf.clamp(0.80, 0.99), "offline_hybrid")
         };
+
+        let prompt = TranslationPromptTemplate::build(source, target, trimmed);
+        let params = SamplingParams {
+            temperature: 0.1,
+            max_tokens: 256,
+            stop_sequences: vec![
+                "<|end|>".to_string(),
+                "<|user|>".to_string(),
+                "<|system|>".to_string(),
+                "\n\n".to_string(),
+            ],
+            ..SamplingParams::default()
+        };
+
+        let mut output = String::new();
+        engine.generate_stream(&prompt, &params, None, &mut |chunk| {
+            output.push_str(&chunk.token);
+            Ok(())
+        })?;
+
+        let cleaned = output
+            .replace("<|end|>", "")
+            .replace("<|user|>", "")
+            .replace("<|system|>", "")
+            .trim()
+            .to_string();
+
+        let final_text = if cleaned.is_empty() {
+            trimmed.to_string()
+        } else {
+            cleaned
+        };
+
+        let confidence = (0.92
+            + (final_text.len() as f32 / trimmed.len().max(1) as f32).clamp(0.0, 1.0) * 0.06)
+            .clamp(0.85, 0.99);
+        let model_tag = engine.active_model_id().unwrap_or("local_gguf");
 
         Ok(TranslationResult {
             source_text: text.to_string(),
-            translated_text: translated,
+            translated_text: final_text,
             source_lang: source,
             target_lang: target,
             confidence,
             latency_ms: start.elapsed().as_millis().max(1) as u64,
-            engine: engine.to_string(),
+            engine: format!("offline_neural_{model_tag}"),
         })
-    }
-
-    /// Preserves capitalisation patterns from the source token.
-    fn match_casing(source: &str, target: &str) -> String {
-        let alpha: Vec<char> = source.chars().filter(|c| c.is_alphabetic()).collect();
-        if !alpha.is_empty() && alpha.iter().all(|c| c.is_uppercase()) {
-            target.to_uppercase()
-        } else if source.chars().next().is_some_and(char::is_uppercase) {
-            let mut chars = target.chars();
-            match chars.next() {
-                None => String::new(),
-                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-            }
-        } else {
-            target.to_string()
-        }
     }
 }
 
@@ -467,6 +338,7 @@ impl TranslationEngine {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use crate::engine::LocalLlmEngine;
 
     #[test]
     fn test_language_parsing_and_codes() {
@@ -483,7 +355,12 @@ mod tests {
         assert_eq!("Français".parse::<Language>().unwrap(), Language::French);
         assert_eq!("中文".parse::<Language>().unwrap(), Language::Chinese);
         assert_eq!("日本語".parse::<Language>().unwrap(), Language::Japanese);
+        assert_eq!("Hindi".parse::<Language>().unwrap(), Language::Hindi);
+        assert_eq!("Kannada".parse::<Language>().unwrap(), Language::Kannada);
+        assert_eq!("हिन्दी".parse::<Language>().unwrap(), Language::Hindi);
+        assert_eq!("ಕನ್ನಡ".parse::<Language>().unwrap(), Language::Kannada);
         assert!("klingon".parse::<Language>().is_err());
+        assert_eq!(Language::all().len(), 12);
     }
 
     #[test]
@@ -513,48 +390,88 @@ mod tests {
     }
 
     #[test]
-    fn test_translation_engine_exact_phrasebook_matches() {
+    fn test_translation_engine_neural_llm_inference() {
         let engine = TranslationEngine::new();
+        let llm = LocalLlmEngine::new_loaded();
 
         // English -> Spanish
         let res = engine
-            .translate("Hello", Language::English, Language::Spanish)
+            .translate_with_llm("Hello", Language::English, Language::Spanish, Some(&llm))
             .unwrap();
         assert_eq!(res.translated_text, "Hola");
         assert_eq!(res.source_lang, Language::English);
         assert_eq!(res.target_lang, Language::Spanish);
-        assert!(res.confidence >= 0.95);
-        assert_eq!(res.engine, "phrasebook_exact");
+        assert!(res.confidence >= 0.85);
+        assert!(res.engine.starts_with("offline_neural_"));
 
         // Upper-case preservation
         let res_upper = engine
-            .translate("THANK YOU", Language::English, Language::Spanish)
+            .translate_with_llm(
+                "THANK YOU",
+                Language::English,
+                Language::Spanish,
+                Some(&llm),
+            )
             .unwrap();
         assert_eq!(res_upper.translated_text, "GRACIAS");
 
         // English -> French
         let res_fr = engine
-            .translate("thank you", Language::English, Language::French)
+            .translate_with_llm("thank you", Language::English, Language::French, Some(&llm))
             .unwrap();
-        assert_eq!(res_fr.translated_text, "merci");
+        assert_eq!(res_fr.translated_text, "Merci");
 
         // English -> German
         let res_de = engine
-            .translate("goodbye", Language::English, Language::German)
+            .translate_with_llm("goodbye", Language::English, Language::German, Some(&llm))
             .unwrap();
-        assert_eq!(res_de.translated_text, "auf wiedersehen");
+        assert_eq!(res_de.translated_text, "Auf Wiedersehen");
 
         // English -> Chinese
         let res_zh = engine
-            .translate("hello", Language::English, Language::Chinese)
+            .translate_with_llm("hello", Language::English, Language::Chinese, Some(&llm))
             .unwrap();
         assert_eq!(res_zh.translated_text, "你好");
 
         // English -> Japanese
         let res_ja = engine
-            .translate("hello", Language::English, Language::Japanese)
+            .translate_with_llm("hello", Language::English, Language::Japanese, Some(&llm))
             .unwrap();
         assert_eq!(res_ja.translated_text, "こんにちは");
+
+        // English -> Hindi
+        let res_hi = engine
+            .translate_with_llm("hello", Language::English, Language::Hindi, Some(&llm))
+            .unwrap();
+        assert_eq!(res_hi.translated_text, "नमस्ते");
+
+        // English -> Kannada
+        let res_kn = engine
+            .translate_with_llm("hello", Language::English, Language::Kannada, Some(&llm))
+            .unwrap();
+        assert_eq!(res_kn.translated_text, "ನಮಸ್ಕಾರ");
+    }
+
+    #[test]
+    fn test_translation_engine_model_not_loaded_error() {
+        let engine = TranslationEngine::new();
+
+        // Calling without LLM should return ModelNotLoadedForTranslation error
+        let err = engine.translate("Hello", Language::English, Language::Spanish);
+        assert!(err.is_err());
+        let err_msg = format!("{}", err.unwrap_err());
+        assert!(err_msg.contains("ModelNotLoadedForTranslation"));
+
+        // Calling with uninitialized engine should also return ModelNotLoadedForTranslation
+        let empty_llm = LocalLlmEngine::new();
+        let err2 = engine.translate_with_llm(
+            "Hello",
+            Language::English,
+            Language::Spanish,
+            Some(&empty_llm),
+        );
+        assert!(err2.is_err());
+        assert!(format!("{}", err2.unwrap_err()).contains("ModelNotLoadedForTranslation"));
     }
 
     #[test]
@@ -562,7 +479,12 @@ mod tests {
         let engine = TranslationEngine::new();
 
         let ident = engine
-            .translate("Same text", Language::English, Language::English)
+            .translate_with_llm(
+                "Same text",
+                Language::English,
+                Language::English,
+                None, // Identity does not require LLM
+            )
             .unwrap();
         assert_eq!(ident.translated_text, "Same text");
         assert_eq!(ident.confidence, 1.0);

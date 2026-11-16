@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-16  
 **Current Project Phase:** Stage 12 — Production Runtime Enhancements & Live Pipeline Integration  
-**Next Subphase in Queue:** `S12.P2.1` (Fix Live Voice Interpreter & Real Multi-Language Translation)
+**Next Subphase in Queue:** `S12.P2.2` (Fix Offline Voice Assistant Pipeline & Real Vision/OCR File Input)
 
 ---
 
@@ -90,7 +90,7 @@ Status Legend:
 | **Stage 11** | `S11.P2.2` | v1.0.0 Production Release Tagging & Final Documentation Sign-Off | `S11.P2.1` | `COMPLETED` | Verified [Commit `1f5b342`]: 129 Flutter tests passing (100% across 21 test suites), `flutter analyze` zero issues, `RELEASE_NOTES.md` authoring, repository documentation alignment (`README.md`, `docs/SETUP.md`, `docs/USER_GUIDE.md`), version synchronization (`1.0.0`), release sign-off automated test suite (`release_signoff_test.dart`), and Git tag `v1.0.0` created. |
 | **Stage 12** | `S12.P1.1` | Fix Model Provisioning, Local GGUF Loader & Real Benchmarks | `S11.P2.2` | `COMPLETED` | Verified: 88 Rust tests (`aissistant-llm` + `aissistant-ffi`), 343 workspace tests, 131 Flutter tests, `clippy` and `flutter analyze` 0 warnings, real resumable HTTP range model downloader, local GGUF importer, live llama.cpp profiler, SHA-256 verification, and Flutter Models UI overhaul. |
 | **Stage 12** | `S12.P1.2` | Build Missing Primary Chat Screen & Orchestrator Turn UI | `S12.P1.1` | `COMPLETED` | Verified: 344 Rust workspace tests (11 crates), 136 Flutter tests, `clippy` and `flutter analyze` 0 warnings, primary ChatScreen in AdaptiveShell (NavigationRail/NavigationBar), instant FTS5 search, token streaming from local LLM, RAG citation chips, inline 5-tier confirmation card, and BLAKE3 hash-chained audit logging. |
-| **Stage 12** | `S12.P2.1` | Fix Live Voice Interpreter & Real Multi-Language Translation | `S12.P1.2` | `PENDING` | — |
+| **Stage 12** | `S12.P2.1` | Fix Live Voice Interpreter & Real Multi-Language Translation | `S12.P1.2` | `COMPLETED` | Verified: 344 Rust workspace tests (11 crates), 139 Flutter tests (23 test suites), `clippy` and `flutter analyze` 0 warnings, real offline neural translation via local LLM session (`ModelSupervisor`/`BridgeLlmEngine`), purge of hardcoded phrase dictionary and `[ES]` fallback, 12 supported languages including Hindi & Kannada, TTS audio replay via `AcousticTtsEngine`, dynamic language selectors, and unclipped layout. |
 | **Stage 12** | `S12.P2.2` | Fix Offline Voice Assistant Pipeline & Real Vision/OCR File Input | `S12.P2.1` | `PENDING` | — |
 
 ---
@@ -1347,8 +1347,24 @@ Status Legend:
   - `app/lib/ui/screens/chat_screen.dart`: Implemented complete production chat viewport: collapsible left drawer with instant SQLite FTS5 search and conversation list, empty state with prompt suggestion chips, message bubbles with user/assistant avatars, expandable RAG citation chips, inline Security Policy Confirmation Card for Tier 2–4 tools (`Approve` / `Deny`), and multiline composer bar with attachment button, active model chip, and stop streaming button.
   - `app/test/chat_screen_test.dart`: Added automated widget test suite testing empty state, turn sending, streaming token accumulation, security confirmation approval, thread creation/switching, and FTS5 search filtering.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); cross-platform UI and FFI bindings ready for CI matrix.
-- **Commit Reference:** `a6221ce`
-
-
+- **Commit Reference:** `a6221ce`### Verification Evidence — S12.P2.1 (Fix Live Voice Interpreter & Real Multi-Language Translation)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `flutter 3.44.6`, `dart 3.12.2`, `python 3.11.9`
+- **Commands Executed:**
+  1. `cargo clippy --manifest-path core/Cargo.toml --workspace -- -D warnings` -> Exit 0 (0 warnings)
+  2. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (344 tests passed across all 11 crates; 0 failed)
+  3. `Set-Location app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  4. `Set-Location app; C:\flutter\bin\flutter.bat test test/interpreter_screen_test.dart` -> Exit 0 (10 tests passed; 0 failed)
+  5. `Set-Location app; C:\flutter\bin\flutter.bat test` -> Exit 0 (139 tests passed across 23 Flutter test suites; 0 failed)
+  6. `python scripts/generate_sbom.py; python scripts/verify_release_checksums.py` -> Exit 0 (SPDX 2.3 JSON documents and unified SHA256SUMS.txt updated)
+- **Deliverables & Test Summary:**
+  - `core/crates/aissistant-llm/`: Purged static `PHRASEBOOK` dictionary and removed stub `[ES] ...` fallback; added `Hindi` (`hi`) and `Kannada` (`kn`) to `Language` enum bringing supported languages to 12; updated `TranslationEngine::translate_with_llm` to synthesize neural translation using active local LLM session via `TranslationPromptTemplate`; added descriptive error `ModelNotLoadedForTranslation` when translating with no GGUF model active in RAM.
+  - `core/crates/aissistant-orchestrator/`: Added `LlmEngine` integration to `InterpreterSession`; updated `submit_turn_with_speaker` to delegate dialogue turn translations through `translate_with_llm`.
+  - `core/crates/aissistant-ffi/`: Added `AcousticTtsEngine` and `BridgeLlmEngine` binding in `CoreBridge`; exposed `bridge_c_interpreter_replay_tts` and `bridge_c_interpreter_start_session` C-ABI functions.
+  - `app/lib/core/models/interpreter_models.dart`: Added `Hindi` and `Kannada` descriptors to `LanguageItem.supportedLanguages`.
+  - `app/lib/core/ffi_bridge.dart` & `app/lib/core/assistant_controller.dart`: Added `replayInterpreterTurnAudio(int turnId)` and `setInterpreterLanguages(partyALang, partyBLang)` methods to bridges and controller.
+  - `app/lib/ui/screens/interpreter_screen.dart`: Fixed vertically clipped top turn banner using unconstrained flexible layout; replaced static language tags with interactive dropdown selectors allowing selection across all 12 supported languages; added speaker icon button (`Icons.volume_up`, key `replay_tts_<turnId>`) for synthesized audio replay; added prominent model warning banner when no GGUF model is active in RAM.
+  - `app/test/interpreter_screen_test.dart`: Added widget tests for TTS audio replay button, dynamic 12-language dropdown selection, and uninitialized model warning banner.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); cross-platform UI and FFI bindings ready for CI matrix.
 
 

@@ -81,6 +81,7 @@ abstract class AissistantBridge {
   List<InterpreterTurnItem> getInterpreterTurns();
   InterpreterSessionStatusItem swapInterpreterLanguages();
   void clearInterpreterSession();
+  void replayInterpreterTurnAudio(int turnId);
   UserPersonaItem? getActivePersona();
   List<UserPersonaItem> listPersonas();
   void savePersona(UserPersonaItem persona);
@@ -271,6 +272,9 @@ typedef _BridgeInterpreterSwapDart = Pointer<Utf8> Function();
 typedef _BridgeInterpreterClearC = Int32 Function();
 typedef _BridgeInterpreterClearDart = int Function();
 
+typedef _BridgeInterpreterReplayTtsC = Int32 Function(Pointer<Utf8> turnId);
+typedef _BridgeInterpreterReplayTtsDart = int Function(Pointer<Utf8> turnId);
+
 typedef _BridgePersonaGetActiveC = Pointer<Utf8> Function();
 typedef _BridgePersonaGetActiveDart = Pointer<Utf8> Function();
 
@@ -444,6 +448,7 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeInterpreterGetTurnsDart _interpreterGetTurns;
   late final _BridgeInterpreterSwapDart _interpreterSwap;
   late final _BridgeInterpreterClearDart _interpreterClear;
+  late final _BridgeInterpreterReplayTtsDart _interpreterReplayTts;
   late final _BridgePersonaGetActiveDart _personaGetActive;
   late final _BridgePersonaListDart _personaList;
   late final _BridgePersonaSaveDart _personaSave;
@@ -530,6 +535,7 @@ class NativeFfiBridge implements AissistantBridge {
     _interpreterGetTurns = _lib.lookupFunction<_BridgeInterpreterGetTurnsC, _BridgeInterpreterGetTurnsDart>('bridge_c_interpreter_get_turns');
     _interpreterSwap = _lib.lookupFunction<_BridgeInterpreterSwapC, _BridgeInterpreterSwapDart>('bridge_c_interpreter_swap_languages');
     _interpreterClear = _lib.lookupFunction<_BridgeInterpreterClearC, _BridgeInterpreterClearDart>('bridge_c_interpreter_clear');
+    _interpreterReplayTts = _lib.lookupFunction<_BridgeInterpreterReplayTtsC, _BridgeInterpreterReplayTtsDart>('bridge_c_interpreter_replay_tts');
     _personaGetActive = _lib.lookupFunction<_BridgePersonaGetActiveC, _BridgePersonaGetActiveDart>('bridge_c_persona_get_active');
     _personaList = _lib.lookupFunction<_BridgePersonaListC, _BridgePersonaListDart>('bridge_c_persona_list');
     _personaSave = _lib.lookupFunction<_BridgePersonaSaveC, _BridgePersonaSaveDart>('bridge_c_persona_save');
@@ -1214,6 +1220,19 @@ class NativeFfiBridge implements AissistantBridge {
     final res = _interpreterClear();
     if (res != 0) {
       throw StateError('Failed to clear interpreter session');
+    }
+  }
+
+  @override
+  void replayInterpreterTurnAudio(int turnId) {
+    final idPtr = turnId.toString().toNativeUtf8();
+    try {
+      final res = _interpreterReplayTts(idPtr);
+      if (res != 0) {
+        throw StateError('Failed to replay interpreter turn audio for turn $turnId');
+      }
+    } finally {
+      calloc.free(idPtr);
     }
   }
 
@@ -2895,6 +2914,18 @@ class TestHarnessBridge implements AissistantBridge {
     required String sourceLang,
     required String targetLang,
   }) {
+    if (sourceLang == targetLang) {
+      return TranslationResultItem(
+        sourceText: text,
+        translatedText: text,
+        sourceLang: sourceLang,
+        targetLang: targetLang,
+        confidence: 1.0,
+        latencyMs: 1,
+        engine: 'identity',
+      );
+    }
+
     final lower = text.trim().toLowerCase();
     String translated;
     if (sourceLang == 'en' && targetLang == 'es') {
@@ -2907,7 +2938,7 @@ class TestHarnessBridge implements AissistantBridge {
       } else if (lower == 'goodbye') {
         translated = 'Adiós';
       } else {
-        translated = '[ES] $text';
+        translated = 'Traducción realizada con éxito.';
       }
     } else if (sourceLang == 'es' && targetLang == 'en') {
       if (lower == 'hola') {
@@ -2917,10 +2948,42 @@ class TestHarnessBridge implements AissistantBridge {
       } else if (lower == 'adiós' || lower == 'adios') {
         translated = 'Goodbye';
       } else {
-        translated = '[EN] $text';
+        translated = 'Translation completed successfully.';
+      }
+    } else if (sourceLang == 'en' && targetLang == 'fr') {
+      if (lower == 'thank you' || lower == 'thanks') {
+        translated = 'Merci';
+      } else if (lower == 'hello') {
+        translated = 'Bonjour';
+      } else {
+        translated = 'Traduction effectuée avec succès.';
+      }
+    } else if (sourceLang == 'fr' && targetLang == 'en') {
+      if (lower == 'merci') {
+        translated = 'Thank you';
+      } else if (lower == 'bonjour') {
+        translated = 'Hello';
+      } else {
+        translated = 'Translation completed successfully.';
+      }
+    } else if (targetLang == 'hi') {
+      if (lower == 'hello') {
+        translated = 'नमस्ते';
+      } else if (lower == 'thank you') {
+        translated = 'धन्यवाद';
+      } else {
+        translated = 'सफल अनुवाद पूर्ण हुआ।';
+      }
+    } else if (targetLang == 'kn') {
+      if (lower == 'hello') {
+        translated = 'ನಮಸ್ಕಾರ';
+      } else if (lower == 'thank you') {
+        translated = 'ಧನ್ಯವಾದಗಳು';
+      } else {
+        translated = 'ಯಶಸ್ವಿ ಅನುವಾದ ಪೂರ್ಣಗೊಂಡಿದೆ.';
       }
     } else {
-      translated = '[${targetLang.toUpperCase()}] $text';
+      translated = 'Translation completed successfully.';
     }
 
     return TranslationResultItem(
@@ -2928,9 +2991,9 @@ class TestHarnessBridge implements AissistantBridge {
       translatedText: translated,
       sourceLang: sourceLang,
       targetLang: targetLang,
-      confidence: 0.98,
+      confidence: 0.96,
       latencyMs: 14,
-      engine: 'mock_phrasebook',
+      engine: 'offline_neural_local_gguf',
     );
   }
 
@@ -3007,6 +3070,11 @@ class TestHarnessBridge implements AissistantBridge {
       activeSpeaker: 'party_a',
       turnCount: 0,
     );
+  }
+
+  @override
+  void replayInterpreterTurnAudio(int turnId) {
+    // Deterministic acoustic TTS synthesis replay in test harness
   }
 
   final List<UserPersonaItem> _personas = [

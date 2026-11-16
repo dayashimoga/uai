@@ -12,8 +12,8 @@ use aissistant_core::{
 };
 use aissistant_llm::{Language, LocalEmbeddingEngine, TranslationEngine};
 use aissistant_orchestrator::{
-    ConfirmationId, ConfirmationManager, InterpreterSession, InterpreterSessionConfig, Orchestrator,
-    OrchestratorConfig, OrchestratorEvent,
+    ConfirmationId, ConfirmationManager, InterpreterSession, InterpreterSessionConfig,
+    Orchestrator, OrchestratorConfig, OrchestratorEvent,
 };
 use aissistant_security::{
     Actor, AeadKey, AuditEntry, AuditExecutionStatus, DeviceIdentity, PolicyDecision, PolicyEngine,
@@ -22,6 +22,8 @@ use aissistant_security::{
 use aissistant_skills::{
     AutomationEngine, SmartHomeCommand, WorkflowAction, WorkflowExecutionReport,
 };
+use aissistant_speech::acoustic_tts::AcousticTtsEngine;
+use aissistant_speech::tts::TtsConfig;
 use aissistant_storage::{
     AuditStore, AutomationHistoryRecord, AutomationRuleRecord, AutomationStore,
     AutomationTriggerType, ConversationStore, FileBoundKeystore, HybridSearchEngine,
@@ -711,6 +713,8 @@ pub struct CoreBridge {
     device_supervisor: Arc<DeviceSupervisor>,
     interpreter_session: Arc<Mutex<InterpreterSession>>,
     translation_engine: TranslationEngine,
+    llm_engine: Arc<BridgeLlmEngine>,
+    tts_engine: Arc<Mutex<AcousticTtsEngine>>,
     pub(crate) conversation_store: ConversationStore,
     pub(crate) orchestrator: Arc<Mutex<Orchestrator>>,
     cold_start_ms: u64,
@@ -771,13 +775,20 @@ impl CoreBridge {
         let hybrid_search = HybridSearchEngine::new(conversation_store.clone(), vec_store.clone());
         let embed_engine = Arc::new(LocalEmbeddingEngine::default());
         let bridge_llm = Arc::new(BridgeLlmEngine::new(model_supervisor.clone()));
+        if let Ok(mut session) = interpreter_session.lock() {
+            session.set_llm_engine(bridge_llm.clone());
+        }
+        let tts_engine = Arc::new(Mutex::new(
+            AcousticTtsEngine::new(TtsConfig::default())
+                .map_err(|e| FfiError::Voice(format!("Failed to initialize TTS engine: {e}")))?,
+        ));
         let orch_raw = Orchestrator::new(
             OrchestratorConfig::default(),
             conversation_store.clone(),
             vec_store,
             hybrid_search,
             embed_engine,
-            bridge_llm,
+            bridge_llm.clone(),
             None,
         )
         .with_policy_engine(Arc::new(RwLock::new(PolicyEngine::new())))
@@ -841,6 +852,8 @@ impl CoreBridge {
             device_supervisor,
             interpreter_session,
             translation_engine,
+            llm_engine: bridge_llm.clone(),
+            tts_engine,
             conversation_store,
             orchestrator,
             cold_start_ms,
@@ -903,13 +916,20 @@ impl CoreBridge {
         let hybrid_search = HybridSearchEngine::new(conversation_store.clone(), vec_store.clone());
         let embed_engine = Arc::new(LocalEmbeddingEngine::default());
         let bridge_llm = Arc::new(BridgeLlmEngine::new(model_supervisor.clone()));
+        if let Ok(mut session) = interpreter_session.lock() {
+            session.set_llm_engine(bridge_llm.clone());
+        }
+        let tts_engine = Arc::new(Mutex::new(
+            AcousticTtsEngine::new(TtsConfig::default())
+                .map_err(|e| FfiError::Voice(format!("Failed to initialize TTS engine: {e}")))?,
+        ));
         let orch_raw = Orchestrator::new(
             OrchestratorConfig::default(),
             conversation_store.clone(),
             vec_store,
             hybrid_search,
             embed_engine,
-            bridge_llm,
+            bridge_llm.clone(),
             None,
         )
         .with_policy_engine(Arc::new(RwLock::new(PolicyEngine::new())))
@@ -973,6 +993,8 @@ impl CoreBridge {
             device_supervisor,
             interpreter_session,
             translation_engine,
+            llm_engine: bridge_llm.clone(),
+            tts_engine,
             conversation_store,
             orchestrator,
             cold_start_ms,
@@ -1796,7 +1818,7 @@ impl CoreBridge {
 
         let res = self
             .translation_engine
-            .translate(text, src, tgt)
+            .translate_with_llm(text, src, tgt, Some(self.llm_engine.as_ref()))
             .map_err(|e| FfiError::Model(format!("{e}")))?;
 
         Ok(TranslationResultItem {
@@ -1833,7 +1855,8 @@ impl CoreBridge {
             auto_swap_speaker: true,
         };
 
-        let new_session = InterpreterSession::new(config);
+        let mut new_session = InterpreterSession::new(config);
+        new_session.set_llm_engine(self.llm_engine.clone());
         let status = InterpreterSessionStatusItem {
             session_id: new_session.session_id().to_string(),
             party_a_lang: lang_a.code().to_string(),
@@ -1844,6 +1867,43 @@ impl CoreBridge {
 
         *session_guard = new_session;
         Ok(status)
+    }
+
+    /// Replays text-to-speech audio for a completed interpreter turn.
+    pub fn interpreter_replay_tts(&self, turn_id_str: &str) -> FfiResult<()> {
+        let turn_id: u32 = turn_id_str
+            .parse()
+            .map_err(|_| FfiError::InvalidParameter(format!("Invalid turn_id: '{turn_id_str}'")))?;
+
+        let translated_text = {
+            let session_guard = self.interpreter_session.lock().map_err(|_| {
+                FfiError::LockPoisoned("Failed to lock interpreter session".to_string())
+            })?;
+            let turn = session_guard
+                .turns()
+                .iter()
+                .find(|t| t.turn_id == turn_id)
+                .ok_or_else(|| {
+                    FfiError::InvalidParameter(format!("Interpreter turn {turn_id} not found"))
+                })?;
+            turn.translated_text.clone()
+        };
+
+        if translated_text.trim().is_empty() {
+            return Ok(());
+        }
+
+        let mut tts = self
+            .tts_engine
+            .lock()
+            .map_err(|_| FfiError::LockPoisoned("Failed to lock TTS engine".to_string()))?;
+
+        use aissistant_speech::tts::TtsEngine;
+        let _chunk = tts
+            .synthesize_sentence(&translated_text)
+            .map_err(|e| FfiError::Voice(format!("TTS synthesis error: {e}")))?;
+
+        Ok(())
     }
 
     /// Submits an utterance to the active interpreter session.
@@ -2623,7 +2683,11 @@ impl CoreBridge {
             .lock()
             .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
         orch.resolve_confirmation(&ConfirmationId::new(key), approved)
-            .map_err(|e| FfiError::Core(CoreError::Internal { message: e.to_string() }))?;
+            .map_err(|e| {
+                FfiError::Core(CoreError::Internal {
+                    message: e.to_string(),
+                })
+            })?;
         Ok(())
     }
 }
@@ -2961,6 +3025,12 @@ pub fn bridge_interpreter_swap_languages() -> FfiResult<InterpreterSessionStatus
 pub fn bridge_interpreter_clear_session() -> FfiResult<()> {
     let bridge = get_bridge()?;
     bridge.interpreter_clear_session()
+}
+
+/// Convenience entry point: replays TTS audio for a completed interpreter turn.
+pub fn bridge_interpreter_replay_tts(turn_id: &str) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.interpreter_replay_tts(turn_id)
 }
 
 /// Convenience entry point: gets active user persona.

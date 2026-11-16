@@ -23,7 +23,7 @@ use crate::api::{
     bridge_get_lifecycle_state, bridge_get_performance_snapshot, bridge_get_preference,
     bridge_get_setting, bridge_home_entity_control, bridge_home_entity_delete,
     bridge_home_entity_get, bridge_home_entity_list, bridge_home_entity_upsert,
-    bridge_interpreter_clear_session, bridge_interpreter_get_turns,
+    bridge_interpreter_clear_session, bridge_interpreter_get_turns, bridge_interpreter_replay_tts,
     bridge_interpreter_start_session, bridge_interpreter_submit_turn,
     bridge_interpreter_swap_languages, bridge_is_lockdown_active, bridge_knowledge_delete_document,
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
@@ -926,11 +926,41 @@ pub extern "C" fn bridge_c_interpreter_swap_languages() -> *mut c_char {
     }))
 }
 
+/// Starts or reconfigures a live voice interpreter session (alias for bridge_c_interpreter_start).
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `party_a_lang` and `party_b_lang` must point to valid null-terminated UTF-8 C strings.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_interpreter_start_session(
+    party_a_lang: *const c_char,
+    party_b_lang: *const c_char,
+) -> *mut c_char {
+    bridge_c_interpreter_start(party_a_lang, party_b_lang)
+}
+
 /// Clears active interpreter session history.
 /// Returns 0 on success, negative on error.
 #[no_mangle]
 pub extern "C" fn bridge_c_interpreter_clear() -> i32 {
     let result = catch_unwind(AssertUnwindSafe(bridge_interpreter_clear_session));
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Replays text-to-speech audio for a completed interpreter turn.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `turn_id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_interpreter_replay_tts(turn_id: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let t_id = unsafe { c_char_to_str(turn_id) }?;
+        bridge_interpreter_replay_tts(t_id)
+    }));
     match result {
         Ok(Ok(())) => 0,
         _ => -1,
@@ -1539,9 +1569,9 @@ pub unsafe extern "C" fn bridge_c_chat_get_turns(conversation_id: *const c_char)
     }));
     match result {
         Ok(res) => serialize_to_c_json(res),
-        Err(_) => serialize_to_c_json::<()>(Err(FfiError::PanicCaught(
-            "Panic in chat_get_turns".into(),
-        ))),
+        Err(_) => {
+            serialize_to_c_json::<()>(Err(FfiError::PanicCaught("Panic in chat_get_turns".into())))
+        }
     }
 }
 

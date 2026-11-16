@@ -282,9 +282,7 @@ pub fn register_custom_gguf<P: AsRef<std::path::Path>>(path: P) -> Result<ModelD
         )));
     }
 
-    let file_size_bytes = std::fs::metadata(path)
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let file_size_bytes = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
 
     let (model_name, context_len) = match GgufInspector::inspect_file(path) {
         Ok(m) => (m.model_name, m.context_length.unwrap_or(4096) as usize),

@@ -178,4 +178,70 @@ void main() {
     expect(find.text('Live Voice Interpreter'), findsOneWidget);
     expect(find.byKey(const Key('interpreter_input_field')), findsOneWidget);
   });
+
+  testWidgets('replays TTS audio via speaker button on turn card', (tester) async {
+    tester.view.physicalSize = const Size(1024, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(buildTestableWidget());
+    await tester.pumpAndSettle();
+
+    // Submit a turn
+    await tester.enterText(find.byKey(const Key('interpreter_input_field')), 'Hello');
+    await tester.tap(find.byKey(const Key('interpreter_submit_button')));
+    await tester.pumpAndSettle();
+
+    // Verify replay button exists and tap it
+    expect(find.byKey(const Key('replay_tts_1')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('replay_tts_1')));
+    await tester.pumpAndSettle();
+
+    expect(controller.interpreterError, isNull);
+  });
+
+  testWidgets('selects dynamic language from 12-language dropdown', (tester) async {
+    tester.view.physicalSize = const Size(1024, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(buildTestableWidget());
+    await tester.pumpAndSettle();
+
+    // Verify party A and party B language selectors exist
+    expect(find.byKey(const Key('party_a_language_selector')), findsOneWidget);
+    expect(find.byKey(const Key('party_b_language_selector')), findsOneWidget);
+
+    // Change Party B language to Hindi ('hi')
+    await tester.tap(find.byKey(const Key('party_b_language_selector')));
+    await tester.pumpAndSettle();
+
+    // Select Hindi from dropdown
+    expect(find.text('हिन्दी'), findsWidgets);
+    await tester.tap(find.text('हिन्दी').last);
+    await tester.pumpAndSettle();
+
+    expect(controller.interpreterStatus?.partyBLang, 'hi');
+    expect(find.text("Party A's Turn (English -> Hindi)"), findsOneWidget);
+  });
+
+  testWidgets('displays active model warning banner when no model is loaded',
+      (tester) async {
+    tester.view.physicalSize = const Size(1024, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    // Unload active model in controller
+    controller.unloadModel();
+
+    await tester.pumpWidget(buildTestableWidget());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'No GGUF model active in RAM. For live neural translation, ensure a model is loaded from the Models screen.',
+      ),
+      findsOneWidget,
+    );
+  });
 }

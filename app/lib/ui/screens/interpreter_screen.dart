@@ -92,6 +92,10 @@ class _InterpreterScreenState extends State<InterpreterScreen> {
                   padding: const EdgeInsets.all(16.0),
                   children: <Widget>[
                     _buildHeaderCard(theme),
+                    if (widget.controller.activeModel == null) ...<Widget>[
+                      const SizedBox(height: 12),
+                      _buildModelWarningCard(theme),
+                    ],
                     const SizedBox(height: 16),
                     _buildLanguageConfigCard(theme, langA, langB, isPartyAActive),
                     if (isProcessing) ...<Widget>[
@@ -184,6 +188,30 @@ class _InterpreterScreenState extends State<InterpreterScreen> {
     );
   }
 
+  Widget _buildModelWarningCard(ThemeData theme) {
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.tertiaryContainer.withAlpha(120),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Row(
+          children: <Widget>[
+            Icon(Icons.info_outline, color: theme.colorScheme.onTertiaryContainer),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'No GGUF model active in RAM. For live neural translation, ensure a model is loaded from the Models screen.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onTertiaryContainer,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildLanguageConfigCard(
     ThemeData theme,
     LanguageItem langA,
@@ -204,13 +232,18 @@ class _InterpreterScreenState extends State<InterpreterScreen> {
                     title: 'Party A',
                     lang: langA,
                     isActive: isPartyAActive,
+                    isPartyA: true,
+                    otherLang: langB,
                   ),
                 ),
-                IconButton.filledTonal(
-                  key: const Key('interpreter_swap_button'),
-                  tooltip: 'Swap Languages',
-                  icon: const Icon(Icons.swap_horiz),
-                  onPressed: widget.controller.swapInterpreterLanguages,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: IconButton.filledTonal(
+                    key: const Key('interpreter_swap_button'),
+                    tooltip: 'Swap Languages',
+                    icon: const Icon(Icons.swap_horiz),
+                    onPressed: widget.controller.swapInterpreterLanguages,
+                  ),
                 ),
                 Expanded(
                   child: _buildParticipantTag(
@@ -218,13 +251,15 @@ class _InterpreterScreenState extends State<InterpreterScreen> {
                     title: 'Party B',
                     lang: langB,
                     isActive: !isPartyAActive,
+                    isPartyA: false,
+                    otherLang: langA,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: isPartyAActive
                     ? theme.colorScheme.primaryContainer.withAlpha(80)
@@ -241,12 +276,15 @@ class _InterpreterScreenState extends State<InterpreterScreen> {
                         : theme.colorScheme.secondary,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    isPartyAActive
-                        ? "Party A's Turn (${langA.name} -> ${langB.name})"
-                        : "Party B's Turn (${langB.name} -> ${langA.name})",
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      isPartyAActive
+                          ? "Party A's Turn (${langA.name} -> ${langB.name})"
+                          : "Party B's Turn (${langB.name} -> ${langA.name})",
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -263,9 +301,15 @@ class _InterpreterScreenState extends State<InterpreterScreen> {
     required String title,
     required LanguageItem lang,
     required bool isActive,
+    required bool isPartyA,
+    required LanguageItem otherLang,
   }) {
+    final selectorKey = isPartyA
+        ? const Key('party_a_language_selector')
+        : const Key('party_b_language_selector');
+
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: isActive
             ? theme.colorScheme.primaryContainer.withAlpha(120)
@@ -277,25 +321,86 @@ class _InterpreterScreenState extends State<InterpreterScreen> {
         ),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           Text(
             title,
             style: theme.textTheme.labelSmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            lang.nativeName,
-            style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
-            textAlign: TextAlign.center,
           ),
-          Text(
-            lang.name,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.outline,
+          const SizedBox(height: 2),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              key: selectorKey,
+              isExpanded: true,
+              value: lang.code,
+              icon: const Icon(Icons.arrow_drop_down, size: 18),
+              selectedItemBuilder: (context) {
+                return LanguageItem.supportedLanguages.map((l) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          l.nativeName,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          l.name,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                            fontSize: 11,
+                          ),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList();
+              },
+              items: LanguageItem.supportedLanguages.map((l) {
+                return DropdownMenuItem<String>(
+                  value: l.code,
+                  child: Row(
+                    children: [
+                      Text(
+                        l.nativeName,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '(${l.name})',
+                        style: TextStyle(
+                          color: theme.colorScheme.outline,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: (newCode) {
+                if (newCode != null && newCode != lang.code) {
+                  if (isPartyA) {
+                    widget.controller.setInterpreterLanguages(
+                      partyALang: newCode,
+                      partyBLang: otherLang.code,
+                    );
+                  } else {
+                    widget.controller.setInterpreterLanguages(
+                      partyALang: otherLang.code,
+                      partyBLang: newCode,
+                    );
+                  }
+                }
+              },
             ),
           ),
         ],
@@ -408,6 +513,12 @@ class _InterpreterScreenState extends State<InterpreterScreen> {
                       color: theme.colorScheme.primary,
                     ),
                   ),
+                ),
+                IconButton(
+                  key: Key('replay_tts_${turn.turnId}'),
+                  icon: const Icon(Icons.volume_up, size: 20),
+                  tooltip: 'Replay audio',
+                  onPressed: () => widget.controller.replayInterpreterTurnAudio(turn.turnId),
                 ),
                 IconButton(
                   key: Key('copy_turn_${turn.turnId}'),

@@ -2,9 +2,10 @@
 
 use std::fmt;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use aissistant_llm::{Language, TranslationEngine};
+use aissistant_llm::{Language, LlmEngine, LocalLlmEngine, TranslationEngine};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -103,13 +104,26 @@ impl Default for InterpreterSessionConfig {
 }
 
 /// Stateful bi-directional interpreter conversation manager.
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct InterpreterSession {
     session_id: String,
     config: InterpreterSessionConfig,
     active_speaker: InterpreterSpeaker,
     turns: Vec<InterpreterTurn>,
     engine: TranslationEngine,
+    llm: Option<Arc<dyn LlmEngine>>,
+}
+
+impl std::fmt::Debug for InterpreterSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InterpreterSession")
+            .field("session_id", &self.session_id)
+            .field("config", &self.config)
+            .field("active_speaker", &self.active_speaker)
+            .field("turns_count", &self.turns.len())
+            .field("has_llm", &self.llm.is_some())
+            .finish()
+    }
 }
 
 impl InterpreterSession {
@@ -122,7 +136,13 @@ impl InterpreterSession {
             active_speaker: InterpreterSpeaker::PartyA,
             turns: Vec::new(),
             engine: TranslationEngine::new(),
+            llm: Some(Arc::new(LocalLlmEngine::new_loaded())),
         }
+    }
+
+    /// Sets the active local LLM engine for neural translation.
+    pub fn set_llm_engine(&mut self, llm: Arc<dyn LlmEngine>) {
+        self.llm = Some(llm);
     }
 
     /// Unique session identifier.
@@ -178,7 +198,7 @@ impl InterpreterSession {
 
         let translation = self
             .engine
-            .translate(text, source_lang, target_lang)
+            .translate_with_llm(text, source_lang, target_lang, self.llm.as_deref())
             .map_err(OrchestratorError::Llm)?;
 
         let now_ms = SystemTime::now()
