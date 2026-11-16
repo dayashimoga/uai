@@ -25,8 +25,10 @@ pub use hardware::{
     HardwareRecommendation, MemoryProfile, ModelTier, SystemHardwareProfiler,
 };
 pub use models::{
-    DownloadProgress, DownloadStatus, GgufInspector, GgufMetadata, GgufType, LocalModelDownloader,
-    ModelCatalog, ModelDescriptor, ModelDownloader, QuantizationType, Sha256Verifier, GGUF_MAGIC,
+    query_model_lifecycle, register_custom_gguf, DownloadProgress, DownloadStatus, GgufInspector,
+    GgufMetadata, GgufType, LocalModelDownloader, ModelCatalog, ModelDescriptor,
+    ModelDownloadManager, ModelDownloader, ModelLifecycleState, QuantizationType, Sha256Verifier,
+    GGUF_MAGIC,
 };
 pub use ocr::{OcrBoundingBox, OcrDocument, OcrTextLine, OcrWord, OfflineOcrEngine};
 pub use translation::{
@@ -864,5 +866,65 @@ mod tests {
         // Malformed JSON
         let malformed = "not valid json";
         assert!(ToolCallValidator::parse_and_validate(malformed, &tools).is_err());
+    }
+
+    #[test]
+    fn test_register_custom_gguf_and_catalog() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), b"GGUF_CUSTOM_BYTES_HEADER").unwrap();
+
+        let desc = register_custom_gguf(tmp.path()).unwrap();
+        assert!(desc.id.starts_with("custom-"));
+        assert_eq!(desc.license, "Custom Local");
+        assert_eq!(desc.file_size_bytes, 24);
+
+        let all = ModelCatalog::all_models();
+        assert!(all.iter().any(|m| m.id == desc.id));
+
+        ModelCatalog::remove_custom_model(&desc.id);
+        let all_after = ModelCatalog::all_models();
+        assert!(!all_after.iter().any(|m| m.id == desc.id));
+    }
+
+    #[test]
+    fn test_query_model_lifecycle_states() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let models = ModelCatalog::curated_models();
+        let model = &models[0];
+
+        // 1. NotDownloaded
+        let state1 = query_model_lifecycle(temp_dir.path(), model, false, false);
+        assert!(matches!(state1, ModelLifecycleState::NotDownloaded { .. }));
+
+        // 2. Active in memory
+        let state_active = query_model_lifecycle(temp_dir.path(), model, true, false);
+        assert!(matches!(
+            state_active,
+            ModelLifecycleState::LoadedActive { .. }
+        ));
+
+        // 3. Downloading (.part file exists)
+        let part_file = temp_dir.path().join(format!("{}.gguf.part", model.id));
+        std::fs::write(&part_file, b"partial").unwrap();
+        let state_dl = query_model_lifecycle(temp_dir.path(), model, false, true);
+        assert!(matches!(state_dl, ModelLifecycleState::Downloading { .. }));
+
+        // 4. Downloaded on disk (.gguf exists)
+        let final_file = temp_dir.path().join(format!("{}.gguf", model.id));
+        std::fs::write(&final_file, b"completed").unwrap();
+        let state_disk = query_model_lifecycle(temp_dir.path(), model, false, false);
+        assert!(matches!(
+            state_disk,
+            ModelLifecycleState::DownloadedOnDisk { .. }
+        ));
+    }
+
+    #[test]
+    fn test_model_download_manager_cancellation_and_state() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let dm = ModelDownloadManager::new(temp_dir.path());
+        assert_eq!(dm.models_dir(), temp_dir.path());
+        assert!(!dm.is_downloading("test-model"));
+        assert!(!dm.cancel_download("test-model"));
     }
 }

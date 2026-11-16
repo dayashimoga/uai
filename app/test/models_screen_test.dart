@@ -111,6 +111,18 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Live Inference Benchmark'), findsOneWidget);
+      // Empty banner is shown when no model loaded
+      expect(
+        find.textContaining('No Active Model Loaded — Download or Load a model below to run benchmarks'),
+        findsOneWidget,
+      );
+
+      // Load model first
+      final loadBtn = find.byKey(const Key('load_button_qwen2.5-0.5b-instruct-q4_k_m'));
+      expect(loadBtn, findsOneWidget);
+      await tester.tap(loadBtn);
+      await tester.pumpAndSettle();
+
       final runBtn = find.byKey(const Key('run_benchmark_button'));
       expect(runBtn, findsOneWidget);
 
@@ -125,6 +137,63 @@ void main() {
       expect(find.text('42 ms'), findsOneWidget);
       expect(find.text('380 ms'), findsOneWidget);
       expect(find.text('420 MB'), findsOneWidget);
+    });
+
+    testWidgets('triggers model download and cancel lifecycle', (tester) async {
+      tester.view.physicalSize = const Size(1024, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ModelsScreen(controller: controller),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Llama 3.2 is not downloaded initially
+      final dlBtn = find.byKey(const Key('download_button_llama-3.2-3b-instruct-q4_k_m'));
+      expect(dlBtn, findsOneWidget);
+
+      // Tap download
+      await tester.tap(dlBtn);
+      await tester.pump();
+
+      // Shows Cancel
+      expect(find.text('Cancel'), findsWidgets);
+
+      // Tap Cancel
+      await tester.tap(find.text('Cancel').first);
+      await tester.pumpAndSettle();
+
+      // Reverts to Download button
+      expect(find.byKey(const Key('download_button_llama-3.2-3b-instruct-q4_k_m')), findsOneWidget);
+    });
+
+    testWidgets('imports custom local GGUF file', (tester) async {
+      tester.view.physicalSize = const Size(1024, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ModelsScreen(controller: controller),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final importBtn = find.byKey(const Key('import_local_gguf_button'));
+      expect(importBtn, findsOneWidget);
+
+      await tester.tap(importBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Import Local .GGUF Model'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'C:/models/my-custom-model.gguf');
+      await tester.tap(find.text('Import'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('my-custom-model'), findsOneWidget);
     });
 
     testWidgets('filters models catalog by Recommended and Active segments',
@@ -222,6 +291,12 @@ void main() {
 
     test('runs benchmark and records result in state', () async {
       expect(controller.lastBenchmark, isNull);
+      // Without loaded model, benchmark returns null
+      final failedRes = await controller.runBenchmark(promptTokens: 16, generateTokens: 8);
+      expect(failedRes, isNull);
+
+      // Load model first
+      controller.loadModel('qwen2.5-0.5b-instruct-q4_k_m');
       final res = await controller.runBenchmark(promptTokens: 16, generateTokens: 8);
 
       expect(res, isNotNull);

@@ -127,6 +127,36 @@ pub enum BridgeEvent {
         model_id: String,
     },
 
+    /// Local LLM model download progress update.
+    ModelDownloadProgress {
+        /// Downloading model identifier.
+        model_id: String,
+        /// Cumulative bytes downloaded so far.
+        downloaded_bytes: u64,
+        /// Total file size in bytes.
+        total_bytes: u64,
+        /// Instantaneous download speed in bytes per second.
+        speed_bps: u64,
+    },
+
+    /// Local LLM model download finished and verified.
+    ModelDownloadCompleted {
+        /// Downloaded model identifier.
+        model_id: String,
+        /// Path on local disk.
+        local_path: String,
+        /// Whether SHA-256 matched the expected hash.
+        sha256_verified: bool,
+    },
+
+    /// Local LLM model download failed or was cancelled.
+    ModelDownloadFailed {
+        /// Target model identifier.
+        model_id: String,
+        /// Human-readable error or cancellation reason.
+        error: String,
+    },
+
     /// On-device LLM benchmark finished.
     BenchmarkCompleted {
         /// Serialized benchmark metrics.

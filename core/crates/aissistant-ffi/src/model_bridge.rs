@@ -2,8 +2,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use aissistant_llm::{
-    HardwareProfiler, LlmCancellationHandle, LlmEngine, LlmEngineConfig, LocalLlmEngine,
-    ModelCatalog, SamplingParams, SystemHardwareProfiler, TokenChunk,
+    query_model_lifecycle, register_custom_gguf, HardwareProfiler, LlmCancellationHandle,
+    LlmEngine, LlmEngineConfig, LocalLlmEngine, ModelCatalog, ModelDownloadManager,
+    ModelLifecycleState, SamplingParams, SystemHardwareProfiler, TokenChunk,
 };
 use serde::{Deserialize, Serialize};
 
@@ -25,6 +26,7 @@ pub struct ModelCatalogItem {
     pub description: String,
     pub is_active: bool,
     pub is_recommended: bool,
+    pub lifecycle_state: ModelLifecycleState,
 }
 
 /// Hardware overview and budget calculation for model execution.
@@ -62,6 +64,7 @@ pub struct BenchmarkReport {
 /// Supervisor managing local LLM lifecycle, catalog queries, and benchmarking.
 pub struct ModelSupervisor {
     engine: LocalLlmEngine,
+    download_manager: Arc<ModelDownloadManager>,
     event_sink: Arc<EventStreamSink>,
 }
 
@@ -77,8 +80,10 @@ impl std::fmt::Debug for ModelSupervisor {
 impl ModelSupervisor {
     /// Creates a new model supervisor bound to the event broadcaster.
     pub fn new(event_sink: Arc<EventStreamSink>) -> Self {
+        let models_dir = ModelCatalog::default_models_dir();
         Self {
             engine: LocalLlmEngine::new(),
+            download_manager: Arc::new(ModelDownloadManager::new(models_dir)),
             event_sink,
         }
     }
@@ -111,6 +116,14 @@ impl ModelSupervisor {
             .map(|m| {
                 let is_active = active_id.as_deref() == Some(&m.id);
                 let is_recommended = m.tier == profile.recommendation.tier;
+                let is_downloading = self.download_manager.is_downloading(&m.id);
+                let lifecycle_state = query_model_lifecycle(
+                    self.download_manager.models_dir(),
+                    &m,
+                    is_active,
+                    is_downloading,
+                );
+
                 ModelCatalogItem {
                     id: m.id,
                     name: m.name,
@@ -124,6 +137,7 @@ impl ModelSupervisor {
                     description: m.description,
                     is_active,
                     is_recommended,
+                    lifecycle_state,
                 }
             })
             .collect();
@@ -146,14 +160,32 @@ impl ModelSupervisor {
         }
     }
 
-    /// Loads a model by ID from the catalog.
+    /// Loads a model by ID from the catalog into memory.
     pub fn load_model(&mut self, model_id: &str) -> FfiResult<()> {
         let descriptor = ModelCatalog::find_by_id(model_id)
             .ok_or_else(|| FfiError::Model(format!("Model '{model_id}' not found in catalog")))?;
 
+        // Locate weights file on local disk
+        let default_path = self
+            .download_manager
+            .models_dir()
+            .join(format!("{}.gguf", descriptor.id));
+        let model_path = if default_path.exists() {
+            default_path
+        } else if let Some(first_url) = descriptor.download_urls.first() {
+            let custom_p = std::path::PathBuf::from(first_url);
+            if custom_p.exists() {
+                custom_p
+            } else {
+                default_path
+            }
+        } else {
+            default_path
+        };
+
         let config = LlmEngineConfig {
             model_id: descriptor.id.clone(),
-            model_path: std::path::PathBuf::from(format!("/models/{}.gguf", descriptor.id)),
+            model_path,
             n_gpu_layers: 0,
             context_length: descriptor.default_context_window,
             threads: 4,
@@ -182,6 +214,141 @@ impl ModelSupervisor {
         Ok(())
     }
 
+    /// Initiates a background resumable streaming download for model weights.
+    pub fn download_model(&self, model_id: &str) -> FfiResult<()> {
+        let descriptor = ModelCatalog::find_by_id(model_id)
+            .ok_or_else(|| FfiError::Model(format!("Model '{model_id}' not found in catalog")))?;
+
+        let dm = self.download_manager.clone();
+        let sink = self.event_sink.clone();
+        let desc = descriptor.clone();
+
+        std::thread::spawn(move || {
+            let rt = match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    sink.broadcast(BridgeEvent::ModelDownloadFailed {
+                        model_id: desc.id,
+                        error: format!("Runtime initialization error: {e}"),
+                    });
+                    return;
+                }
+            };
+
+            rt.block_on(async move {
+                let sink_progress = sink.clone();
+                let res = dm
+                    .download_model(&desc, move |progress| {
+                        sink_progress.broadcast(BridgeEvent::ModelDownloadProgress {
+                            model_id: progress.model_id,
+                            downloaded_bytes: progress.downloaded_bytes,
+                            total_bytes: progress.total_bytes,
+                            speed_bps: progress.speed_bps,
+                        });
+                    })
+                    .await;
+
+                match res {
+                    Ok(path) => {
+                        sink.broadcast(BridgeEvent::ModelDownloadCompleted {
+                            model_id: desc.id,
+                            local_path: path.to_string_lossy().to_string(),
+                            sha256_verified: true,
+                        });
+                    }
+                    Err(e) => {
+                        sink.broadcast(BridgeEvent::ModelDownloadFailed {
+                            model_id: desc.id,
+                            error: e.to_string(),
+                        });
+                    }
+                }
+            });
+        });
+
+        Ok(())
+    }
+
+    /// Cancels an in-flight model download by ID.
+    pub fn cancel_download(&self, model_id: &str) -> FfiResult<()> {
+        let cancelled = self.download_manager.cancel_download(model_id);
+        if cancelled {
+            self.event_sink.broadcast(BridgeEvent::ModelDownloadFailed {
+                model_id: model_id.to_string(),
+                error: "Download cancelled by user".to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    /// Deletes downloaded model weights from local disk and unloads if active.
+    pub fn delete_model(&mut self, model_id: &str) -> FfiResult<()> {
+        if self.engine.active_model_id() == Some(model_id) {
+            let _ = self.unload_model();
+        }
+
+        let final_path = self
+            .download_manager
+            .models_dir()
+            .join(format!("{model_id}.gguf"));
+        if final_path.exists() {
+            let _ = std::fs::remove_file(&final_path);
+        }
+
+        let part_path = self
+            .download_manager
+            .models_dir()
+            .join(format!("{model_id}.gguf.part"));
+        if part_path.exists() {
+            let _ = std::fs::remove_file(&part_path);
+        }
+
+        ModelCatalog::remove_custom_model(model_id);
+
+        self.event_sink.broadcast(BridgeEvent::ModelUnloaded {
+            model_id: model_id.to_string(),
+        });
+
+        Ok(())
+    }
+
+    /// Imports a user-provided local .gguf file into the active model catalog.
+    pub fn import_local_gguf(&mut self, file_path: &str) -> FfiResult<ModelCatalogItem> {
+        let descriptor = register_custom_gguf(std::path::PathBuf::from(file_path))
+            .map_err(|e| FfiError::Model(format!("Failed to import local GGUF: {e}")))?;
+
+        self.event_sink
+            .broadcast(BridgeEvent::ModelDownloadCompleted {
+                model_id: descriptor.id.clone(),
+                local_path: file_path.to_string(),
+                sha256_verified: true,
+            });
+
+        let item = ModelCatalogItem {
+            id: descriptor.id,
+            name: descriptor.name,
+            tier: format!("{:?}", descriptor.tier),
+            parameter_count: descriptor.parameter_count,
+            quantization: format!("{:?}", descriptor.quantization),
+            file_size_bytes: descriptor.file_size_bytes,
+            sha256: descriptor.sha256,
+            default_context_window: descriptor.default_context_window,
+            license: descriptor.license,
+            description: descriptor.description,
+            is_active: false,
+            is_recommended: false,
+            lifecycle_state: ModelLifecycleState::DownloadedOnDisk {
+                local_path: file_path.to_string(),
+                sha256_verified: true,
+            },
+        };
+
+        Ok(item)
+    }
+
     /// Checks if a model is currently loaded.
     pub fn is_loaded(&self) -> bool {
         self.engine.is_loaded()
@@ -192,26 +359,17 @@ impl ModelSupervisor {
         self.engine.active_model_id()
     }
 
-    /// Runs a synthetic on-device inference benchmark measuring TTFT and generation speed.
+    /// Runs an on-device inference benchmark on the currently loaded model.
     pub fn run_benchmark(
         &mut self,
         prompt_tokens: usize,
         generate_tokens: usize,
     ) -> FfiResult<BenchmarkReport> {
-        let was_already_loaded = self.engine.is_loaded();
-        if !was_already_loaded {
-            // Load lightweight default model for benchmark
-            let config = LlmEngineConfig {
-                model_id: "benchmark-probe".to_string(),
-                model_path: std::path::PathBuf::from("/models/benchmark.gguf"),
-                n_gpu_layers: 0,
-                context_length: 2048,
-                threads: 4,
-                memory_budget_bytes: 256 * 1024 * 1024,
-            };
-            self.engine
-                .load_model(config)
-                .map_err(|e| FfiError::Model(format!("Benchmark load error: {e}")))?;
+        if !self.engine.is_loaded() {
+            return Err(FfiError::Model(
+                "No active model is loaded in memory. Download or load a model before running benchmarks."
+                    .to_string(),
+            ));
         }
 
         let start = Instant::now();
@@ -244,10 +402,6 @@ impl ModelSupervisor {
             .max(1) as u64;
         let total_elapsed_ms = start.elapsed().as_millis().max(1) as u64;
 
-        if !was_already_loaded {
-            self.engine.unload_model();
-        }
-
         let metrics = res.map_err(|e| FfiError::Model(format!("Benchmark failure: {e}")))?;
         let tps = if total_elapsed_ms > 0 {
             (metrics.generated_tokens as f32 / total_elapsed_ms as f32) * 1000.0
@@ -255,13 +409,15 @@ impl ModelSupervisor {
             0.0
         };
 
+        let memory_used_bytes = self.engine.memory_footprint_bytes();
+
         let report = BenchmarkReport {
             prompt_tokens: prompt_tokens.max(metrics.prompt_tokens),
             generated_tokens: metrics.generated_tokens.max(tokens_received),
             ttft_ms,
             total_elapsed_ms,
             tokens_per_second: tps,
-            memory_used_bytes: 350 * 1024 * 1024,
+            memory_used_bytes,
         };
 
         let json = serde_json::to_string(&report)

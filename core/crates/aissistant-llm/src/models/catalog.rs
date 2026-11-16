@@ -1,6 +1,46 @@
+use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
+
 use serde::{Deserialize, Serialize};
 
+use super::gguf_parser::GgufInspector;
+use super::verifier::Sha256Verifier;
+use crate::error::{LlmError, Result};
 use crate::hardware::ModelTier;
+
+/// Explicit lifecycle state of a model's local disk presence and in-memory residency.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", content = "data")]
+pub enum ModelLifecycleState {
+    NotDownloaded {
+        size_bytes: u64,
+        hf_url: String,
+        expected_sha256: String,
+    },
+    Downloading {
+        downloaded_bytes: u64,
+        total_bytes: u64,
+        speed_bps: u64,
+    },
+    VerifyingHash,
+    DownloadedOnDisk {
+        local_path: String,
+        sha256_verified: bool,
+    },
+    LoadingIntoMemory,
+    LoadedActive {
+        memory_footprint_bytes: u64,
+    },
+    Error {
+        message: String,
+    },
+}
+
+static CUSTOM_MODELS: OnceLock<Mutex<Vec<ModelDescriptor>>> = OnceLock::new();
+
+fn get_custom_models() -> &'static Mutex<Vec<ModelDescriptor>> {
+    CUSTOM_MODELS.get_or_init(|| Mutex::new(Vec::new()))
+}
 
 /// Quantization format of the compiled GGUF model weights.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,8 +91,48 @@ const MIB: u64 = 1024 * 1024;
 const GIB: u64 = 1024 * 1024 * 1024;
 
 impl ModelCatalog {
-    /// Returns the complete list of curated, verified open models.
+    /// Returns the complete list of curated, verified open models plus any user-registered models.
     pub fn all_models() -> Vec<ModelDescriptor> {
+        let mut list = Self::curated_models();
+        if let Ok(guard) = get_custom_models().lock() {
+            for custom in guard.iter() {
+                if !list.iter().any(|m| m.id == custom.id) {
+                    list.push(custom.clone());
+                }
+            }
+        }
+        list
+    }
+
+    /// Registers a custom user-imported GGUF model descriptor into the active catalog.
+    pub fn register_custom_model(descriptor: ModelDescriptor) {
+        if let Ok(mut guard) = get_custom_models().lock() {
+            guard.retain(|m| m.id != descriptor.id);
+            guard.push(descriptor);
+        }
+    }
+
+    /// Removes a custom registered model from the catalog by ID.
+    pub fn remove_custom_model(id: &str) {
+        if let Ok(mut guard) = get_custom_models().lock() {
+            guard.retain(|m| m.id != id);
+        }
+    }
+
+    /// Returns the default models storage directory on the host.
+    pub fn default_models_dir() -> PathBuf {
+        if let Ok(dir) = std::env::var("AISSISTANT_MODELS_DIR") {
+            return PathBuf::from(dir);
+        }
+        let local_dir = PathBuf::from("models");
+        if local_dir.exists() {
+            return local_dir;
+        }
+        local_dir
+    }
+
+    /// Curated static catalog of open, license-cleared GGUF models.
+    pub fn curated_models() -> Vec<ModelDescriptor> {
         vec![
             // --- Nano Tier (0.5B Parameters) ---
             ModelDescriptor {
@@ -190,4 +270,60 @@ impl ModelCatalog {
     pub fn recommended_for_tier(tier: ModelTier) -> Option<ModelDescriptor> {
         Self::filter_by_tier(tier).into_iter().next()
     }
+}
+
+/// Registers an existing local .gguf file into the catalog without network access.
+pub fn register_custom_gguf<P: AsRef<std::path::Path>>(path: P) -> Result<ModelDescriptor> {
+    let path = path.as_ref();
+    if !path.exists() {
+        return Err(LlmError::InferenceError(format!(
+            "GGUF file does not exist at path: {}",
+            path.display()
+        )));
+    }
+
+    let file_size_bytes = std::fs::metadata(path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    let (model_name, context_len) = match GgufInspector::inspect_file(path) {
+        Ok(m) => (m.model_name, m.context_length.unwrap_or(4096) as usize),
+        Err(_) => (None, 4096),
+    };
+
+    let file_hash = Sha256Verifier::compute_file_hash(path).unwrap_or_default();
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("custom-model");
+    let clean_id = format!("custom-{}", stem.to_lowercase().replace(' ', "-"));
+
+    let name = model_name.unwrap_or_else(|| stem.replace('_', " ").replace('-', " "));
+
+    let tier = if file_size_bytes < 500 * 1024 * 1024 {
+        ModelTier::Nano0_5B
+    } else if file_size_bytes < 2000 * 1024 * 1024 {
+        ModelTier::Small1_5B_3B
+    } else if file_size_bytes < 6000 * 1024 * 1024 {
+        ModelTier::Medium7B_8B
+    } else {
+        ModelTier::Large14BPlus
+    };
+
+    let descriptor = ModelDescriptor {
+        id: clean_id,
+        name,
+        tier,
+        parameter_count: "Custom".to_string(),
+        quantization: QuantizationType::Q4_K_M,
+        file_size_bytes,
+        sha256: file_hash,
+        default_context_window: context_len,
+        license: "Custom Local".to_string(),
+        download_urls: vec![path.to_string_lossy().to_string()],
+        description: format!("Local disk import: {}", path.display()),
+    };
+
+    ModelCatalog::register_custom_model(descriptor.clone());
+    Ok(descriptor)
 }

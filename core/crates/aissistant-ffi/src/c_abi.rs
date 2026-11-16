@@ -28,15 +28,16 @@ use crate::api::{
     bridge_interpreter_swap_languages, bridge_is_lockdown_active, bridge_knowledge_delete_document,
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
     bridge_lift_emergency_lockdown, bridge_list_personas, bridge_list_preferences,
-    bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
-    bridge_notify_memory_pressure, bridge_notify_power_transition, bridge_query_audit,
-    bridge_request_shutdown, bridge_rotate_master_key, bridge_run_pipeline_benchmark,
-    bridge_save_persona, bridge_set_active_persona, bridge_set_preference, bridge_set_setting,
-    bridge_translate_text, bridge_update_permission, bridge_verify_audit,
-    bridge_vision_ocr_extract, bridge_voice_inject_audio, bridge_voice_set_keywords,
-    bridge_voice_set_mode, bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge,
-    shutdown_bridge, AutomationRuleItem, SmartHomeCommandItem, SmartHomeEntityItem,
-    UserPersonaItem,
+    bridge_model_benchmark_run, bridge_model_cancel_download, bridge_model_delete,
+    bridge_model_download, bridge_model_import_local_gguf, bridge_model_load,
+    bridge_model_snapshot, bridge_model_unload, bridge_notify_memory_pressure,
+    bridge_notify_power_transition, bridge_query_audit, bridge_request_shutdown,
+    bridge_rotate_master_key, bridge_run_pipeline_benchmark, bridge_save_persona,
+    bridge_set_active_persona, bridge_set_preference, bridge_set_setting, bridge_translate_text,
+    bridge_update_permission, bridge_verify_audit, bridge_vision_ocr_extract,
+    bridge_voice_inject_audio, bridge_voice_set_keywords, bridge_voice_set_mode,
+    bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge, shutdown_bridge,
+    AutomationRuleItem, SmartHomeCommandItem, SmartHomeEntityItem, UserPersonaItem,
 };
 use crate::device_bridge::DiscoveredPeerItem;
 use crate::error::FfiError;
@@ -444,6 +445,15 @@ pub unsafe extern "C" fn bridge_c_model_load(model_id: *const c_char) -> i32 {
     }
 }
 
+/// Alias for `bridge_c_model_load`.
+///
+/// # Safety
+/// `model_id` must point to a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_load_model(model_id: *const c_char) -> i32 {
+    bridge_c_model_load(model_id)
+}
+
 /// Unloads the active model from memory.
 /// Returns 0 on success, negative on error.
 #[no_mangle]
@@ -453,6 +463,120 @@ pub extern "C" fn bridge_c_model_unload() -> i32 {
         Ok(Ok(())) => 0,
         _ => -1,
     }
+}
+
+/// Alias for `bridge_c_model_unload`.
+#[no_mangle]
+pub extern "C" fn bridge_c_unload_model() -> i32 {
+    bridge_c_model_unload()
+}
+
+/// Initiates background download of model weights by ID.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `model_id` must point to a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_model_download(model_id: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(model_id) }?;
+        bridge_model_download(id_str)
+    }));
+
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Alias for `bridge_c_model_download`.
+///
+/// # Safety
+/// `model_id` must point to a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_download_model(model_id: *const c_char) -> i32 {
+    bridge_c_model_download(model_id)
+}
+
+/// Cancels an in-flight model download by ID.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `model_id` must point to a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_model_cancel_download(model_id: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(model_id) }?;
+        bridge_model_cancel_download(id_str)
+    }));
+
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Alias for `bridge_c_model_cancel_download`.
+///
+/// # Safety
+/// `model_id` must point to a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_cancel_download(model_id: *const c_char) -> i32 {
+    bridge_c_model_cancel_download(model_id)
+}
+
+/// Deletes downloaded model weights from local disk.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `model_id` must point to a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_model_delete(model_id: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(model_id) }?;
+        bridge_model_delete(id_str)
+    }));
+
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Alias for `bridge_c_model_delete`.
+///
+/// # Safety
+/// `model_id` must point to a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_delete_model(model_id: *const c_char) -> i32 {
+    bridge_c_model_delete(model_id)
+}
+
+/// Imports a local .gguf file into the model catalog.
+/// Returns 0 on success, negative on error.
+///
+/// # Safety
+/// `file_path` must point to a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_model_import_local_gguf(file_path: *const c_char) -> i32 {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let path_str = unsafe { c_char_to_str(file_path) }?;
+        bridge_model_import_local_gguf(path_str).map(|_| ())
+    }));
+
+    match result {
+        Ok(Ok(())) => 0,
+        _ => -1,
+    }
+}
+
+/// Alias for `bridge_c_model_import_local_gguf`.
+///
+/// # Safety
+/// `file_path` must point to a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_import_local_gguf(file_path: *const c_char) -> i32 {
+    bridge_c_model_import_local_gguf(file_path)
 }
 
 /// Executes an on-device inference benchmark and returns JSON metrics report.
@@ -470,6 +594,13 @@ pub extern "C" fn bridge_c_model_benchmark_run(
             "Panic in bridge_c_model_benchmark_run".into(),
         ))
     }))
+}
+
+/// Alias for `bridge_c_model_benchmark_run` with default warm-up parameters.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+#[no_mangle]
+pub extern "C" fn bridge_c_run_benchmark() -> *mut c_char {
+    bridge_c_model_benchmark_run(32, 16)
 }
 
 /// Returns discovered network peers as a JSON array.

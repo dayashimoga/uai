@@ -17,6 +17,79 @@ class _ModelsScreenState extends State<ModelsScreen> {
   String _selectedFilter = 'all'; // 'all', 'recommended', 'active'
 
   @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onControllerChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    final err = widget.controller.errorMessage;
+    if (err != null && mounted) {
+      widget.controller.clearError();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(err),
+          backgroundColor: Colors.red.shade800,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _showImportLocalDialog(BuildContext context) {
+    final textController = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Import Local .GGUF Model'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Text(
+              'Enter the absolute path to a .gguf model file on your local disk:',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: textController,
+              decoration: const InputDecoration(
+                hintText: 'e.g. C:/models/custom-model.gguf',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.folder_open),
+              ),
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final path = textController.text.trim();
+              if (path.isNotEmpty) {
+                widget.controller.importLocalGguf(path);
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Importing model from $path...')),
+                );
+              }
+            },
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: widget.controller,
@@ -46,6 +119,22 @@ class _ModelsScreenState extends State<ModelsScreen> {
             title: const Text('Local Models & Benchmarks'),
             actions: <Widget>[
               IconButton(
+                key: const Key('appbar_run_benchmark_button'),
+                tooltip: activeModel == null
+                    ? 'Load a model to run benchmarks'
+                    : 'Run Inference Benchmark',
+                icon: isBenchmarking
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.speed),
+                onPressed: (activeModel == null || isBenchmarking)
+                    ? null
+                    : () => widget.controller.runBenchmark(),
+              ),
+              IconButton(
                 tooltip: 'Refresh Model Catalog',
                 icon: const Icon(Icons.refresh),
                 onPressed: widget.controller.refreshModelSnapshot,
@@ -70,6 +159,7 @@ class _ModelsScreenState extends State<ModelsScreen> {
 
               // Benchmark Diagnostics Card
               _BenchmarkCard(
+                activeModel: activeModel,
                 benchmark: benchmark,
                 isBenchmarking: isBenchmarking,
                 onRunBenchmark: () => widget.controller.runBenchmark(),
@@ -77,7 +167,7 @@ class _ModelsScreenState extends State<ModelsScreen> {
 
               const SizedBox(height: 24),
 
-              // Filter Segmented Buttons & Section Title
+              // Filter Segmented Buttons & Section Title & Import Local GGUF
               Wrap(
                 alignment: WrapAlignment.spaceBetween,
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -90,25 +180,38 @@ class _ModelsScreenState extends State<ModelsScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                   ),
-                  SegmentedButton<String>(
-                    segments: const <ButtonSegment<String>>[
-                      ButtonSegment<String>(
-                        value: 'all',
-                        label: Text('All'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: <Widget>[
+                      OutlinedButton.icon(
+                        key: const Key('import_local_gguf_button'),
+                        onPressed: () => _showImportLocalDialog(context),
+                        icon: const Icon(Icons.file_open_outlined, size: 16),
+                        label: const Text('Import Local .GGUF'),
                       ),
-                      ButtonSegment<String>(
-                        value: 'recommended',
-                        label: Text('Recommended'),
-                      ),
-                      ButtonSegment<String>(
-                        value: 'active',
-                        label: Text('Active'),
+                      SegmentedButton<String>(
+                        segments: const <ButtonSegment<String>>[
+                          ButtonSegment<String>(
+                            value: 'all',
+                            label: Text('All'),
+                          ),
+                          ButtonSegment<String>(
+                            value: 'recommended',
+                            label: Text('Recommended'),
+                          ),
+                          ButtonSegment<String>(
+                            value: 'active',
+                            label: Text('Active'),
+                          ),
+                        ],
+                        selected: <String>{_selectedFilter},
+                        onSelectionChanged: (set) {
+                          setState(() => _selectedFilter = set.first);
+                        },
                       ),
                     ],
-                    selected: <String>{_selectedFilter},
-                    onSelectionChanged: (set) {
-                      setState(() => _selectedFilter = set.first);
-                    },
                   ),
                 ],
               ),
@@ -132,6 +235,9 @@ class _ModelsScreenState extends State<ModelsScreen> {
                     isActive: model.id == activeModelId,
                     onLoad: () => widget.controller.loadModel(model.id),
                     onUnload: () => widget.controller.unloadModel(),
+                    onDownload: () => widget.controller.downloadModel(model.id),
+                    onCancelDownload: () => widget.controller.cancelDownload(model.id),
+                    onDelete: () => widget.controller.deleteModel(model.id),
                   ),
                 ),
             ],
@@ -334,11 +440,13 @@ class _ActiveModelBanner extends StatelessWidget {
 }
 
 class _BenchmarkCard extends StatelessWidget {
+  final ModelItem? activeModel;
   final BenchmarkResult? benchmark;
   final bool isBenchmarking;
   final VoidCallback onRunBenchmark;
 
   const _BenchmarkCard({
+    required this.activeModel,
     required this.benchmark,
     required this.isBenchmarking,
     required this.onRunBenchmark,
@@ -347,6 +455,7 @@ class _BenchmarkCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isModelLoaded = activeModel != null;
 
     return Card(
       child: Padding(
@@ -375,7 +484,7 @@ class _BenchmarkCard extends StatelessWidget {
                 ),
                 ElevatedButton.icon(
                   key: const Key('run_benchmark_button'),
-                  onPressed: isBenchmarking ? null : onRunBenchmark,
+                  onPressed: (!isModelLoaded || isBenchmarking) ? null : onRunBenchmark,
                   icon: isBenchmarking
                       ? const SizedBox(
                           width: 16,
@@ -389,7 +498,30 @@ class _BenchmarkCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (benchmark != null) ...<Widget>[
+            if (!isModelLoaded) ...<Widget>[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Icon(Icons.info_outline, size: 20, color: theme.colorScheme.secondary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'No Active Model Loaded — Download or Load a model below to run benchmarks',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (benchmark != null) ...<Widget>[
               const SizedBox(height: 16),
               Wrap(
                 spacing: 8,
@@ -482,17 +614,24 @@ class _ModelCard extends StatelessWidget {
   final bool isActive;
   final VoidCallback onLoad;
   final VoidCallback onUnload;
+  final VoidCallback onDownload;
+  final VoidCallback onCancelDownload;
+  final VoidCallback onDelete;
 
   const _ModelCard({
     required this.model,
     required this.isActive,
     required this.onLoad,
     required this.onUnload,
+    required this.onDownload,
+    required this.onCancelDownload,
+    required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final status = isActive ? ModelLifecycleStatus.loadedActive : model.lifecycleState.status;
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6.0),
@@ -541,6 +680,22 @@ class _ModelCard extends StatelessWidget {
                                 ),
                               ),
                             ),
+                          if (status == ModelLifecycleStatus.loadedActive)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Active / Loaded',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: Colors.green.shade700,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -554,21 +709,41 @@ class _ModelCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                if (isActive)
-                  FilledButton.tonalIcon(
-                    onPressed: onUnload,
-                    icon: const Icon(Icons.check, size: 16),
-                    label: const Text('Loaded'),
-                  )
-                else
-                  FilledButton.icon(
-                    key: Key('load_button_${model.id}'),
-                    onPressed: onLoad,
-                    icon: const Icon(Icons.download, size: 16),
-                    label: const Text('Load'),
-                  ),
+                _buildActionButton(context, status),
               ],
             ),
+            if (status == ModelLifecycleStatus.downloading) ...<Widget>[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: model.lifecycleState.progressPercentage > 0
+                      ? model.lifecycleState.progressPercentage
+                      : null,
+                  minHeight: 6,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(
+                    '${(model.lifecycleState.progressPercentage * 100).toStringAsFixed(1)}% '
+                    '(${model.lifecycleState.speedFormatted})',
+                    style: theme.textTheme.labelSmall?.copyWith(color: Colors.grey.shade600),
+                  ),
+                  TextButton.icon(
+                    onPressed: onCancelDownload,
+                    icon: const Icon(Icons.close, size: 14),
+                    label: const Text('Cancel'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const Divider(height: 24),
             Wrap(
               spacing: 8,
@@ -579,20 +754,109 @@ class _ModelCard extends StatelessWidget {
                 _ChipBadge(label: model.fileSizeFormatted),
                 _ChipBadge(label: '${model.defaultContextWindow} ctx'),
                 _ChipBadge(label: model.license),
-                Tooltip(
-                  message: 'SHA-256: ${model.sha256}',
-                  child: const _ChipBadge(
-                    label: 'SHA-256 Verified',
-                    icon: Icons.verified,
-                    color: Colors.green,
+                if ((status == ModelLifecycleStatus.downloadedOnDisk &&
+                        model.lifecycleState.sha256Verified) ||
+                    status == ModelLifecycleStatus.loadedActive)
+                  Tooltip(
+                    message: 'SHA-256: ${model.sha256}',
+                    child: const _ChipBadge(
+                      label: 'SHA-256 Verified',
+                      icon: Icons.verified,
+                      color: Colors.green,
+                    ),
                   ),
-                ),
               ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildActionButton(BuildContext context, ModelLifecycleStatus status) {
+    switch (status) {
+      case ModelLifecycleStatus.loadedActive:
+        return FilledButton.tonalIcon(
+          onPressed: onUnload,
+          icon: const Icon(Icons.check, size: 16),
+          label: const Text('Loaded'),
+        );
+
+      case ModelLifecycleStatus.loadingIntoMemory:
+        return const FilledButton.tonal(
+          onPressed: null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 8),
+              Text('Loading...'),
+            ],
+          ),
+        );
+
+      case ModelLifecycleStatus.downloading:
+        return OutlinedButton.icon(
+          onPressed: onCancelDownload,
+          icon: const Icon(Icons.close, size: 16),
+          label: const Text('Cancel'),
+        );
+
+      case ModelLifecycleStatus.verifyingHash:
+        return const OutlinedButton(
+          onPressed: null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 8),
+              Text('Verifying...'),
+            ],
+          ),
+        );
+
+      case ModelLifecycleStatus.downloadedOnDisk:
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            FilledButton.icon(
+              key: Key('load_button_${model.id}'),
+              onPressed: onLoad,
+              icon: const Icon(Icons.memory, size: 16),
+              label: const Text('Load'),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20),
+              tooltip: 'Delete weights from disk',
+              onPressed: onDelete,
+            ),
+          ],
+        );
+
+      case ModelLifecycleStatus.error:
+        return FilledButton.icon(
+          onPressed: onDownload,
+          icon: const Icon(Icons.refresh, size: 16),
+          label: const Text('Retry'),
+        );
+
+      case ModelLifecycleStatus.notDownloaded:
+        return FilledButton.icon(
+          key: Key('download_button_${model.id}'),
+          onPressed: onDownload,
+          icon: const Icon(Icons.download, size: 16),
+          label: Text('Download (${model.fileSizeFormatted})'),
+        );
+    }
   }
 }
 

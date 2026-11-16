@@ -44,6 +44,10 @@ abstract class AissistantBridge {
   ModelManagerSnapshot getModelSnapshot();
   void loadModel(String modelId);
   void unloadModel();
+  void downloadModel(String modelId);
+  void cancelDownload(String modelId);
+  void deleteModel(String modelId);
+  void importLocalGguf(String filePath);
   BenchmarkResult runModelBenchmark({int promptTokens = 32, int generateTokens = 16});
   List<DiscoveredPeerItem> getDiscoveredPeers();
   List<PairedDeviceItem> getPairedDevices();
@@ -383,6 +387,10 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeModelSnapDart _modelSnapshot;
   late final _BridgeModelLoadDart _modelLoad;
   late final _BridgeModelUnloadDart _modelUnload;
+  late final _BridgeModelLoadDart _modelDownload;
+  late final _BridgeModelLoadDart _modelCancelDownload;
+  late final _BridgeModelLoadDart _modelDelete;
+  late final _BridgeModelLoadDart _modelImport;
   late final _BridgeModelBenchDart _modelBenchmarkRun;
   late final _BridgeDevicePeersDart _deviceDiscoveredPeers;
   late final _BridgeDevicePairedDart _devicePairedList;
@@ -457,6 +465,10 @@ class NativeFfiBridge implements AissistantBridge {
     _modelSnapshot = _lib.lookupFunction<_BridgeModelSnapC, _BridgeModelSnapDart>('bridge_c_model_snapshot');
     _modelLoad = _lib.lookupFunction<_BridgeModelLoadC, _BridgeModelLoadDart>('bridge_c_model_load');
     _modelUnload = _lib.lookupFunction<_BridgeModelUnloadC, _BridgeModelUnloadDart>('bridge_c_model_unload');
+    _modelDownload = _lib.lookupFunction<_BridgeModelLoadC, _BridgeModelLoadDart>('bridge_c_model_download');
+    _modelCancelDownload = _lib.lookupFunction<_BridgeModelLoadC, _BridgeModelLoadDart>('bridge_c_model_cancel_download');
+    _modelDelete = _lib.lookupFunction<_BridgeModelLoadC, _BridgeModelLoadDart>('bridge_c_model_delete');
+    _modelImport = _lib.lookupFunction<_BridgeModelLoadC, _BridgeModelLoadDart>('bridge_c_model_import_local_gguf');
     _modelBenchmarkRun = _lib.lookupFunction<_BridgeModelBenchC, _BridgeModelBenchDart>('bridge_c_model_benchmark_run');
     _deviceDiscoveredPeers = _lib.lookupFunction<_BridgeDevicePeersC, _BridgeDevicePeersDart>('bridge_c_device_discovered_peers');
     _devicePairedList = _lib.lookupFunction<_BridgeDevicePairedC, _BridgeDevicePairedDart>('bridge_c_device_paired_list');
@@ -766,6 +778,58 @@ class NativeFfiBridge implements AissistantBridge {
     final res = _modelUnload();
     if (res != 0) {
       throw StateError('Failed to unload model: code $res');
+    }
+  }
+
+  @override
+  void downloadModel(String modelId) {
+    final ptr = modelId.toNativeUtf8();
+    try {
+      final res = _modelDownload(ptr);
+      if (res != 0) {
+        throw StateError('Failed to start model download $modelId: code $res');
+      }
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  @override
+  void cancelDownload(String modelId) {
+    final ptr = modelId.toNativeUtf8();
+    try {
+      final res = _modelCancelDownload(ptr);
+      if (res != 0) {
+        throw StateError('Failed to cancel model download $modelId: code $res');
+      }
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  @override
+  void deleteModel(String modelId) {
+    final ptr = modelId.toNativeUtf8();
+    try {
+      final res = _modelDelete(ptr);
+      if (res != 0) {
+        throw StateError('Failed to delete model $modelId: code $res');
+      }
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  @override
+  void importLocalGguf(String filePath) {
+    final ptr = filePath.toNativeUtf8();
+    try {
+      final res = _modelImport(ptr);
+      if (res != 0) {
+        throw StateError('Failed to import local GGUF $filePath: code $res');
+      }
+    } finally {
+      malloc.free(ptr);
     }
   }
 
@@ -2096,6 +2160,11 @@ class TestHarnessBridge implements AissistantBridge {
       license: 'Apache-2.0',
       description: 'Ultra-fast, compact multilingual assistant model suited for phones and embedded devices.',
       isRecommended: true,
+      lifecycleState: ModelLifecycleState(
+        status: ModelLifecycleStatus.downloadedOnDisk,
+        localPath: '/models/qwen2.5-0.5b-instruct-q4_k_m.gguf',
+        sha256Verified: true,
+      ),
     ),
     const ModelItem(
       id: 'smollm2-360m-instruct-q4_k_m',
@@ -2108,6 +2177,11 @@ class TestHarnessBridge implements AissistantBridge {
       defaultContextWindow: 2048,
       license: 'Apache-2.0',
       description: 'Extremely lightweight model optimized for low-power offline edge voice devices.',
+      lifecycleState: ModelLifecycleState(
+        status: ModelLifecycleStatus.downloadedOnDisk,
+        localPath: '/models/smollm2-360m-instruct-q4_k_m.gguf',
+        sha256Verified: true,
+      ),
     ),
     const ModelItem(
       id: 'llama-3.2-3b-instruct-q4_k_m',
@@ -2120,6 +2194,10 @@ class TestHarnessBridge implements AissistantBridge {
       defaultContextWindow: 4096,
       license: 'Llama-3.2-Community',
       description: 'State of the art 3B instruction tuned model with excellent reasoning and tool use.',
+      lifecycleState: ModelLifecycleState(
+        status: ModelLifecycleStatus.notDownloaded,
+        totalBytes: 2168995840,
+      ),
     ),
   ];
 
@@ -2137,13 +2215,32 @@ class TestHarnessBridge implements AissistantBridge {
         recommendedThreads: 6,
       ),
       activeModelId: _activeModelId,
-      models: _models.map((m) => m.copyWith(isActive: m.id == _activeModelId)).toList(),
+      models: _models.map((m) {
+        final isActive = m.id == _activeModelId;
+        final state = isActive
+            ? ModelLifecycleState(
+                status: ModelLifecycleStatus.loadedActive,
+                memoryFootprintBytes: m.fileSizeBytes + (256 * 1024 * 1024),
+              )
+            : m.lifecycleState;
+        return m.copyWith(isActive: isActive, lifecycleState: state);
+      }).toList(),
     );
   }
 
   @override
   void loadModel(String modelId) {
     _activeModelId = modelId;
+    final idx = _models.indexWhere((m) => m.id == modelId);
+    if (idx != -1) {
+      _models[idx] = _models[idx].copyWith(
+        isActive: true,
+        lifecycleState: ModelLifecycleState(
+          status: ModelLifecycleStatus.loadedActive,
+          memoryFootprintBytes: _models[idx].fileSizeBytes + (256 * 1024 * 1024),
+        ),
+      );
+    }
     _eventController.add(ModelLoadedEvent(modelId: modelId));
   }
 
@@ -2151,13 +2248,126 @@ class TestHarnessBridge implements AissistantBridge {
   void unloadModel() {
     if (_activeModelId != null) {
       final prev = _activeModelId!;
+      final idx = _models.indexWhere((m) => m.id == prev);
+      if (idx != -1) {
+        _models[idx] = _models[idx].copyWith(
+          isActive: false,
+          lifecycleState: ModelLifecycleState(
+            status: ModelLifecycleStatus.downloadedOnDisk,
+            localPath: '/models/$prev.gguf',
+            sha256Verified: true,
+          ),
+        );
+      }
       _activeModelId = null;
       _eventController.add(ModelUnloadedEvent(modelId: prev));
     }
   }
 
   @override
+  void downloadModel(String modelId) {
+    final idx = _models.indexWhere((m) => m.id == modelId);
+    if (idx != -1) {
+      _models[idx] = _models[idx].copyWith(
+        lifecycleState: ModelLifecycleState(
+          status: ModelLifecycleStatus.downloading,
+          downloadedBytes: 50 * 1024 * 1024,
+          totalBytes: _models[idx].fileSizeBytes,
+          speedBps: 15 * 1024 * 1024,
+        ),
+      );
+      _eventController.add(ModelDownloadProgressEvent(
+        modelId: modelId,
+        downloadedBytes: 50 * 1024 * 1024,
+        totalBytes: _models[idx].fileSizeBytes,
+        speedBps: 15 * 1024 * 1024,
+      ));
+    }
+  }
+
+  void completeDownload(String modelId) {
+    final i = _models.indexWhere((m) => m.id == modelId);
+    if (i != -1) {
+      _models[i] = _models[i].copyWith(
+        lifecycleState: ModelLifecycleState(
+          status: ModelLifecycleStatus.downloadedOnDisk,
+          localPath: '/models/$modelId.gguf',
+          sha256Verified: true,
+        ),
+      );
+      _eventController.add(ModelDownloadCompletedEvent(
+        modelId: modelId,
+        localPath: '/models/$modelId.gguf',
+        sha256Verified: true,
+      ));
+    }
+  }
+
+  @override
+  void cancelDownload(String modelId) {
+    final idx = _models.indexWhere((m) => m.id == modelId);
+    if (idx != -1) {
+      _models[idx] = _models[idx].copyWith(
+        lifecycleState: const ModelLifecycleState(status: ModelLifecycleStatus.notDownloaded),
+      );
+      _eventController.add(ModelDownloadFailedEvent(
+        modelId: modelId,
+        error: 'Download cancelled by user',
+      ));
+    }
+  }
+
+  @override
+  void deleteModel(String modelId) {
+    if (_activeModelId == modelId) {
+      unloadModel();
+    }
+    final idx = _models.indexWhere((m) => m.id == modelId);
+    if (idx != -1) {
+      if (_models[idx].id.startsWith('custom-')) {
+        _models.removeAt(idx);
+      } else {
+        _models[idx] = _models[idx].copyWith(
+          lifecycleState: const ModelLifecycleState(status: ModelLifecycleStatus.notDownloaded),
+        );
+      }
+      _eventController.add(ModelUnloadedEvent(modelId: modelId));
+    }
+  }
+
+  @override
+  void importLocalGguf(String filePath) {
+    final name = filePath.split(RegExp(r'[\\/]')).last.replaceAll('.gguf', '');
+    final customItem = ModelItem(
+      id: 'custom-${name.toLowerCase().replaceAll(' ', '-')}',
+      name: name,
+      tier: 'Nano0_5B',
+      parameterCount: 'Custom',
+      quantization: 'Q4_K_M',
+      fileSizeBytes: 400 * 1024 * 1024,
+      sha256: 'custom-sha256-hash',
+      defaultContextWindow: 4096,
+      license: 'Custom Local',
+      description: 'Imported local file: $filePath',
+      lifecycleState: ModelLifecycleState(
+        status: ModelLifecycleStatus.downloadedOnDisk,
+        localPath: filePath,
+        sha256Verified: true,
+      ),
+    );
+    _models.add(customItem);
+    _eventController.add(ModelDownloadCompletedEvent(
+      modelId: customItem.id,
+      localPath: filePath,
+      sha256Verified: true,
+    ));
+  }
+
+  @override
   BenchmarkResult runModelBenchmark({int promptTokens = 32, int generateTokens = 16}) {
+    if (_activeModelId == null) {
+      throw StateError('No active model is loaded in memory');
+    }
     final report = BenchmarkResult(
       promptTokens: promptTokens,
       generatedTokens: generateTokens,

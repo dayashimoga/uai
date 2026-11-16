@@ -97,6 +97,27 @@ abstract class BridgeEvent {
           modelId: payload['model_id'] as String? ?? '',
         );
 
+      case 'model_download_progress':
+        return ModelDownloadProgressEvent(
+          modelId: payload['model_id'] as String? ?? '',
+          downloadedBytes: (payload['downloaded_bytes'] as num?)?.toInt() ?? 0,
+          totalBytes: (payload['total_bytes'] as num?)?.toInt() ?? 0,
+          speedBps: (payload['speed_bps'] as num?)?.toInt() ?? 0,
+        );
+
+      case 'model_download_completed':
+        return ModelDownloadCompletedEvent(
+          modelId: payload['model_id'] as String? ?? '',
+          localPath: payload['local_path'] as String? ?? '',
+          sha256Verified: payload['sha256_verified'] as bool? ?? false,
+        );
+
+      case 'model_download_failed':
+        return ModelDownloadFailedEvent(
+          modelId: payload['model_id'] as String? ?? '',
+          error: payload['error'] as String? ?? 'Download failed',
+        );
+
       case 'benchmark_completed':
         return BenchmarkCompletedEvent(
           metricsJson: payload['metrics_json'] as String? ?? '{}',
@@ -302,6 +323,42 @@ class ModelUnloadedEvent extends BridgeEvent {
   const ModelUnloadedEvent({
     required this.modelId,
   }) : super('model_unloaded');
+}
+
+class ModelDownloadProgressEvent extends BridgeEvent {
+  final String modelId;
+  final int downloadedBytes;
+  final int totalBytes;
+  final int speedBps;
+
+  const ModelDownloadProgressEvent({
+    required this.modelId,
+    required this.downloadedBytes,
+    required this.totalBytes,
+    required this.speedBps,
+  }) : super('model_download_progress');
+}
+
+class ModelDownloadCompletedEvent extends BridgeEvent {
+  final String modelId;
+  final String localPath;
+  final bool sha256Verified;
+
+  const ModelDownloadCompletedEvent({
+    required this.modelId,
+    required this.localPath,
+    required this.sha256Verified,
+  }) : super('model_download_completed');
+}
+
+class ModelDownloadFailedEvent extends BridgeEvent {
+  final String modelId;
+  final String error;
+
+  const ModelDownloadFailedEvent({
+    required this.modelId,
+    required this.error,
+  }) : super('model_download_failed');
 }
 
 class BenchmarkCompletedEvent extends BridgeEvent {

@@ -1,3 +1,117 @@
+/// Lifecycle presence and memory residency status of a model.
+enum ModelLifecycleStatus {
+  notDownloaded,
+  downloading,
+  verifyingHash,
+  downloadedOnDisk,
+  loadingIntoMemory,
+  loadedActive,
+  error,
+}
+
+/// Explicit lifecycle state of a model's local disk presence and in-memory residency.
+class ModelLifecycleState {
+  final ModelLifecycleStatus status;
+  final int downloadedBytes;
+  final int totalBytes;
+  final int speedBps;
+  final String? localPath;
+  final bool sha256Verified;
+  final int memoryFootprintBytes;
+  final String? errorMessage;
+  final String? hfUrl;
+
+  const ModelLifecycleState({
+    required this.status,
+    this.downloadedBytes = 0,
+    this.totalBytes = 0,
+    this.speedBps = 0,
+    this.localPath,
+    this.sha256Verified = false,
+    this.memoryFootprintBytes = 0,
+    this.errorMessage,
+    this.hfUrl,
+  });
+
+  factory ModelLifecycleState.fromJson(dynamic json) {
+    if (json == null) {
+      return const ModelLifecycleState(status: ModelLifecycleStatus.notDownloaded);
+    }
+    if (json is String) {
+      final s = json.toLowerCase();
+      if (s.contains('verif')) {
+        return const ModelLifecycleState(status: ModelLifecycleStatus.verifyingHash);
+      }
+      if (s.contains('load')) {
+        return const ModelLifecycleState(status: ModelLifecycleStatus.loadingIntoMemory);
+      }
+      return const ModelLifecycleState(status: ModelLifecycleStatus.notDownloaded);
+    }
+    if (json is Map<String, dynamic>) {
+      final statusStr = json['status'] as String? ?? '';
+      final data = json['data'];
+      switch (statusStr) {
+        case 'NotDownloaded':
+          final map = data is Map<String, dynamic> ? data : <String, dynamic>{};
+          return ModelLifecycleState(
+            status: ModelLifecycleStatus.notDownloaded,
+            totalBytes: (map['size_bytes'] as num?)?.toInt() ?? 0,
+            hfUrl: map['hf_url'] as String?,
+          );
+        case 'Downloading':
+          final map = data is Map<String, dynamic> ? data : <String, dynamic>{};
+          return ModelLifecycleState(
+            status: ModelLifecycleStatus.downloading,
+            downloadedBytes: (map['downloaded_bytes'] as num?)?.toInt() ?? 0,
+            totalBytes: (map['total_bytes'] as num?)?.toInt() ?? 0,
+            speedBps: (map['speed_bps'] as num?)?.toInt() ?? 0,
+          );
+        case 'VerifyingHash':
+          return const ModelLifecycleState(status: ModelLifecycleStatus.verifyingHash);
+        case 'DownloadedOnDisk':
+          final map = data is Map<String, dynamic> ? data : <String, dynamic>{};
+          return ModelLifecycleState(
+            status: ModelLifecycleStatus.downloadedOnDisk,
+            localPath: map['local_path'] as String?,
+            sha256Verified: map['sha256_verified'] as bool? ?? false,
+          );
+        case 'LoadingIntoMemory':
+          return const ModelLifecycleState(status: ModelLifecycleStatus.loadingIntoMemory);
+        case 'LoadedActive':
+          final map = data is Map<String, dynamic> ? data : <String, dynamic>{};
+          return ModelLifecycleState(
+            status: ModelLifecycleStatus.loadedActive,
+            memoryFootprintBytes: (map['memory_footprint_bytes'] as num?)?.toInt() ?? 0,
+          );
+        case 'Error':
+          final map = data is Map<String, dynamic> ? data : <String, dynamic>{};
+          return ModelLifecycleState(
+            status: ModelLifecycleStatus.error,
+            errorMessage: map['message'] as String? ?? 'Unknown error',
+          );
+        default:
+          return const ModelLifecycleState(status: ModelLifecycleStatus.notDownloaded);
+      }
+    }
+    return const ModelLifecycleState(status: ModelLifecycleStatus.notDownloaded);
+  }
+
+  double get progressPercentage {
+    if (totalBytes <= 0) return 0.0;
+    return (downloadedBytes / totalBytes).clamp(0.0, 1.0);
+  }
+
+  String get speedFormatted {
+    if (speedBps <= 0) return '';
+    final mbs = speedBps / (1024 * 1024);
+    if (mbs >= 1.0) {
+      return '${mbs.toStringAsFixed(1)} MB/s';
+    }
+    final kbs = speedBps / 1024;
+    return '${kbs.toStringAsFixed(0)} KB/s';
+  }
+}
+
 /// Model catalog descriptor representation in Flutter.
 class ModelItem {
   final String id;
@@ -12,6 +126,7 @@ class ModelItem {
   final String description;
   final bool isActive;
   final bool isRecommended;
+  final ModelLifecycleState lifecycleState;
 
   const ModelItem({
     required this.id,
@@ -26,6 +141,7 @@ class ModelItem {
     required this.description,
     this.isActive = false,
     this.isRecommended = false,
+    this.lifecycleState = const ModelLifecycleState(status: ModelLifecycleStatus.notDownloaded),
   });
 
   factory ModelItem.fromJson(Map<String, dynamic> json) {
@@ -43,6 +159,7 @@ class ModelItem {
       description: json['description'] as String? ?? '',
       isActive: json['is_active'] as bool? ?? false,
       isRecommended: json['is_recommended'] as bool? ?? false,
+      lifecycleState: ModelLifecycleState.fromJson(json['lifecycle_state']),
     );
   }
 
@@ -64,6 +181,7 @@ class ModelItem {
   ModelItem copyWith({
     bool? isActive,
     bool? isRecommended,
+    ModelLifecycleState? lifecycleState,
   }) {
     return ModelItem(
       id: id,
@@ -78,6 +196,7 @@ class ModelItem {
       description: description,
       isActive: isActive ?? this.isActive,
       isRecommended: isRecommended ?? this.isRecommended,
+      lifecycleState: lifecycleState ?? this.lifecycleState,
     );
   }
 

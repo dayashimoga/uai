@@ -742,12 +742,19 @@ mod tests {
     #[test]
     fn test_model_bridge_benchmark_execution() {
         let bridge = CoreBridge::new_in_memory().unwrap();
+        // Benchmark without loaded model must return error
+        assert!(bridge.model_benchmark_run(32, 16).is_err());
+
+        let model_id = "qwen2.5-0.5b-instruct-q4_k_m";
+        bridge.model_load(model_id).unwrap();
+
         let report = bridge.model_benchmark_run(32, 16).unwrap();
 
         assert!(report.prompt_tokens >= 1);
         assert!(report.generated_tokens >= 1);
         assert!(report.total_elapsed_ms >= 1);
         assert!(report.tokens_per_second >= 0.0);
+        assert!(report.memory_used_bytes > 0);
     }
 
     #[test]
@@ -765,12 +772,38 @@ mod tests {
         assert!(snap_str.contains("models"));
         unsafe { c_abi::bridge_c_free_string(snap_ptr) };
 
+        // Test C-ABI model download and cancel
+        let c_model_id = std::ffi::CString::new("qwen2.5-0.5b-instruct-q4_k_m").unwrap();
+        let dl_res = unsafe { c_abi::bridge_c_model_download(c_model_id.as_ptr()) };
+        assert_eq!(dl_res, 0);
+        let cancel_res = unsafe { c_abi::bridge_c_model_cancel_download(c_model_id.as_ptr()) };
+        assert_eq!(cancel_res, 0);
+
+        // Test C-ABI import local gguf
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), b"GGUF_TEST_DATA").unwrap();
+        let c_path = std::ffi::CString::new(tmp.path().to_str().unwrap()).unwrap();
+        let import_res = unsafe { c_abi::bridge_c_model_import_local_gguf(c_path.as_ptr()) };
+        assert_eq!(import_res, 0);
+
+        // Test C-ABI delete model
+        let delete_res = unsafe { c_abi::bridge_c_model_delete(c_model_id.as_ptr()) };
+        assert_eq!(delete_res, 0);
+
+        // Load model via C-ABI
+        let load_res = unsafe { c_abi::bridge_c_model_load(c_model_id.as_ptr()) };
+        assert_eq!(load_res, 0);
+
         // Run benchmark via C-ABI
         let bench_ptr = c_abi::bridge_c_model_benchmark_run(16, 8);
         assert!(!bench_ptr.is_null());
         let bench_str = unsafe { CStr::from_ptr(bench_ptr) }.to_str().unwrap();
         assert!(bench_str.contains("tokens_per_second"));
         unsafe { c_abi::bridge_c_free_string(bench_ptr) };
+
+        // Unload model via C-ABI
+        let unload_res = c_abi::bridge_c_model_unload();
+        assert_eq!(unload_res, 0);
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);

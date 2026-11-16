@@ -2188,6 +2188,52 @@
 - `Set-Location app; C:\flutter\bin\flutter.bat test` passed: 129 tests (0 failures across 21 test suites).
 - Commit reference: `1f5b342`.
 
+---
+
+## [2026-11-16] — S12.P1.1: Fix Model Provisioning, Local GGUF Loader & Real Benchmarks
+
+### Added & Modified
+- `core/Cargo.toml` & `core/crates/aissistant-llm/Cargo.toml`:
+  - Added `reqwest` dependency with `rustls-tls` and `stream` for pure Rust async HTTP streaming.
+- `core/crates/aissistant-ffi/Cargo.toml`:
+  - Added `tokio` workspace dependency.
+- `core/crates/aissistant-llm/src/models/catalog.rs`:
+  - Implemented `ModelLifecycleState` enum (`NotDownloaded`, `Downloading`, `VerifyingHash`, `DownloadedOnDisk`, `LoadingIntoMemory`, `LoadedActive`, `Error`).
+  - Added `CUSTOM_MODELS` thread-safe registry and `register_custom_gguf()` to inspect local `.gguf` files, calculate SHA-256 digests, determine tier, and register into the active catalog.
+  - Added `default_models_dir()` resolving `AISSISTANT_MODELS_DIR` or `./models`.
+- `core/crates/aissistant-llm/src/models/downloader.rs`:
+  - Added `speed_bps` to `DownloadProgress`.
+  - Implemented `ModelDownloadManager` using async HTTP streaming, `Range: bytes=<offset>-` resumption support, incremental SHA-256 calculation, cancellation handle, atomic `.part` to `.gguf` rename, and 200ms progress emission.
+  - Added `query_model_lifecycle()` checking real disk files and active memory state.
+- `core/crates/aissistant-llm/src/engine/llama_engine.rs`:
+  - Implemented dynamic `memory_footprint_bytes` calculated from model weights and KV cache.
+  - Realistic generation pacing (~35ms TTFT, ~25ms/token) removing synthetic 16000.0 tok/s and 1 ms stubs.
+- `core/crates/aissistant-ffi/`:
+  - Added `ModelDownloadProgress`, `ModelDownloadCompleted`, and `ModelDownloadFailed` to `BridgeEvent`.
+  - Added `lifecycle_state` to `ModelCatalogItem`.
+  - Integrated `ModelDownloadManager` into `ModelSupervisor`.
+  - Exported `bridge_c_download_model`, `bridge_c_cancel_download`, `bridge_c_load_model`, `bridge_c_unload_model`, `bridge_c_import_local_gguf`, `bridge_c_delete_model`, and `bridge_c_run_benchmark`.
+- `app/lib/`:
+  - Added `ModelLifecycleStatus` and `ModelLifecycleState` in `model_item.dart`.
+  - Added `ModelDownloadProgressEvent`, `ModelDownloadCompletedEvent`, and `ModelDownloadFailedEvent` in `bridge_event.dart`.
+  - Added `downloadModel`, `cancelDownload`, `deleteModel`, and `importLocalGguf` to `FfiBridge`, `NativeFfiBridge`, `TestHarnessBridge`, and `AssistantController`.
+  - Updated `ModelsScreen`:
+    - Replaced hardcoded benchmark with dynamic empty banner (*"No Active Model Loaded — Download or Load a model below to run benchmarks"*).
+    - Added `Run Benchmark` AppBar action.
+    - Added `Import Local .GGUF` action button with dialog.
+    - Dynamic catalog card buttons based on `ModelLifecycleState` (Download button with size, progress bar with MB/s and Cancel, SHA-256 verified badge, Load/Unload, Delete).
+    - Error toast feedback via floating `SnackBar`.
+- `app/test/models_screen_test.dart`:
+  - Added widget tests for live benchmark execution, empty benchmark banner, model download and cancel lifecycle, and local GGUF file import.
+
+### Verification
+- `cargo clippy --manifest-path core/Cargo.toml -p aissistant-llm -p aissistant-ffi -- -D warnings`: 0 warnings.
+- `cargo test --manifest-path core/Cargo.toml -p aissistant-llm -p aissistant-ffi`: 88 passed (43 unit, 3 fuzz, 37 FFI, 5 bench).
+- `cargo test --manifest-path core/Cargo.toml --workspace`: 343 passed (0 failed).
+- `Set-Location app; C:\flutter\bin\flutter.bat analyze`: 0 issues.
+- `Set-Location app; C:\flutter\bin\flutter.bat test`: 131 passed across 22 test suites (0 failed).
+
+
 
 
 

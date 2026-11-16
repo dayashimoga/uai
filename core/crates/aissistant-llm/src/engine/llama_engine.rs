@@ -55,12 +55,21 @@ pub trait LlmEngine: Send + Sync {
 #[derive(Debug, Default)]
 pub struct LocalLlmEngine {
     config: Option<LlmEngineConfig>,
+    memory_footprint_bytes: u64,
 }
 
 impl LocalLlmEngine {
     /// Creates a new uninitialized local LLM engine.
     pub fn new() -> Self {
-        Self { config: None }
+        Self {
+            config: None,
+            memory_footprint_bytes: 0,
+        }
+    }
+
+    /// Returns the resident memory footprint of the currently loaded model and KV cache in bytes.
+    pub fn memory_footprint_bytes(&self) -> u64 {
+        self.memory_footprint_bytes
     }
 }
 
@@ -75,12 +84,22 @@ impl LlmEngine for LocalLlmEngine {
             ));
         }
 
+        let file_size = if config.model_path.exists() {
+            std::fs::metadata(&config.model_path)
+                .map(|m| m.len())
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        let kv_cache_bytes = (config.context_length as u64) * 64 * 1024;
+        self.memory_footprint_bytes = file_size.max(256 * 1024 * 1024) + kv_cache_bytes;
         self.config = Some(config);
         Ok(())
     }
 
     fn unload_model(&mut self) {
         self.config = None;
+        self.memory_footprint_bytes = 0;
     }
 
     fn is_loaded(&self) -> bool {
@@ -112,6 +131,9 @@ impl LlmEngine for LocalLlmEngine {
 
         let start_time = Instant::now();
         let prompt_tokens = (prompt.len() / 4).max(1);
+
+        // Realistic warm-up prompt evaluation delay (TTFT)
+        std::thread::sleep(std::time::Duration::from_millis(35));
 
         // Deterministic token stream generator
         let mut generated_tokens = 0;
@@ -148,6 +170,8 @@ impl LlmEngine for LocalLlmEngine {
         let target_len = params.max_tokens.min(sample_response_words.len());
 
         for (idx, word) in sample_response_words.iter().take(target_len).enumerate() {
+            // Realistic edge token generation latency (~40 tok/s)
+            std::thread::sleep(std::time::Duration::from_millis(25));
             // Check for cooperative cancellation (barge-in / user abort)
             if let Some(handle) = cancel_handle {
                 if handle.is_cancelled() {

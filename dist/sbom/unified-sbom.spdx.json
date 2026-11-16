@@ -5,7 +5,7 @@
   "name": "Universal AI Assistant - Full Stack Unified",
   "documentNamespace": "https://github.com/aissistant/aissistant/spdx/unified-stack-1.0.0",
   "creationInfo": {
-    "created": "2026-11-16T05:41:01Z",
+    "created": "2026-11-16T11:07:57Z",
     "creators": [
       "Tool: aissistant-sbom-generator-1.0.0",
       "Organization: Universal AI Assistant Team"
@@ -64,9 +64,9 @@
       ]
     },
     {
-      "SPDXID": "SPDXRef-Package-aissistant-audio-0.1.0",
+      "SPDXID": "SPDXRef-Package-aissistant-audio-1.0.0",
       "name": "aissistant-audio",
-      "versionInfo": "0.1.0",
+      "versionInfo": "1.0.0",
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
@@ -75,9 +75,9 @@
       "supplier": "Organization: Universal AI Assistant"
     },
     {
-      "SPDXID": "SPDXRef-Package-aissistant-core-0.1.0",
+      "SPDXID": "SPDXRef-Package-aissistant-core-1.0.0",
       "name": "aissistant-core",
-      "versionInfo": "0.1.0",
+      "versionInfo": "1.0.0",
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
@@ -86,9 +86,9 @@
       "supplier": "Organization: Universal AI Assistant"
     },
     {
-      "SPDXID": "SPDXRef-Package-aissistant-ffi-0.1.0",
+      "SPDXID": "SPDXRef-Package-aissistant-ffi-1.0.0",
       "name": "aissistant-ffi",
-      "versionInfo": "0.1.0",
+      "versionInfo": "1.0.0",
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
@@ -97,9 +97,9 @@
       "supplier": "Organization: Universal AI Assistant"
     },
     {
-      "SPDXID": "SPDXRef-Package-aissistant-llm-0.1.0",
+      "SPDXID": "SPDXRef-Package-aissistant-llm-1.0.0",
       "name": "aissistant-llm",
-      "versionInfo": "0.1.0",
+      "versionInfo": "1.0.0",
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
@@ -108,9 +108,9 @@
       "supplier": "Organization: Universal AI Assistant"
     },
     {
-      "SPDXID": "SPDXRef-Package-aissistant-network-0.1.0",
+      "SPDXID": "SPDXRef-Package-aissistant-network-1.0.0",
       "name": "aissistant-network",
-      "versionInfo": "0.1.0",
+      "versionInfo": "1.0.0",
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
@@ -119,9 +119,9 @@
       "supplier": "Organization: Universal AI Assistant"
     },
     {
-      "SPDXID": "SPDXRef-Package-aissistant-orchestrator-0.1.0",
+      "SPDXID": "SPDXRef-Package-aissistant-orchestrator-1.0.0",
       "name": "aissistant-orchestrator",
-      "versionInfo": "0.1.0",
+      "versionInfo": "1.0.0",
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
@@ -130,9 +130,9 @@
       "supplier": "Organization: Universal AI Assistant"
     },
     {
-      "SPDXID": "SPDXRef-Package-aissistant-platform-0.1.0",
+      "SPDXID": "SPDXRef-Package-aissistant-platform-1.0.0",
       "name": "aissistant-platform",
-      "versionInfo": "0.1.0",
+      "versionInfo": "1.0.0",
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
@@ -141,9 +141,9 @@
       "supplier": "Organization: Universal AI Assistant"
     },
     {
-      "SPDXID": "SPDXRef-Package-aissistant-security-0.1.0",
+      "SPDXID": "SPDXRef-Package-aissistant-security-1.0.0",
       "name": "aissistant-security",
-      "versionInfo": "0.1.0",
+      "versionInfo": "1.0.0",
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
@@ -152,9 +152,9 @@
       "supplier": "Organization: Universal AI Assistant"
     },
     {
-      "SPDXID": "SPDXRef-Package-aissistant-skills-0.1.0",
+      "SPDXID": "SPDXRef-Package-aissistant-skills-1.0.0",
       "name": "aissistant-skills",
-      "versionInfo": "0.1.0",
+      "versionInfo": "1.0.0",
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
@@ -163,9 +163,9 @@
       "supplier": "Organization: Universal AI Assistant"
     },
     {
-      "SPDXID": "SPDXRef-Package-aissistant-speech-0.1.0",
+      "SPDXID": "SPDXRef-Package-aissistant-speech-1.0.0",
       "name": "aissistant-speech",
-      "versionInfo": "0.1.0",
+      "versionInfo": "1.0.0",
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
@@ -174,9 +174,9 @@
       "supplier": "Organization: Universal AI Assistant"
     },
     {
-      "SPDXID": "SPDXRef-Package-aissistant-storage-0.1.0",
+      "SPDXID": "SPDXRef-Package-aissistant-storage-1.0.0",
       "name": "aissistant-storage",
-      "versionInfo": "0.1.0",
+      "versionInfo": "1.0.0",
       "downloadLocation": "NOASSERTION",
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
@@ -253,6 +253,23 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-atomic-waker-1.1.2",
+      "name": "atomic-waker",
+      "versionInfo": "1.1.2",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-autocfg-1.5.1",
       "name": "autocfg",
       "versionInfo": "1.5.1",
@@ -283,6 +300,23 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-base64-0.23.1",
+      "name": "base64",
+      "versionInfo": "0.23.1",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
         }
       ]
     },
@@ -1103,6 +1137,23 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-displaydoc-0.2.7",
+      "name": "displaydoc",
+      "versionInfo": "0.2.7",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "c6232dd377dcc64799954cbd3a9bb882e9cdc1308ccd87b1c098f1fb2eaf82a8"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-ed25519-2.2.3",
       "name": "ed25519",
       "versionInfo": "2.2.3",
@@ -1380,6 +1431,40 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-form-urlencoded-1.2.2",
+      "name": "form_urlencoded",
+      "versionInfo": "1.2.2",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-futures-channel-0.3.34",
+      "name": "futures-channel",
+      "versionInfo": "0.3.34",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "b1f9e3d69d39e4862ffed03ed071a76f9a13ba1d9109d355b0f0aa6b15e393c4"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-futures-core-0.3.34",
       "name": "futures-core",
       "versionInfo": "0.3.34",
@@ -1393,6 +1478,57 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "92d699e522242e69e3003b94ecc1f960f3a5e015aa7c5d7486e65ad01dd94f5e"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-futures-io-0.3.34",
+      "name": "futures-io",
+      "versionInfo": "0.3.34",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "53c0fa8157de1303bfffdaa1cc2a673bfffb60102f76b0ef4441659124373fed"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-futures-macro-0.3.34",
+      "name": "futures-macro",
+      "versionInfo": "0.3.34",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "9fb9654ba8355388abeb8dcb4fc62f511300867002afc858860463bdd9fe0c44"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-futures-sink-0.3.34",
+      "name": "futures-sink",
+      "versionInfo": "0.3.34",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "1944426bf7d03f1d14f708785e4b33efd750b36d48a157b836b3efc15ede8e1d"
         }
       ]
     },
@@ -1584,6 +1720,278 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-http-1.5.0",
+      "name": "http",
+      "versionInfo": "1.5.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "918d3568bebf352712bc2ef3d46a8bcf1a75b373be6539de198e9105cbbf9ce0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-http-body-1.1.0",
+      "name": "http-body",
+      "versionInfo": "1.1.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "ca2a8f2913ee65f60facd6a5905613afaa448497a0230cc41ce022d93290bc2c"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-http-body-util-0.1.5",
+      "name": "http-body-util",
+      "versionInfo": "0.1.5",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "23169fe34a5fbcdd3f3862e78fb9b6fccd5f02a6dc6f732547005d45631ce71c"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-httparse-1.10.1",
+      "name": "httparse",
+      "versionInfo": "1.10.1",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-hyper-1.12.0",
+      "name": "hyper",
+      "versionInfo": "1.12.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "2c3e324da4c95177d6291d4c8730197c0d1822f8a9766814a4a44fa5ab797c9c"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-hyper-rustls-0.27.10",
+      "name": "hyper-rustls",
+      "versionInfo": "0.27.10",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "dfa8e654703247911e29c23fbeaa261834bd9bb74efba2f9acddc37bfb127f53"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-hyper-util-0.1.21",
+      "name": "hyper-util",
+      "versionInfo": "0.1.21",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "ddc03d96684f9226b8a787cdb71488417b53ab5ea8fdb1dac946cb9431cc8bff"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-icu-collections-2.4.0",
+      "name": "icu_collections",
+      "versionInfo": "2.4.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "fe090a42a0d3140fed8c63263ed1fecc02422cb2f4bfe55cd8de2de1b8e105dd"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-icu-locale-core-2.4.0",
+      "name": "icu_locale_core",
+      "versionInfo": "2.4.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "25d29b57c17c6528d0dc4c2141cfa2d08200465acb537a3909c8b9b8a4a984c0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-icu-normalizer-2.4.0",
+      "name": "icu_normalizer",
+      "versionInfo": "2.4.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "404a3b8c486f205c87fe7f23ab6894d84a4ad76d6e4671ae1981ba7def87c599"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-icu-normalizer-data-2.4.0",
+      "name": "icu_normalizer_data",
+      "versionInfo": "2.4.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "20f0088bfb7441f7a37fa0c9e20cb1e9cba1cac6b9ce8cd2a6dc44294f8e8cbc"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-icu-properties-2.4.0",
+      "name": "icu_properties",
+      "versionInfo": "2.4.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "2ea83d991c56158f7cf898bf86436c1dfe7c07ee82fe88951f2695c9f37a379f"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-icu-properties-data-2.4.0",
+      "name": "icu_properties_data",
+      "versionInfo": "2.4.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "b98f29af82d02b163fe50161388350e743bb3107cc8e8c2f7314cb505faddfcf"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-icu-provider-2.4.0",
+      "name": "icu_provider",
+      "versionInfo": "2.4.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "413099315636c588ee8f011190b329b971a09a8fae9d157e01dcae8379468514"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-idna-1.1.0",
+      "name": "idna",
+      "versionInfo": "1.1.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "3b0875f23caa03898994f6ddc501886a45c7d3d62d04d2d90788d47be1b1e4de"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-idna-adapter-1.2.2",
+      "name": "idna_adapter",
+      "versionInfo": "1.2.2",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "cb68373c0d6620ef8105e855e7745e18b0d00d3bdb07fb532e434244cdb9a714"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-indexmap-2.14.2",
       "name": "indexmap",
       "versionInfo": "2.14.2",
@@ -1614,6 +2022,23 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ipnet-2.12.2",
+      "name": "ipnet",
+      "versionInfo": "2.12.2",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "791930b43c0d5973160d90a8f3894509f2b273430f5c5c73b668636d0287c5c0"
         }
       ]
     },
@@ -1886,6 +2311,23 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-litemap-0.8.3",
+      "name": "litemap",
+      "versionInfo": "0.8.3",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
         }
       ]
     },
@@ -2315,6 +2757,23 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-percent-encoding-2.3.2",
+      "name": "percent-encoding",
+      "versionInfo": "2.3.2",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-pin-project-lite-0.2.17",
       "name": "pin-project-lite",
       "versionInfo": "0.2.17",
@@ -2379,6 +2838,23 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "8159bd90725d2df49889a078b54f4f79e87f1f8a8444194cdca81d38f5393abf"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-potential-utf-0.1.6",
+      "name": "potential_utf",
+      "versionInfo": "0.1.6",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "d83eb9bc6d8e5cf568e7a1101d60ee05e81ed50ea106026f3d18deeb046d7661"
         }
       ]
     },
@@ -2791,6 +3267,23 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-reqwest-0.12.28",
+      "name": "reqwest",
+      "versionInfo": "0.12.28",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-ring-0.17.14",
       "name": "ring",
       "versionInfo": "0.17.14",
@@ -2961,6 +3454,23 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-ryu-1.0.23",
+      "name": "ryu",
+      "versionInfo": "1.0.23",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-same-file-1.0.6",
       "name": "same-file",
       "versionInfo": "1.0.6",
@@ -3059,6 +3569,23 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-serde-urlencoded-0.7.1",
+      "name": "serde_urlencoded",
+      "versionInfo": "0.7.1",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "d3491c14715ca2294c4d6a88f15e84739788c1d030eed8c110436aafdaa2f3fd"
         }
       ]
     },
@@ -3244,6 +3771,23 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-stable-deref-trait-1.2.1",
+      "name": "stable_deref_trait",
+      "versionInfo": "1.2.1",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-stack-trace-1.12.1",
       "name": "stack_trace",
       "versionInfo": "1.12.1",
@@ -3342,6 +3886,40 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "4ae9ccbea3a7b0b09443036490c8f34a8b1b760fd345e5c0dae0aac718faea79"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-sync-wrapper-1.0.2",
+      "name": "sync_wrapper",
+      "versionInfo": "1.0.2",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-synstructure-0.14.0",
+      "name": "synstructure",
+      "versionInfo": "0.14.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "901704edd0dfe137f1987838ee4f259e4e063c31371bdb423f7ae38ec6f77f02"
         }
       ]
     },
@@ -3516,6 +4094,23 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-tinystr-0.8.5",
+      "name": "tinystr",
+      "versionInfo": "0.8.5",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "abc840c238154d58f9e86b2792261edfde565a17696e1cda1a449de27979801a"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-tinyvec-1.13.3",
       "name": "tinyvec",
       "versionInfo": "1.13.3",
@@ -3563,6 +4158,40 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-tokio-rustls-0.26.6",
+      "name": "tokio-rustls",
+      "versionInfo": "0.26.6",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "c9cc2678c2cdd569ef8215e2afd7954ada2ae20b4fdd2c5fe6139a3b02d105db"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-tokio-util-0.7.20",
+      "name": "tokio-util",
+      "versionInfo": "0.7.20",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "e464cf451ba96ebfc6f9b6542f17ee8b8956e33f1e40d9690624e59d7a7f8a4b"
         }
       ]
     },
@@ -3618,6 +4247,74 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-tower-0.5.3",
+      "name": "tower",
+      "versionInfo": "0.5.3",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "ebe5ef63511595f1344e2d5cfa636d973292adc0eec1f0ad45fae9f0851ab1d4"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-tower-http-0.6.11",
+      "name": "tower-http",
+      "versionInfo": "0.6.11",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-tower-layer-0.3.3",
+      "name": "tower-layer",
+      "versionInfo": "0.3.3",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "121c2a6cda46980bb0fcd1647ffaf6cd3fc79a013de288782836f6df9c48780e"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-tower-service-0.3.3",
+      "name": "tower-service",
+      "versionInfo": "0.3.3",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-tracing-0.1.44",
       "name": "tracing",
       "versionInfo": "0.1.44",
@@ -3665,6 +4362,23 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-try-lock-0.2.5",
+      "name": "try-lock",
+      "versionInfo": "0.2.5",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
         }
       ]
     },
@@ -3767,6 +4481,57 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-url-2.5.8",
+      "name": "url",
+      "versionInfo": "2.5.8",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-utf8-iter-1.1.0",
+      "name": "utf8_iter",
+      "versionInfo": "1.1.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "af3bd9d3e571c26fcce9d033b87ea5ab061b8d2ffe9b7a5675d810d68f03edf0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-utf-types-1.0.0",
+      "name": "utf_types",
+      "versionInfo": "1.0.0",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "3a3b425286980a367278453f3b6d28cdcb134b574e5a35824a6ff5eebad50bb6"
         }
       ]
     },
@@ -3890,6 +4655,23 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-want-0.3.2",
+      "name": "want",
+      "versionInfo": "0.3.2",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "ec4cdd0dd910afe868b7ef477227d8d538b46b3075031afee8a9f2acb0a2ed0b"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-wasi-0.11.1-wasi-snapshot-preview1",
       "name": "wasi",
       "versionInfo": "0.11.1+wasi-snapshot-preview1",
@@ -3992,6 +4774,23 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-wasm-streams-0.4.2",
+      "name": "wasm-streams",
+      "versionInfo": "0.4.2",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "15053d8d85c7eccdbefef60f06769760a563c7f0a9d6902a13d35c7800b0ad65"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-web-sys-0.3.107",
       "name": "web-sys",
       "versionInfo": "0.3.107",
@@ -4022,6 +4821,23 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-webpki-roots-1.0.12",
+      "name": "webpki-roots",
+      "versionInfo": "1.0.12",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "7265c9301c16a8711c992c2d8da90ee77ef54b1ed51482d6dfeb00dc756b1297"
         }
       ]
     },
@@ -4519,6 +5335,23 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-writeable-0.6.4",
+      "name": "writeable",
+      "versionInfo": "0.6.4",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-yasna-0.5.2",
       "name": "yasna",
       "versionInfo": "0.5.2",
@@ -4532,6 +5365,40 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "e17bb3549cc1321ae1296b9cdc2698e2b6cb1992adfa19a8c72e5b7a738f44cd"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-yoke-0.8.4",
+      "name": "yoke",
+      "versionInfo": "0.8.4",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "417ef3fcf6c300b7dbd25c85531a746931c02ad536f3cf4786ed1e88223340b3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-yoke-derive-0.8.4",
+      "name": "yoke-derive",
+      "versionInfo": "0.8.4",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "ec8ebde2db3681e8c9980cc27822030e68752690ddfa9473e739aeb4dbde6d71"
         }
       ]
     },
@@ -4570,6 +5437,40 @@
       ]
     },
     {
+      "SPDXID": "SPDXRef-Package-zerofrom-0.1.8",
+      "name": "zerofrom",
+      "versionInfo": "0.1.8",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "0ec05a11813ea801ff6d75110ad09cd0824ddba17dfe17128ea0d5f68e6c5272"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-zerofrom-derive-0.1.8",
+      "name": "zerofrom-derive",
+      "versionInfo": "0.1.8",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "f75b4683f6c7f45248d4d64056a24298c6281e0993356d7d1b4a1a962ef10d4a"
+        }
+      ]
+    },
+    {
       "SPDXID": "SPDXRef-Package-zeroize-1.9.1",
       "name": "zeroize",
       "versionInfo": "1.9.1",
@@ -4600,6 +5501,57 @@
         {
           "algorithm": "SHA256",
           "checksumValue": "3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-zerotrie-0.2.5",
+      "name": "zerotrie",
+      "versionInfo": "0.2.5",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "4ea269c3bd32f0a32c321907a2ae912ba6f4649bb0fc764a15627e99a7095a3f"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-zerovec-0.11.9",
+      "name": "zerovec",
+      "versionInfo": "0.11.9",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "f58a2799cfe9a1670c7ea8edbd52ef8edb93cb37a7f83bf31ba9e35d9dae6a40"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-zerovec-derive-0.11.7",
+      "name": "zerovec-derive",
+      "versionInfo": "0.11.7",
+      "downloadLocation": "registry+https://github.com/rust-lang/crates.io-index",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "Organization: crates.io",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "c3743ddbf47738d929cd1ae2e199d40d0162979dfe31aef8ae646d2bf00bf97a"
         }
       ]
     },
@@ -4690,57 +5642,57 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
-      "relatedSpdxElement": "SPDXRef-Package-aissistant-audio-0.1.0",
+      "relatedSpdxElement": "SPDXRef-Package-aissistant-audio-1.0.0",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
-      "relatedSpdxElement": "SPDXRef-Package-aissistant-core-0.1.0",
+      "relatedSpdxElement": "SPDXRef-Package-aissistant-core-1.0.0",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
-      "relatedSpdxElement": "SPDXRef-Package-aissistant-ffi-0.1.0",
+      "relatedSpdxElement": "SPDXRef-Package-aissistant-ffi-1.0.0",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
-      "relatedSpdxElement": "SPDXRef-Package-aissistant-llm-0.1.0",
+      "relatedSpdxElement": "SPDXRef-Package-aissistant-llm-1.0.0",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
-      "relatedSpdxElement": "SPDXRef-Package-aissistant-network-0.1.0",
+      "relatedSpdxElement": "SPDXRef-Package-aissistant-network-1.0.0",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
-      "relatedSpdxElement": "SPDXRef-Package-aissistant-orchestrator-0.1.0",
+      "relatedSpdxElement": "SPDXRef-Package-aissistant-orchestrator-1.0.0",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
-      "relatedSpdxElement": "SPDXRef-Package-aissistant-platform-0.1.0",
+      "relatedSpdxElement": "SPDXRef-Package-aissistant-platform-1.0.0",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
-      "relatedSpdxElement": "SPDXRef-Package-aissistant-security-0.1.0",
+      "relatedSpdxElement": "SPDXRef-Package-aissistant-security-1.0.0",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
-      "relatedSpdxElement": "SPDXRef-Package-aissistant-skills-0.1.0",
+      "relatedSpdxElement": "SPDXRef-Package-aissistant-skills-1.0.0",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
-      "relatedSpdxElement": "SPDXRef-Package-aissistant-speech-0.1.0",
+      "relatedSpdxElement": "SPDXRef-Package-aissistant-speech-1.0.0",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
-      "relatedSpdxElement": "SPDXRef-Package-aissistant-storage-0.1.0",
+      "relatedSpdxElement": "SPDXRef-Package-aissistant-storage-1.0.0",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -4765,12 +5717,22 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-atomic-waker-1.1.2",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-autocfg-1.5.1",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-base64-0.22.1",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-base64-0.23.1",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -5015,6 +5977,11 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-displaydoc-0.2.7",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-ed25519-2.2.3",
       "relationshipType": "DESCRIBES"
     },
@@ -5100,7 +6067,32 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-form-urlencoded-1.2.2",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-futures-channel-0.3.34",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-futures-core-0.3.34",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-futures-io-0.3.34",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-futures-macro-0.3.34",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-futures-sink-0.3.34",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -5160,12 +6152,97 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-http-1.5.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-http-body-1.1.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-http-body-util-0.1.5",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-httparse-1.10.1",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-hyper-1.12.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-hyper-rustls-0.27.10",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-hyper-util-0.1.21",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-icu-collections-2.4.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-icu-locale-core-2.4.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-icu-normalizer-2.4.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-icu-normalizer-data-2.4.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-icu-properties-2.4.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-icu-properties-data-2.4.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-icu-provider-2.4.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-idna-1.1.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-idna-adapter-1.2.2",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-indexmap-2.14.2",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-inout-0.1.4",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-ipnet-2.12.2",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -5246,6 +6323,11 @@
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-linux-raw-sys-0.12.1",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-litemap-0.8.3",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -5375,6 +6457,11 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-percent-encoding-2.3.2",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-pin-project-lite-0.2.17",
       "relationshipType": "DESCRIBES"
     },
@@ -5391,6 +6478,11 @@
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-poly1305-0.8.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-potential-utf-0.1.6",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -5515,6 +6607,11 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-reqwest-0.12.28",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-ring-0.17.14",
       "relationshipType": "DESCRIBES"
     },
@@ -5565,6 +6662,11 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-ryu-1.0.23",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-same-file-1.0.6",
       "relationshipType": "DESCRIBES"
     },
@@ -5591,6 +6693,11 @@
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-serde-json-1.0.154",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-serde-urlencoded-0.7.1",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -5650,6 +6757,11 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-stable-deref-trait-1.2.1",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-stack-trace-1.12.1",
       "relationshipType": "DESCRIBES"
     },
@@ -5676,6 +6788,16 @@
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-syn-3.0.10",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-sync-wrapper-1.0.2",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-synstructure-0.14.0",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -5730,6 +6852,11 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-tinystr-0.8.5",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-tinyvec-1.13.3",
       "relationshipType": "DESCRIBES"
     },
@@ -5741,6 +6868,16 @@
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-tokio-macros-2.7.2",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-tokio-rustls-0.26.6",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-tokio-util-0.7.20",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -5760,6 +6897,26 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-tower-0.5.3",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-tower-http-0.6.11",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-tower-layer-0.3.3",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-tower-service-0.3.3",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-tracing-0.1.44",
       "relationshipType": "DESCRIBES"
     },
@@ -5771,6 +6928,11 @@
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-tracing-core-0.1.36",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-try-lock-0.2.5",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -5801,6 +6963,21 @@
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-untrusted-0.9.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-url-2.5.8",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-utf8-iter-1.1.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-utf-types-1.0.0",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -5840,6 +7017,11 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-want-0.3.2",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-wasi-0.11.1-wasi-snapshot-preview1",
       "relationshipType": "DESCRIBES"
     },
@@ -5870,12 +7052,22 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-wasm-streams-0.4.2",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-web-sys-0.3.107",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-web-time-1.1.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-webpki-roots-1.0.12",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -6025,7 +7217,22 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-writeable-0.6.4",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-yasna-0.5.2",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-yoke-0.8.4",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-yoke-derive-0.8.4",
       "relationshipType": "DESCRIBES"
     },
     {
@@ -6040,12 +7247,37 @@
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-zerofrom-0.1.8",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-zerofrom-derive-0.1.8",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-zeroize-1.9.1",
       "relationshipType": "DESCRIBES"
     },
     {
       "spdxElementId": "SPDXRef-DOCUMENT",
       "relatedSpdxElement": "SPDXRef-Package-zeroize-derive-1.5.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-zerotrie-0.2.5",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-zerovec-0.11.9",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-zerovec-derive-0.11.7",
       "relationshipType": "DESCRIBES"
     },
     {

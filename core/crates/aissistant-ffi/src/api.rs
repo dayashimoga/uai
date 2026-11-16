@@ -36,7 +36,7 @@ use crate::lifecycle::{
     ShutdownReason,
 };
 use crate::model_bridge::{
-    BenchmarkReport, HardwareOverview, ModelManagerSnapshot, ModelSupervisor,
+    BenchmarkReport, HardwareOverview, ModelCatalogItem, ModelManagerSnapshot, ModelSupervisor,
 };
 use crate::voice_bridge::{VoiceListeningMode, VoicePipelineSupervisor};
 
@@ -1380,6 +1380,42 @@ impl CoreBridge {
         sup.run_benchmark(prompt_tokens, generate_tokens)
     }
 
+    /// Initiates a background download of a model by ID.
+    pub fn model_download(&self, model_id: &str) -> FfiResult<()> {
+        let sup = self
+            .model_supervisor
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        sup.download_model(model_id)
+    }
+
+    /// Cancels an active model download.
+    pub fn model_cancel_download(&self, model_id: &str) -> FfiResult<()> {
+        let sup = self
+            .model_supervisor
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        sup.cancel_download(model_id)
+    }
+
+    /// Deletes a model from local disk.
+    pub fn model_delete(&self, model_id: &str) -> FfiResult<()> {
+        let mut sup = self
+            .model_supervisor
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        sup.delete_model(model_id)
+    }
+
+    /// Imports a local .gguf file into the catalog.
+    pub fn model_import_local_gguf(&self, file_path: &str) -> FfiResult<ModelCatalogItem> {
+        let mut sup = self
+            .model_supervisor
+            .lock()
+            .map_err(|e| FfiError::LockPoisoned(e.to_string()))?;
+        sup.import_local_gguf(file_path)
+    }
+
     /// Returns the device supervisor.
     #[must_use]
     pub fn device_supervisor(&self) -> Arc<DeviceSupervisor> {
@@ -2440,6 +2476,30 @@ pub fn bridge_model_benchmark_run(
 ) -> FfiResult<BenchmarkReport> {
     let bridge = get_bridge()?;
     bridge.model_benchmark_run(prompt_tokens, generate_tokens)
+}
+
+/// Convenience entry point: downloads a model by ID on the global bridge.
+pub fn bridge_model_download(model_id: &str) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.model_download(model_id)
+}
+
+/// Convenience entry point: cancels an active model download on the global bridge.
+pub fn bridge_model_cancel_download(model_id: &str) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.model_cancel_download(model_id)
+}
+
+/// Convenience entry point: deletes a model from disk on the global bridge.
+pub fn bridge_model_delete(model_id: &str) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.model_delete(model_id)
+}
+
+/// Convenience entry point: imports a local GGUF file into the catalog.
+pub fn bridge_model_import_local_gguf(file_path: &str) -> FfiResult<ModelCatalogItem> {
+    let bridge = get_bridge()?;
+    bridge.model_import_local_gguf(file_path)
 }
 
 /// Convenience entry point: returns discovered network peers.

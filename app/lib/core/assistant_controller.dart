@@ -127,6 +127,11 @@ class AssistantController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   Future<void> initialize() async {
     _isLoading = true;
     _errorMessage = null;
@@ -233,6 +238,33 @@ class AssistantController extends ChangeNotifier {
         mode: mode,
       );
     } else if (event is ModelLoadedEvent || event is ModelUnloadedEvent) {
+      refreshModelSnapshot();
+    } else if (event is ModelDownloadProgressEvent) {
+      if (_modelSnapshot != null) {
+        final updatedModels = _modelSnapshot!.models.map((m) {
+          if (m.id == event.modelId) {
+            return m.copyWith(
+              lifecycleState: ModelLifecycleState(
+                status: ModelLifecycleStatus.downloading,
+                downloadedBytes: event.downloadedBytes,
+                totalBytes: event.totalBytes,
+                speedBps: event.speedBps,
+              ),
+            );
+          }
+          return m;
+        }).toList();
+        _modelSnapshot = ModelManagerSnapshot(
+          hardware: _modelSnapshot!.hardware,
+          activeModelId: _modelSnapshot!.activeModelId,
+          models: updatedModels,
+        );
+        notifyListeners();
+      }
+    } else if (event is ModelDownloadCompletedEvent) {
+      refreshModelSnapshot();
+    } else if (event is ModelDownloadFailedEvent) {
+      _errorMessage = 'Model download failed: ${event.error}';
       refreshModelSnapshot();
     } else if (event is BenchmarkCompletedEvent) {
       try {
@@ -476,6 +508,46 @@ class AssistantController extends ChangeNotifier {
       refreshModelSnapshot();
     } catch (e) {
       _errorMessage = 'Failed to unload model: $e';
+      notifyListeners();
+    }
+  }
+
+  void downloadModel(String modelId) {
+    try {
+      _bridge.downloadModel(modelId);
+      refreshModelSnapshot();
+    } catch (e) {
+      _errorMessage = 'Failed to start download for "$modelId": $e';
+      notifyListeners();
+    }
+  }
+
+  void cancelDownload(String modelId) {
+    try {
+      _bridge.cancelDownload(modelId);
+      refreshModelSnapshot();
+    } catch (e) {
+      _errorMessage = 'Failed to cancel download for "$modelId": $e';
+      notifyListeners();
+    }
+  }
+
+  void deleteModel(String modelId) {
+    try {
+      _bridge.deleteModel(modelId);
+      refreshModelSnapshot();
+    } catch (e) {
+      _errorMessage = 'Failed to delete model "$modelId": $e';
+      notifyListeners();
+    }
+  }
+
+  void importLocalGguf(String filePath) {
+    try {
+      _bridge.importLocalGguf(filePath);
+      refreshModelSnapshot();
+    } catch (e) {
+      _errorMessage = 'Failed to import local GGUF "$filePath": $e';
       notifyListeners();
     }
   }
