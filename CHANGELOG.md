@@ -1922,3 +1922,51 @@
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 103 unit and widget tests (0 failures across 15 test suites).
 - Commit reference: `077c3cb`.
 
+---
+
+## [2026-11-16] — S10.P1.2: Cryptographic Key Rotation, Revocation & Emergency Lockdown
+
+### Added & Modified
+- `core/crates/aissistant-storage/src/secret_store.rs`:
+  - Updated `SecretStore` to use `Arc<RwLock<AeadKey>>`, enabling atomic runtime key rotation across shared instances without requiring `&mut self`.
+  - Implemented `rotate_key(&self, new_key: AeadKey) -> Result<(), StorageError>` that atomically re-encrypts all stored secrets at rest within a single SQLite transaction with zero data loss.
+  - Added unit test `test_key_rotation` verifying that secrets re-encrypted under the new key fail decryption under the old key and succeed under the new key.
+- `core/crates/aissistant-network/src/transport.rs`:
+  - Added `disconnect_peer(&self, peer_key: &[u8; 32]) -> bool` to `QuicTransportEngine` for immediate termination of active QUIC/TLS sessions upon device revocation.
+- `core/crates/aissistant-ffi/src/events.rs`:
+  - Added `KeyRotated { timestamp_ms: u64 }`, `DeviceRevoked { device_id: String }`, and `EmergencyLockdown { active: bool, reason: String }` event variants to `BridgeEvent`.
+- `core/crates/aissistant-ffi/src/device_bridge.rs`:
+  - Added `revoke_device(&self, device_id_str: &str) -> FfiResult<()>` to `DeviceSupervisor`, setting trust state to `DeviceTrustState::Revoked`, disconnecting transport sessions, and broadcasting `BridgeEvent::DeviceRevoked`.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Added `lockdown_active: Arc<AtomicBool>` to `CoreBridge`.
+  - Added `rotate_master_key(&self)`, `device_revoke(&self, device_id: &str)`, `emergency_lockdown(&self, reason: &str)`, `lift_emergency_lockdown(&self)`, and `is_lockdown_active(&self) -> bool` with BLAKE3 hash-chained audit logging.
+  - Added top-level convenience functions `bridge_rotate_master_key`, `bridge_device_revoke`, `bridge_emergency_lockdown`, `bridge_lift_emergency_lockdown`, and `bridge_is_lockdown_active`.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Exposed safe C-ABI functions: `bridge_c_rotate_master_key`, `bridge_c_device_revoke`, `bridge_c_emergency_lockdown`, `bridge_c_lift_emergency_lockdown`, `bridge_c_is_lockdown_active` with null safety, panic containment, and doc `# Safety` annotations.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Added integration tests `test_key_rotation_and_emergency_lockdown_lifecycle` and `test_key_rotation_and_lockdown_c_abi`.
+- `app/lib/core/models/bridge_event.dart`:
+  - Added `KeyRotatedEvent`, `DeviceRevokedEvent`, and `EmergencyLockdownEvent`.
+- `app/lib/core/ffi_bridge.dart`:
+  - Added C-ABI function signatures, bindings, and `TestHarnessBridge` mock/simulation support for key rotation, device revocation, and emergency lockdown.
+- `app/lib/core/assistant_controller.dart`:
+  - Added reactive `isLockdownActive`, event handlers for key rotation, device revocation, and lockdown toggles, plus actions `rotateMasterKey()`, `revokeDevice()`, `triggerEmergencyLockdown()`, and `liftEmergencyLockdown()`.
+- `app/lib/ui/screens/devices_screen.dart`:
+  - Added "Revoke Trust" action button with confirmation dialog and updated badge for `REVOKED` state.
+- `app/lib/ui/screens/settings_screen.dart`:
+  - Added "Rotate Master Encryption Key" with confirmation dialog and feedback.
+  - Added "Emergency Security Lockdown" button and prominent banner when lockdown is active with "Lift Lockdown" button.
+- `app/test/assistant_controller_test.dart` & `app/test/devices_screen_test.dart`:
+  - Added test cases verifying key rotation, device revocation, and lockdown event flows.
+- `app/test/settings_screen_test.dart`:
+  - Created test suite verifying settings rendering, key rotation dialog, emergency lockdown banner display, and lifting lockdown.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed cleanly.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across workspace.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 398 unit, integration, and fuzzing tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 108 unit and widget tests (0 failures across 16 test suites).
+- Commit reference: `eddd455`.
+
+
