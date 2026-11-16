@@ -1850,3 +1850,30 @@
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 95 unit and widget tests (0 failures).
 - Commit reference: `abb36fd`.
+
+---
+
+## [2026-11-16] — S9.P2.2: Automation Builder UI & Execution History Inspector
+
+### Added & Modified
+- `app/lib/ui/screens/automation_screen.dart`:
+  - Built interactive visual routine automation management screen with 3 segmented tab views:
+    - **Routines Tab:** Routine cards with trigger type chips (`cron`, `event`, `manual`), interval/event descriptions, enable/disable switches, "Run Now" execution buttons, delete buttons, and dry-run execution report banner.
+    - **Smart Home Tab:** Device cards with domain icons (Light, Climate, Switch, Fan, Cover, Sensor, Lock, MediaPlayer), friendly names, offline protocol chips (`Home Assistant`, `MQTT`, `Matter Local`), LAN availability indicators, one-tap actuation toggles, temperature adjusters, domain filter chips (`All`, `light`, `climate`, etc.), and device registration modal dialog.
+    - **History Tab:** Timeline of routine execution history records with status chips (`success`/`failed`), duration in milliseconds, trigger source chips, localized execution timestamps, and history purge button.
+    - FAB modals for creating new routines (with name, trigger type, schedule/event, and initial notification action) and registering smart home devices.
+- `app/lib/ui/adaptive_shell.dart`:
+  - Integrated `AutomationScreen` into responsive shell navigation.
+  - Added "Automations" destination to desktop `NavigationRail` and mobile `NavigationBar` (`Icons.auto_mode_outlined` / `Icons.auto_mode`).
+- `app/test/automation_screen_test.dart`:
+  - Implemented 8 comprehensive widget tests verifying initial screen rendering, routine toggling, manual routine triggering and banner verification, custom routine creation via dialog, routine deletion, smart home entity control and domain filtering, smart device registration, and execution history clearing.
+- `app/test/widget_test.dart`:
+  - Added test verifying adaptive shell navigation routing to `AutomationScreen`.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed cleanly.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across workspace.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 378 unit and integration tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 103 unit and widget tests (0 failures across 15 test suites).
+- Commit reference: `a0cdfde`.

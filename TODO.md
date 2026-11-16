@@ -109,4 +109,20 @@
 - [x] `[S9.P1.1]` User Persona, Voice Profile & Explicit Preference Manager *(Completed 2026-11-15)*
 - [x] `[S9.P1.2]` Cron, Event-Triggered & Cross-Device Workflow Automation Engine *(Completed 2026-11-16)*
 - [x] `[S9.P2.1]` Local MQTT & Home Assistant / Matter-Bridge Offline Integration *(Completed 2026-11-16)*
-- [ ] `[S9.P2.2]` Automation Builder UI & Execution History Inspector
+- [x] `[S9.P2.2]` Automation Builder UI & Execution History Inspector *(Completed 2026-11-16)*
+
+---
+
+## Stage 10 Queue (Security Hardening, Performance & Reliability)
+- [ ] `[S10.P1.1]` Comprehensive Prompt-Injection, Sandbox Escape & Fuzzing Suite
+- [ ] `[S10.P1.2]` Cryptographic Key Rotation, Revocation & Emergency Lockdown
+- [ ] `[S10.P2.1]` End-to-End Latency & Memory Footprint Optimization
+- [ ] `[S10.P2.2]` Network Chaos, Sleep/Wake & Long-Running Soak Verification
+
+---
+
+## Stage 11 Queue (Packaging, Distribution & Final Certification)
+- [ ] `[S11.P1.1]` Desktop Release Packaging (Windows, Linux, macOS)
+- [ ] `[S11.P1.2]` Mobile Release Packaging (Android APK/AAB & iOS IPA)
+- [ ] `[S11.P2.1]` Full Acceptance Matrix Verification, SBOM & SHA-256 Manifests
+- [ ] `[S11.P2.2]` v1.0.0 Production Release Tagging & Final Documentation Sign-Off
