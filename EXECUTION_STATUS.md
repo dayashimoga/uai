@@ -1,8 +1,8 @@
 # EXECUTION_STATUS.md — Authoritative Live Completion Tracker
 
 **Last Updated:** 2026-11-16  
-**Current Project Phase:** Stage 10 — Security, Performance, Compatibility & Reliability  
-**Next Subphase in Queue:** `S10.P2.2` (Network Chaos, Sleep/Wake & Long-Running Soak Verification)
+**Current Project Phase:** Stage 11 — CI/CD, Packaging, Distribution & Documentation  
+**Next Subphase in Queue:** `S11.P2.1` (Full Acceptance Matrix Verification, SBOM & SHA-256 Manifests)
 
 ---
 
@@ -85,7 +85,7 @@ Status Legend:
 | **Stage 10** | `S10.P2.1` | End-to-End Latency & Memory Footprint Optimization | `S10.P1.2` | `COMPLETED` | Verified [Commit `2966d63`]: 417 Rust workspace unit, property & benchmark tests passing (36 in `aissistant-ffi`, 5 in `performance_benchmark_test`, 53 in `aissistant-storage`, 23 in `aissistant-audio`, 28 in `aissistant-speech`), clippy zero warnings, fmt check passed, 110 Flutter tests passing (100%), `flutter analyze` zero issues, zero-allocation AudioRingBuffer & AudioResampler inner loops, zero-allocation AcousticKwsSpotter template matching, SqliteDb::trim_memory & cache tuning, PerformanceSnapshot & PipelineBenchmarkReport FFI/C-ABI exports, reactive AssistantController performance telemetry, and live Settings UI diagnostics card verified. |
 | **Stage 10** | `S10.P2.2` | Network Chaos, Sleep/Wake & Long-Running Soak Verification | `S10.P2.1` | `COMPLETED` | Verified [Commit `18aaca0`]: 422 Rust workspace tests passing (56 in `aissistant-storage`, 59 in `aissistant-network`, 29 in `aissistant-orchestrator`, 42 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 113 Flutter tests passing (100%), `flutter analyze` zero issues, `SqliteDb::recover_corrupt_wal` quarantine auto-recovery, `QuicTransportEngine` reconnect and endpoint rebinding resilience, `CoreRuntime::notify_power_transition` sleep/wake lifecycle with WAL checkpointing, 1,000-turn continuous conversation soak stress test (<10 ms/turn, 0 errors, full integrity), and Flutter controller soak & chaos test suite verified. |
 | **Stage 11** | `S11.P1.1` | Desktop Release Packaging (Windows, Linux, macOS) | `S10.P2.2` | `COMPLETED` | Verified [Commit `0f0b0b8`]: 422 Rust workspace tests passing, clippy zero warnings, fmt check passed, 117 Flutter tests passing (100% across 18 test suites), `flutter analyze` zero issues, Windows Inno Setup installer (`setup.iss`), MSIX manifest (`AppxManifest.xml`), PowerShell packaging pipeline (`package_windows.ps1`), Linux Debian packaging (`package_deb.sh`), AppImage generator (`package_appimage.sh`, `AppRun`), XDG desktop entry (`aissistant.desktop`), macOS bundle embedder (`package_macos.sh`), DMG generator (`create_dmg.sh`), GitHub Actions CI/CD matrix (`desktop_packaging.yml`), and automated packaging test suite verified. |
-| **Stage 11** | `S11.P1.2` | Mobile Release Packaging (Android APK/AAB & iOS IPA) | `S11.P1.1` | `PENDING` | — |
+| **Stage 11** | `S11.P1.2` | Mobile Release Packaging (Android APK/AAB & iOS IPA) | `S11.P1.1` | `COMPLETED` | Verified [Commit `d79e94c`]: 122 Flutter tests passing (100% across 19 test suites), `flutter analyze` zero issues, Android ProGuard keep rules (`proguard-rules.pro`), R8 minification and NDK ABI filters in `build.gradle.kts`, Android package script (`package_android.sh`), iOS `ExportOptions.plist`, iOS package script (`package_ios.sh`), GitHub Actions workflow (`mobile_packaging.yml`), and automated packaging test suite verified. |
 | **Stage 11** | `S11.P2.1` | Full Acceptance Matrix Verification, SBOM & SHA-256 Manifests | `S11.P1.2` | `PENDING` | — |
 | **Stage 11** | `S11.P2.2` | v1.0.0 Production Release Tagging & Final Documentation Sign-Off | `S11.P2.1` | `PENDING` | — |
 
@@ -1250,3 +1250,22 @@ Status Legend:
   - `desktop_packaging_test`: Automated Flutter test verifying existence and content validity of all desktop packaging manifests, scripts, permissions, and CI/CD workflow steps.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, and macOS runners.
 - **Commit Reference:** `0f0b0b8`
+
+### Verification Evidence — S11.P1.2 (Mobile Release Packaging: Android APK/AAB & iOS IPA Bundle)
+- **Host OS:** Windows (x86_64-pc-windows-gnu)
+- **Toolchains:** `rustc 1.97.1`, `cargo 1.97.1`, `flutter 3.44.6`, `dart 3.12.2`
+- **Commands Executed:**
+  1. `Set-Location app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  2. `Set-Location app; C:\flutter\bin\flutter.bat test test/mobile_packaging_test.dart` -> Exit 0 (5 tests passed, 0 failures)
+  3. `Set-Location app; C:\flutter\bin\flutter.bat test` -> Exit 0 (122 tests passed across 19 Flutter test suites, 0 failures)
+- **Deliverables & Test Summary:**
+  - `app/android/app/proguard-rules.pro`: Defined ProGuard / R8 keep rules preserving Flutter embedding classes (`io.flutter.**`), application package (`com.aissistant.aissistant.**`), JNI native method declarations (`native <methods>;`), and reflection annotations (`@Keep`).
+  - `app/android/app/build.gradle.kts`: Configured NDK ABI filters (`arm64-v8a`, `armeabi-v7a`, `x86_64`), native `jniLibs` source directory (`src/main/jniLibs`), R8 release minification (`isMinifyEnabled = true`), and resource shrinking (`isShrinkResources = true`).
+  - `packaging/mobile/android/package_android.sh`: Implemented Android release packaging automation compiling Rust C-ABI targets (`aarch64-linux-android`, `armv7-linux-androideabi`, `x86_64-linux-android`), staging shared libraries into `jniLibs`, building Flutter release APK and App Bundle (AAB), and generating SHA-256 manifests.
+  - `packaging/mobile/ios/ExportOptions.plist`: Created Xcode export configuration for ad-hoc / distribution IPA builds with automatic signing and Bitcode disabled.
+  - `packaging/mobile/ios/package_ios.sh`: Implemented iOS release packaging script compiling Rust core `aarch64-apple-ios`, staging native framework, building Flutter release bundle, archiving via `xcodebuild`, generating `.ipa` bundle, and computing SHA-256 digests.
+  - `.github/workflows/mobile_packaging.yml`: Multi-platform matrix CI/CD pipeline covering Android packaging on `ubuntu-latest` (with Android NDK and `cargo-ndk`) and iOS packaging on `macos-latest`, assembling artifacts and unified `SHA256SUMS_MOBILE.txt` within the 30 GB budget.
+  - `mobile_packaging_test`: Automated Flutter test asserting ProGuard rules, `build.gradle.kts` configuration, AndroidManifest permissions, iOS Info.plist privacy descriptions, packaging script commands, and CI/CD workflow matrix.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu (Android) and macOS (iOS) runners.
+- **Commit Reference:** `d79e94c`
+

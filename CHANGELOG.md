@@ -2112,6 +2112,33 @@
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 117 tests (0 failures across 18 test suites).
 - Commit reference: `0f0b0b8`.
 
+---
+
+## [2026-11-16] — S11.P1.2: Mobile Release Packaging (Android APK/AAB & iOS IPA Bundle)
+
+### Added & Modified
+- `app/android/app/proguard-rules.pro`:
+  - Created ProGuard rules protecting Flutter engine/embedding classes (`io.flutter.**`), application package (`com.aissistant.aissistant.**`), JNI native C/C++ method entrypoints (`native <methods>;`), reflection annotations (`@Keep`), and type signatures.
+- `app/android/app/build.gradle.kts`:
+  - Configured NDK ABI filters (`arm64-v8a`, `armeabi-v7a`, `x86_64`), explicit `src/main/jniLibs` source directory, R8 code minification (`isMinifyEnabled = true`), and resource shrinking (`isShrinkResources = true`) for release builds.
+- `packaging/mobile/android/package_android.sh`:
+  - Implemented Android release packaging automation compiling Rust C-ABI targets (`aarch64-linux-android`, `armv7-linux-androideabi`, `x86_64-linux-android`), staging shared libraries into `jniLibs`, building Flutter release APK (`flutter build apk --release`) and App Bundle (`flutter build appbundle --release`), and generating SHA-256 manifests.
+- `packaging/mobile/ios/ExportOptions.plist`:
+  - Created Xcode export configuration for ad-hoc / distribution IPA builds with automatic signing and Bitcode disabled.
+- `packaging/mobile/ios/package_ios.sh`:
+  - Implemented iOS release packaging script compiling Rust core `aarch64-apple-ios`, staging native framework, building Flutter release bundle (`flutter build ios --release --no-codesign`), archiving via `xcodebuild`, generating `.ipa` bundle, and computing SHA-256 digests.
+- `.github/workflows/mobile_packaging.yml`:
+  - Multi-platform matrix CI/CD pipeline covering Android packaging on `ubuntu-latest` (with Android NDK and `cargo-ndk`) and iOS packaging on `macos-latest`, assembling artifacts and unified `SHA256SUMS_MOBILE.txt` within the 30 GB budget.
+- `app/test/mobile_packaging_test.dart`:
+  - Created automated Flutter test suite asserting ProGuard rules, `build.gradle.kts` configuration, AndroidManifest permissions, iOS Info.plist privacy descriptions, packaging script commands, and CI/CD workflow matrix (5/5 tests passing).
+
+### Verification
+- `Set-Location app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `Set-Location app; C:\flutter\bin\flutter.bat test test/mobile_packaging_test.dart` passed: 5 tests (0 failures).
+- `Set-Location app; C:\flutter\bin\flutter.bat test` passed: 122 tests (0 failures across 19 test suites).
+- Commit reference: `d79e94c`.
+
+
 
 
 
