@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
 
@@ -609,6 +610,7 @@ pub struct CoreBridge {
     persona_store: PersonaStore,
     pub(crate) automation_store: AutomationStore,
     pub(crate) smart_home_store: SmartHomeStore,
+    lockdown_active: Arc<AtomicBool>,
     capability_registry: RwLock<CapabilityRegistry>,
     policy_engine: RwLock<PolicyEngine>,
     event_sink: Arc<EventStreamSink>,
@@ -668,6 +670,7 @@ impl CoreBridge {
             InterpreterSessionConfig::default(),
         )));
         let translation_engine = TranslationEngine::new();
+        let lockdown_active = Arc::new(AtomicBool::new(false));
 
         runtime.transition_to(LifecycleState::Running, Some("ready"))?;
 
@@ -679,6 +682,7 @@ impl CoreBridge {
             persona_store,
             automation_store,
             smart_home_store,
+            lockdown_active,
             capability_registry,
             policy_engine,
             event_sink,
@@ -740,6 +744,7 @@ impl CoreBridge {
             InterpreterSessionConfig::default(),
         )));
         let translation_engine = TranslationEngine::new();
+        let lockdown_active = Arc::new(AtomicBool::new(false));
 
         runtime.transition_to(LifecycleState::Running, Some("ready"))?;
 
@@ -751,6 +756,7 @@ impl CoreBridge {
             persona_store,
             automation_store,
             smart_home_store,
+            lockdown_active,
             capability_registry,
             policy_engine,
             event_sink,
@@ -1905,6 +1911,97 @@ impl CoreBridge {
             new_state_json: new_state_str,
         })
     }
+
+    /// Rotates the master AEAD encryption key, re-encrypting all secrets at rest.
+    pub fn rotate_master_key(&self) -> FfiResult<()> {
+        let new_key = AeadKey::generate();
+        self.secret_store.rotate_key(new_key)?;
+
+        let skill_id = SkillId::new("security.key_rotation")?;
+        let _ = self.append_audit_entry(
+            Actor::LocalUser,
+            skill_id,
+            "{\"status\":\"rotated\",\"algorithm\":\"XChaCha20Poly1305\"}",
+            PolicyDecision::Allow,
+            AuditExecutionStatus::Success,
+        );
+
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
+        self.event_sink.broadcast(BridgeEvent::KeyRotated {
+            timestamp_ms: now_ms,
+        });
+
+        Ok(())
+    }
+
+    /// Revokes cryptographic trust for a paired peer device.
+    pub fn device_revoke(&self, device_id: &str) -> FfiResult<()> {
+        self.device_supervisor.revoke_device(device_id)?;
+
+        let skill_id = SkillId::new("security.device_revoke")?;
+        let _ = self.append_audit_entry(
+            Actor::LocalUser,
+            skill_id,
+            &format!("{{\"device_id\":\"{device_id}\",\"status\":\"revoked\"}}"),
+            PolicyDecision::Allow,
+            AuditExecutionStatus::Success,
+        );
+
+        Ok(())
+    }
+
+    /// Triggers immediate offline emergency lockdown, terminating peer sessions and setting lockdown state.
+    pub fn emergency_lockdown(&self, reason: &str) -> FfiResult<()> {
+        self.lockdown_active.store(true, Ordering::SeqCst);
+        let _ = self.device_supervisor.cancel_pairing();
+
+        let skill_id = SkillId::new("security.emergency_lockdown")?;
+        let _ = self.append_audit_entry(
+            Actor::LocalUser,
+            skill_id,
+            &format!("{{\"active\":true,\"reason\":\"{reason}\"}}"),
+            PolicyDecision::Allow,
+            AuditExecutionStatus::Success,
+        );
+
+        self.event_sink.broadcast(BridgeEvent::EmergencyLockdown {
+            active: true,
+            reason: reason.to_string(),
+        });
+
+        Ok(())
+    }
+
+    /// Lifts active emergency lockdown state.
+    pub fn lift_emergency_lockdown(&self) -> FfiResult<()> {
+        self.lockdown_active.store(false, Ordering::SeqCst);
+
+        let skill_id = SkillId::new("security.lift_emergency_lockdown")?;
+        let _ = self.append_audit_entry(
+            Actor::LocalUser,
+            skill_id,
+            "{\"active\":false,\"reason\":\"lifted_by_user\"}",
+            PolicyDecision::Allow,
+            AuditExecutionStatus::Success,
+        );
+
+        self.event_sink.broadcast(BridgeEvent::EmergencyLockdown {
+            active: false,
+            reason: "lifted_by_user".to_string(),
+        });
+
+        Ok(())
+    }
+
+    /// Returns true if emergency lockdown is currently engaged.
+    #[must_use]
+    pub fn is_lockdown_active(&self) -> bool {
+        self.lockdown_active.load(Ordering::SeqCst)
+    }
 }
 
 // Global Singleton Bridge Management
@@ -2347,6 +2444,36 @@ pub fn bridge_home_entity_control(
 ) -> FfiResult<SmartHomeCommandResultItem> {
     let bridge = get_bridge()?;
     bridge.home_control_device(cmd)
+}
+
+/// Convenience entry point: rotates the master AEAD encryption key.
+pub fn bridge_rotate_master_key() -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.rotate_master_key()
+}
+
+/// Convenience entry point: revokes trust for a paired peer device.
+pub fn bridge_device_revoke(device_id: &str) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.device_revoke(device_id)
+}
+
+/// Convenience entry point: triggers immediate emergency lockdown.
+pub fn bridge_emergency_lockdown(reason: &str) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.emergency_lockdown(reason)
+}
+
+/// Convenience entry point: lifts emergency lockdown.
+pub fn bridge_lift_emergency_lockdown() -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.lift_emergency_lockdown()
+}
+
+/// Convenience entry point: returns whether emergency lockdown is currently active.
+pub fn bridge_is_lockdown_active() -> FfiResult<bool> {
+    let bridge = get_bridge()?;
+    Ok(bridge.is_lockdown_active())
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

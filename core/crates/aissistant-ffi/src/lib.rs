@@ -14,23 +14,25 @@ pub use api::{
     bridge_automation_history, bridge_automation_list, bridge_automation_save,
     bridge_automation_toggle, bridge_automation_trigger, bridge_delete_persona,
     bridge_delete_preference, bridge_device_cancel_pairing, bridge_device_confirm_pairing,
-    bridge_device_discovered_peers, bridge_device_paired_list, bridge_device_set_permission,
-    bridge_device_simulate_peer, bridge_device_start_pairing, bridge_device_unpair,
-    bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
-    bridge_get_lifecycle_state, bridge_get_preference, bridge_get_setting,
-    bridge_home_entity_control, bridge_home_entity_delete, bridge_home_entity_get,
-    bridge_home_entity_list, bridge_home_entity_upsert, bridge_interpreter_clear_session,
-    bridge_interpreter_get_turns, bridge_interpreter_start_session, bridge_interpreter_submit_turn,
-    bridge_interpreter_swap_languages, bridge_knowledge_delete_document,
+    bridge_device_discovered_peers, bridge_device_paired_list, bridge_device_revoke,
+    bridge_device_set_permission, bridge_device_simulate_peer, bridge_device_start_pairing,
+    bridge_device_unpair, bridge_emergency_lockdown, bridge_get_active_persona,
+    bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state, bridge_get_preference,
+    bridge_get_setting, bridge_home_entity_control, bridge_home_entity_delete,
+    bridge_home_entity_get, bridge_home_entity_list, bridge_home_entity_upsert,
+    bridge_interpreter_clear_session, bridge_interpreter_get_turns,
+    bridge_interpreter_start_session, bridge_interpreter_submit_turn,
+    bridge_interpreter_swap_languages, bridge_is_lockdown_active, bridge_knowledge_delete_document,
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
-    bridge_list_personas, bridge_list_preferences, bridge_model_benchmark_run, bridge_model_load,
-    bridge_model_snapshot, bridge_model_unload, bridge_notify_memory_pressure, bridge_query_audit,
-    bridge_request_shutdown, bridge_save_persona, bridge_set_active_persona, bridge_set_preference,
-    bridge_set_setting, bridge_translate_text, bridge_update_permission, bridge_verify_audit,
-    bridge_vision_ocr_extract, bridge_voice_inject_audio, bridge_voice_set_keywords,
-    bridge_voice_set_mode, get_bridge, init_bridge, shutdown_bridge, AuditIntegrityReport,
-    AuditItem, AutomationHistoryItem, AutomationRuleItem, CapabilityItem, CoreBridge,
-    DocumentRecordItem, HealthReport, HealthStatus, InterpreterSessionStatusItem,
+    bridge_lift_emergency_lockdown, bridge_list_personas, bridge_list_preferences,
+    bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
+    bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown,
+    bridge_rotate_master_key, bridge_save_persona, bridge_set_active_persona,
+    bridge_set_preference, bridge_set_setting, bridge_translate_text, bridge_update_permission,
+    bridge_verify_audit, bridge_vision_ocr_extract, bridge_voice_inject_audio,
+    bridge_voice_set_keywords, bridge_voice_set_mode, get_bridge, init_bridge, shutdown_bridge,
+    AuditIntegrityReport, AuditItem, AutomationHistoryItem, AutomationRuleItem, CapabilityItem,
+    CoreBridge, DocumentRecordItem, HealthReport, HealthStatus, InterpreterSessionStatusItem,
     InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem, OcrDocumentItem,
     OcrTextLineItem, OcrWordItem, SmartHomeCommandItem, SmartHomeCommandResultItem,
     SmartHomeEntityItem, TranslationResultItem, UserPersonaItem, UserPreferenceItem,
@@ -1381,6 +1383,150 @@ mod tests {
         let fetched_del: Option<SmartHomeEntityItem> = serde_json::from_str(get_del_str).unwrap();
         unsafe { c_abi::bridge_c_free_string(get_del_ptr) };
         assert!(fetched_del.is_none());
+
+        let cleanup = c_abi::bridge_c_shutdown();
+        assert_eq!(cleanup, 0);
+    }
+
+    #[test]
+    fn test_key_rotation_and_emergency_lockdown_lifecycle() {
+        let bridge = CoreBridge::new_in_memory().unwrap();
+        let sink = bridge.event_sink();
+        let (_sub_id, rx) = sink.subscribe(20);
+
+        // 1. Secret storage & master key rotation
+        bridge
+            .set_secret("wifi_password", "wpa3_super_secret")
+            .unwrap();
+        assert_eq!(
+            bridge.get_secret("wifi_password").unwrap(),
+            Some("wpa3_super_secret".to_string())
+        );
+
+        bridge.rotate_master_key().unwrap();
+
+        // Secrets must remain seamlessly accessible after rotation
+        assert_eq!(
+            bridge.get_secret("wifi_password").unwrap(),
+            Some("wpa3_super_secret".to_string())
+        );
+
+        // 2. Device simulation and revocation
+        let item = DiscoveredPeerItem {
+            instance_name: "rogue-laptop".to_string(),
+            platform: "linux".to_string(),
+            port: 5353,
+            addresses: vec!["192.168.1.105".to_string()],
+            fingerprint: "0102030405060708".to_string(),
+            last_seen_ms: 1000,
+        };
+        bridge.device_simulate_peer(item).unwrap();
+        let pairing_info = bridge.device_start_pairing("rogue-laptop").unwrap();
+        let paired = bridge
+            .device_confirm_pairing(&pairing_info.sas_code)
+            .unwrap();
+        assert_eq!(paired.trust_state, "trusted");
+
+        // Revoke device
+        bridge.device_revoke(&paired.device_id).unwrap();
+        let updated_list = bridge.device_paired_list().unwrap();
+        let revoked_device = updated_list
+            .iter()
+            .find(|d| d.device_id == paired.device_id)
+            .unwrap();
+        assert_eq!(revoked_device.trust_state, "revoked");
+
+        // 3. Emergency lockdown & lift
+        assert!(!bridge.is_lockdown_active());
+        bridge
+            .emergency_lockdown("anomalous mesh activity")
+            .unwrap();
+        assert!(bridge.is_lockdown_active());
+
+        bridge.lift_emergency_lockdown().unwrap();
+        assert!(!bridge.is_lockdown_active());
+
+        // 4. Verify unbroken BLAKE3 audit integrity
+        let audit_report = bridge.verify_audit_integrity().unwrap();
+        assert!(audit_report.is_valid);
+        assert!(audit_report.verified_count >= 4);
+
+        // 5. Verify events received
+        let mut key_rotated_seen = false;
+        let mut device_revoked_seen = false;
+        let mut lockdown_engaged_seen = false;
+        let mut lockdown_lifted_seen = false;
+
+        while let Ok(evt) = rx.try_recv() {
+            match evt {
+                BridgeEvent::KeyRotated { .. } => key_rotated_seen = true,
+                BridgeEvent::DeviceRevoked { device_id } if device_id == paired.device_id => {
+                    device_revoked_seen = true;
+                }
+                BridgeEvent::EmergencyLockdown {
+                    active: true,
+                    reason,
+                } if reason == "anomalous mesh activity" => {
+                    lockdown_engaged_seen = true;
+                }
+                BridgeEvent::EmergencyLockdown {
+                    active: false,
+                    reason,
+                } if reason == "lifted_by_user" => {
+                    lockdown_lifted_seen = true;
+                }
+                _ => {}
+            }
+        }
+
+        assert!(key_rotated_seen);
+        assert!(device_revoked_seen);
+        assert!(lockdown_engaged_seen);
+        assert!(lockdown_lifted_seen);
+    }
+
+    #[test]
+    fn test_key_rotation_and_lockdown_c_abi() {
+        let _lock = TEST_GLOBAL_LOCK.lock().unwrap();
+        let init = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
+        assert_eq!(init, 0);
+
+        // Check initial lockdown state
+        let lock_ptr = unsafe { c_abi::bridge_c_is_lockdown_active() };
+        let lock_str = unsafe { CStr::from_ptr(lock_ptr) }.to_str().unwrap();
+        assert_eq!(lock_str, "false");
+        unsafe { c_abi::bridge_c_free_string(lock_ptr) };
+
+        // Rotate master key
+        let rot_ptr = unsafe { c_abi::bridge_c_rotate_master_key() };
+        let rot_str = unsafe { CStr::from_ptr(rot_ptr) }.to_str().unwrap();
+        assert_eq!(rot_str, "null"); // Ok(()) serializes to null in serialize_to_c_json
+        unsafe { c_abi::bridge_c_free_string(rot_ptr) };
+
+        // Engage emergency lockdown
+        let reason_c = CString::new("panic_button_pressed").unwrap();
+        let engage_ptr = unsafe { c_abi::bridge_c_emergency_lockdown(reason_c.as_ptr()) };
+        let engage_str = unsafe { CStr::from_ptr(engage_ptr) }.to_str().unwrap();
+        assert_eq!(engage_str, "null");
+        unsafe { c_abi::bridge_c_free_string(engage_ptr) };
+
+        // Verify lockdown active
+        let lock_ptr2 = unsafe { c_abi::bridge_c_is_lockdown_active() };
+        let lock_str2 = unsafe { CStr::from_ptr(lock_ptr2) }.to_str().unwrap();
+        assert_eq!(lock_str2, "true");
+        unsafe { c_abi::bridge_c_free_string(lock_ptr2) };
+
+        // Lift lockdown
+        let lift_ptr = unsafe { c_abi::bridge_c_lift_emergency_lockdown() };
+        let lift_str = unsafe { CStr::from_ptr(lift_ptr) }.to_str().unwrap();
+        assert_eq!(lift_str, "null");
+        unsafe { c_abi::bridge_c_free_string(lift_ptr) };
+
+        // Verify lockdown lifted
+        let lock_ptr3 = unsafe { c_abi::bridge_c_is_lockdown_active() };
+        let lock_str3 = unsafe { CStr::from_ptr(lock_ptr3) }.to_str().unwrap();
+        assert_eq!(lock_str3, "false");
+        unsafe { c_abi::bridge_c_free_string(lock_ptr3) };
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);

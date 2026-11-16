@@ -16,23 +16,25 @@ use crate::api::{
     bridge_automation_history, bridge_automation_list, bridge_automation_save,
     bridge_automation_toggle, bridge_automation_trigger, bridge_delete_persona,
     bridge_delete_preference, bridge_device_cancel_pairing, bridge_device_confirm_pairing,
-    bridge_device_discovered_peers, bridge_device_paired_list, bridge_device_set_permission,
-    bridge_device_simulate_peer, bridge_device_start_pairing, bridge_device_unpair,
-    bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
-    bridge_get_lifecycle_state, bridge_get_preference, bridge_get_setting,
-    bridge_home_entity_control, bridge_home_entity_delete, bridge_home_entity_get,
-    bridge_home_entity_list, bridge_home_entity_upsert, bridge_interpreter_clear_session,
-    bridge_interpreter_get_turns, bridge_interpreter_start_session, bridge_interpreter_submit_turn,
-    bridge_interpreter_swap_languages, bridge_knowledge_delete_document,
+    bridge_device_discovered_peers, bridge_device_paired_list, bridge_device_revoke,
+    bridge_device_set_permission, bridge_device_simulate_peer, bridge_device_start_pairing,
+    bridge_device_unpair, bridge_emergency_lockdown, bridge_get_active_persona,
+    bridge_get_capabilities, bridge_get_health, bridge_get_lifecycle_state, bridge_get_preference,
+    bridge_get_setting, bridge_home_entity_control, bridge_home_entity_delete,
+    bridge_home_entity_get, bridge_home_entity_list, bridge_home_entity_upsert,
+    bridge_interpreter_clear_session, bridge_interpreter_get_turns,
+    bridge_interpreter_start_session, bridge_interpreter_submit_turn,
+    bridge_interpreter_swap_languages, bridge_is_lockdown_active, bridge_knowledge_delete_document,
     bridge_knowledge_index_document, bridge_knowledge_list_documents, bridge_knowledge_search,
-    bridge_list_personas, bridge_list_preferences, bridge_model_benchmark_run, bridge_model_load,
-    bridge_model_snapshot, bridge_model_unload, bridge_notify_memory_pressure, bridge_query_audit,
-    bridge_request_shutdown, bridge_save_persona, bridge_set_active_persona, bridge_set_preference,
-    bridge_set_setting, bridge_translate_text, bridge_update_permission, bridge_verify_audit,
-    bridge_vision_ocr_extract, bridge_voice_inject_audio, bridge_voice_set_keywords,
-    bridge_voice_set_mode, bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge,
-    shutdown_bridge, AutomationRuleItem, SmartHomeCommandItem, SmartHomeEntityItem,
-    UserPersonaItem,
+    bridge_lift_emergency_lockdown, bridge_list_personas, bridge_list_preferences,
+    bridge_model_benchmark_run, bridge_model_load, bridge_model_snapshot, bridge_model_unload,
+    bridge_notify_memory_pressure, bridge_query_audit, bridge_request_shutdown,
+    bridge_rotate_master_key, bridge_save_persona, bridge_set_active_persona,
+    bridge_set_preference, bridge_set_setting, bridge_translate_text, bridge_update_permission,
+    bridge_verify_audit, bridge_vision_ocr_extract, bridge_voice_inject_audio,
+    bridge_voice_set_keywords, bridge_voice_set_mode, bridge_voice_start_listening,
+    bridge_voice_stop_listening, init_bridge, shutdown_bridge, AutomationRuleItem,
+    SmartHomeCommandItem, SmartHomeEntityItem, UserPersonaItem,
 };
 use crate::device_bridge::DiscoveredPeerItem;
 use crate::error::FfiError;
@@ -1199,6 +1201,87 @@ pub unsafe extern "C" fn bridge_c_home_entity_control(cmd_json: *const c_char) -
     serialize_to_c_json(result.unwrap_or_else(|_| {
         Err(FfiError::PanicCaught(
             "Panic in bridge_c_home_entity_control".into(),
+        ))
+    }))
+}
+
+/// Rotates the master AEAD encryption key.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// This function catches all panics internally. The returned pointer must be freed with `bridge_c_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_rotate_master_key() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_rotate_master_key));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_rotate_master_key".into(),
+        ))
+    }))
+}
+
+/// Revokes cryptographic trust for a paired peer device.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `device_id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_device_revoke(device_id: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(device_id) }?;
+        bridge_device_revoke(id_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_device_revoke".into(),
+        ))
+    }))
+}
+
+/// Triggers immediate offline emergency lockdown.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `reason` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_emergency_lockdown(reason: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let reason_str = unsafe { c_char_to_str(reason) }?;
+        bridge_emergency_lockdown(reason_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_emergency_lockdown".into(),
+        ))
+    }))
+}
+
+/// Lifts active emergency lockdown state.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// This function catches all panics internally. The returned pointer must be freed with `bridge_c_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_lift_emergency_lockdown() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_lift_emergency_lockdown));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_lift_emergency_lockdown".into(),
+        ))
+    }))
+}
+
+/// Returns whether emergency lockdown is currently active.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// This function catches all panics internally. The returned pointer must be freed with `bridge_c_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_is_lockdown_active() -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(bridge_is_lockdown_active));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_is_lockdown_active".into(),
         ))
     }))
 }

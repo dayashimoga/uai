@@ -284,5 +284,29 @@ void main() {
       expect(controller.homeEntities.length, 2);
       expect(controller.homeEntities.any((e) => e.id == 'fan.bedroom'), isFalse);
     });
+
+    test('manages key rotation, device revocation, and emergency lockdown', () async {
+      await controller.initialize();
+      expect(controller.isLockdownActive, isFalse);
+
+      // 1. Rotate master key
+      controller.rotateMasterKey();
+      expect(controller.errorMessage, isNull);
+
+      // 2. Revoke device
+      expect(controller.pairedDevices.isNotEmpty, isTrue);
+      final devId = controller.pairedDevices.first.deviceId;
+      controller.revokeDevice(devId);
+      final revokedDev = controller.pairedDevices.firstWhere((d) => d.deviceId == devId);
+      expect(revokedDev.trustState, 'revoked');
+
+      // 3. Trigger emergency lockdown
+      controller.triggerEmergencyLockdown('test_tamper_alert');
+      expect(controller.isLockdownActive, isTrue);
+
+      // 4. Lift emergency lockdown
+      controller.liftEmergencyLockdown();
+      expect(controller.isLockdownActive, isFalse);
+    });
   });
 }

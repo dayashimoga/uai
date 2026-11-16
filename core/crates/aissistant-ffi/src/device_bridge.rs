@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use aissistant_core::{DeviceId, PeerPermissionLevel, PlatformTarget};
+use aissistant_core::{DeviceId, DeviceTrustState, PeerPermissionLevel, PlatformTarget};
 pub use aissistant_network::PairingSessionInfo;
 use aissistant_network::{
     current_time_ms, format_fingerprint, DiscoveredPeer, DiscoveryEngine, PairingSessionManager,
@@ -363,6 +363,20 @@ impl DeviceSupervisor {
         let device_id =
             DeviceId::new(device_id_str).map_err(|e| FfiError::InvalidParameter(e.to_string()))?;
         self.registry.delete_device(&device_id)?;
+        Ok(())
+    }
+
+    /// Revokes cryptographic trust for a paired peer device without deleting historical records.
+    pub fn revoke_device(&self, device_id_str: &str) -> FfiResult<()> {
+        let device_id =
+            DeviceId::new(device_id_str).map_err(|e| FfiError::InvalidParameter(e.to_string()))?;
+        self.registry
+            .set_device_trust_state(&device_id, DeviceTrustState::Revoked)?;
+
+        self.event_sink.broadcast(BridgeEvent::DeviceRevoked {
+            device_id: device_id_str.to_string(),
+        });
+
         Ok(())
     }
 }

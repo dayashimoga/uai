@@ -61,6 +61,7 @@ class AssistantController extends ChangeNotifier {
   List<SmartHomeEntityItem> _homeEntities = <SmartHomeEntityItem>[];
   bool _isHomeLoading = false;
   String? _homeError;
+  bool _isLockdownActive = false;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -111,6 +112,7 @@ class AssistantController extends ChangeNotifier {
   List<SmartHomeEntityItem> get homeEntities => List<SmartHomeEntityItem>.unmodifiable(_homeEntities);
   bool get isHomeLoading => _isHomeLoading;
   String? get homeError => _homeError;
+  bool get isLockdownActive => _isLockdownActive;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -142,6 +144,7 @@ class AssistantController extends ChangeNotifier {
       _automations = List<AutomationRuleItem>.from(_bridge.listAutomations());
       _automationHistory = List<AutomationHistoryItem>.from(_bridge.listAutomationHistory());
       _homeEntities = List<SmartHomeEntityItem>.from(_bridge.listHomeEntities());
+      _isLockdownActive = _bridge.isLockdownActive();
 
       // Read persisted theme mode
       final savedTheme = _bridge.getSetting('assistant.theme_mode');
@@ -256,6 +259,15 @@ class AssistantController extends ChangeNotifier {
         _activePairingSession = null;
         _pairingError = null;
       }
+    } else if (event is KeyRotatedEvent) {
+      refreshAuditLog();
+    } else if (event is DeviceRevokedEvent) {
+      refreshDevices();
+      refreshAuditLog();
+    } else if (event is EmergencyLockdownEvent) {
+      _isLockdownActive = event.active;
+      refreshDevices();
+      refreshAuditLog();
     }
     notifyListeners();
   }
@@ -540,6 +552,54 @@ class AssistantController extends ChangeNotifier {
     }
   }
 
+  void revokeDevice(String deviceId) {
+    try {
+      _bridge.revokeDevice(deviceId);
+      refreshDevices();
+      refreshAuditLog();
+    } catch (e) {
+      _errorMessage = 'Failed to revoke device: $e';
+      notifyListeners();
+    }
+  }
+
+  void rotateMasterKey() {
+    try {
+      _bridge.rotateMasterKey();
+      refreshAuditLog();
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to rotate master key: $e';
+      notifyListeners();
+    }
+  }
+
+  void triggerEmergencyLockdown(String reason) {
+    try {
+      _bridge.triggerEmergencyLockdown(reason);
+      _isLockdownActive = true;
+      refreshDevices();
+      refreshAuditLog();
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to engage emergency lockdown: $e';
+      notifyListeners();
+    }
+  }
+
+  void liftEmergencyLockdown() {
+    try {
+      _bridge.liftEmergencyLockdown();
+      _isLockdownActive = false;
+      refreshDevices();
+      refreshAuditLog();
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to lift emergency lockdown: $e';
+      notifyListeners();
+    }
+  }
+
   void simulateDiscoveredPeer(DiscoveredPeerItem item) {
     try {
       _bridge.simulateDiscoveredPeer(item);
@@ -561,6 +621,7 @@ class AssistantController extends ChangeNotifier {
       _automations = List<AutomationRuleItem>.from(_bridge.listAutomations());
       _automationHistory = List<AutomationHistoryItem>.from(_bridge.listAutomationHistory());
       _homeEntities = List<SmartHomeEntityItem>.from(_bridge.listHomeEntities());
+      _isLockdownActive = _bridge.isLockdownActive();
       notifyListeners();
     } catch (e) {
       _errorMessage = 'Failed to refresh documents: $e';

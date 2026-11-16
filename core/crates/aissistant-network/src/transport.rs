@@ -316,6 +316,17 @@ impl QuicTransportEngine {
             map.clear();
         }
     }
+
+    /// Disconnects and closes an active peer session by public key.
+    pub fn disconnect_peer(&self, peer_key: &[u8; 32]) -> bool {
+        if let Ok(mut map) = self.sessions.write() {
+            if let Some(session) = map.remove(peer_key) {
+                session.close();
+                return true;
+            }
+        }
+        false
+    }
 }
 
 /// In-memory virtual transport session for deterministic unit and CI testing.

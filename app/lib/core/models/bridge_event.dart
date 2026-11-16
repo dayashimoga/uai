@@ -119,6 +119,22 @@ abstract class BridgeEvent {
           error: payload['error'] as String?,
         );
 
+      case 'key_rotated':
+        return KeyRotatedEvent(
+          timestampMs: (payload['timestamp_ms'] as num?)?.toInt() ?? 0,
+        );
+
+      case 'device_revoked':
+        return DeviceRevokedEvent(
+          deviceId: payload['device_id'] as String? ?? '',
+        );
+
+      case 'emergency_lockdown':
+        return EmergencyLockdownEvent(
+          active: payload['active'] as bool? ?? false,
+          reason: payload['reason'] as String? ?? '',
+        );
+
       default:
         return UnknownBridgeEvent(type: type, payload: payload);
     }
@@ -303,6 +319,32 @@ class PairingStateChangedEvent extends BridgeEvent {
     this.qrPayload,
     this.error,
   }) : super('pairing_state_changed');
+}
+
+class KeyRotatedEvent extends BridgeEvent {
+  final int timestampMs;
+
+  const KeyRotatedEvent({
+    required this.timestampMs,
+  }) : super('key_rotated');
+}
+
+class DeviceRevokedEvent extends BridgeEvent {
+  final String deviceId;
+
+  const DeviceRevokedEvent({
+    required this.deviceId,
+  }) : super('device_revoked');
+}
+
+class EmergencyLockdownEvent extends BridgeEvent {
+  final bool active;
+  final String reason;
+
+  const EmergencyLockdownEvent({
+    required this.active,
+    required this.reason,
+  }) : super('emergency_lockdown');
 }
 
 class UnknownBridgeEvent extends BridgeEvent {

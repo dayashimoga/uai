@@ -155,5 +155,28 @@ void main() {
       // Now 2 discovered peers
       expect(find.text('Nearby Discovered Peers (2)'), findsOneWidget);
     });
+
+    testWidgets('revokes device trust via revoke button and confirmation dialog', (tester) async {
+      await tester.pumpWidget(createTestApp(tester));
+      await tester.pumpAndSettle();
+
+      expect(find.text('TRUSTED'), findsOneWidget);
+      final revokeBtn = find.byKey(const Key('revoke_button_dev_macbook_pro'));
+      expect(revokeBtn, findsOneWidget);
+
+      await tester.tap(revokeBtn);
+      await tester.pumpAndSettle();
+
+      // Confirmation dialog
+      expect(find.text('Revoke Device Trust?'), findsOneWidget);
+
+      // Confirm in dialog
+      final dialogRevokeBtn = find.widgetWithText(FilledButton, 'Revoke');
+      await tester.tap(dialogRevokeBtn);
+      await tester.pumpAndSettle();
+
+      // Device now in REVOKED state
+      expect(find.text('REVOKED'), findsOneWidget);
+    });
   });
 }

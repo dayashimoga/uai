@@ -459,10 +459,16 @@ class _DevicesScreenState extends State<DevicesScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: isTrusted ? Colors.green.withAlpha(30) : Colors.amber.withAlpha(30),
+                              color: isTrusted
+                                  ? Colors.green.withAlpha(30)
+                                  : (dev.trustState == 'revoked' ? Colors.red.withAlpha(30) : Colors.amber.withAlpha(30)),
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(
-                                color: isTrusted ? Colors.green.withAlpha(80) : Colors.amber.withAlpha(80),
+                                color: isTrusted
+                                    ? Colors.green.withAlpha(80)
+                                    : (dev.trustState == 'revoked'
+                                        ? Colors.red.withAlpha(80)
+                                        : Colors.amber.withAlpha(80)),
                               ),
                             ),
                             child: Text(
@@ -470,7 +476,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
-                                color: isTrusted ? Colors.green : Colors.amber.shade800,
+                                color: isTrusted
+                                    ? Colors.green
+                                    : (dev.trustState == 'revoked' ? Colors.red : Colors.amber.shade800),
                               ),
                             ),
                           ),
@@ -488,6 +496,38 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     ],
                   ),
                 ),
+                if (dev.trustState != 'revoked')
+                  IconButton(
+                    key: Key('revoke_button_${dev.deviceId}'),
+                    icon: const Icon(Icons.block_outlined, color: Colors.orange),
+                    tooltip: 'Revoke trust',
+                    onPressed: () {
+                      showDialog<void>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Revoke Device Trust?'),
+                          content: Text(
+                            'Are you sure you want to revoke cryptographic trust for "${dev.name}"? '
+                            'Future connections and skill requests from this peer will be rejected.',
+                          ),
+                          actions: <Widget>[
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade800),
+                              onPressed: () {
+                                Navigator.of(ctx).pop();
+                                ctrl.revokeDevice(dev.deviceId);
+                              },
+                              child: const Text('Revoke'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 IconButton(
                   key: Key('unpair_button_${dev.deviceId}'),
                   icon: const Icon(Icons.delete_outline, color: Colors.red),

@@ -96,6 +96,11 @@ abstract class AissistantBridge {
   void upsertHomeEntity(SmartHomeEntityItem item);
   bool deleteHomeEntity(String id);
   SmartHomeCommandResultItem controlHomeDevice(SmartHomeCommandItem command);
+  void rotateMasterKey();
+  void revokeDevice(String deviceId);
+  void triggerEmergencyLockdown(String reason);
+  void liftEmergencyLockdown();
+  bool isLockdownActive();
   Stream<BridgeEvent> get eventStream;
 }
 
@@ -320,6 +325,21 @@ typedef _BridgeHomeDeleteDart = Pointer<Utf8> Function(Pointer<Utf8> id);
 typedef _BridgeHomeControlC = Pointer<Utf8> Function(Pointer<Utf8> cmdJson);
 typedef _BridgeHomeControlDart = Pointer<Utf8> Function(Pointer<Utf8> cmdJson);
 
+typedef _BridgeRotateMasterKeyC = Pointer<Utf8> Function();
+typedef _BridgeRotateMasterKeyDart = Pointer<Utf8> Function();
+
+typedef _BridgeDeviceRevokeC = Pointer<Utf8> Function(Pointer<Utf8> deviceId);
+typedef _BridgeDeviceRevokeDart = Pointer<Utf8> Function(Pointer<Utf8> deviceId);
+
+typedef _BridgeEmergencyLockdownC = Pointer<Utf8> Function(Pointer<Utf8> reason);
+typedef _BridgeEmergencyLockdownDart = Pointer<Utf8> Function(Pointer<Utf8> reason);
+
+typedef _BridgeLiftEmergencyLockdownC = Pointer<Utf8> Function();
+typedef _BridgeLiftEmergencyLockdownDart = Pointer<Utf8> Function();
+
+typedef _BridgeIsLockdownActiveC = Pointer<Utf8> Function();
+typedef _BridgeIsLockdownActiveDart = Pointer<Utf8> Function();
+
 /// Native FFI implementation driving aissistant-ffi C-ABI entry points.
 class NativeFfiBridge implements AissistantBridge {
   final DynamicLibrary _lib;
@@ -388,6 +408,11 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgeHomeUpsertDart _homeUpsert;
   late final _BridgeHomeDeleteDart _homeDelete;
   late final _BridgeHomeControlDart _homeControl;
+  late final _BridgeRotateMasterKeyDart _rotateMasterKey;
+  late final _BridgeDeviceRevokeDart _deviceRevoke;
+  late final _BridgeEmergencyLockdownDart _emergencyLockdown;
+  late final _BridgeLiftEmergencyLockdownDart _liftEmergencyLockdown;
+  late final _BridgeIsLockdownActiveDart _isLockdownActive;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -453,6 +478,11 @@ class NativeFfiBridge implements AissistantBridge {
     _homeUpsert = _lib.lookupFunction<_BridgeHomeUpsertC, _BridgeHomeUpsertDart>('bridge_c_home_entity_upsert');
     _homeDelete = _lib.lookupFunction<_BridgeHomeDeleteC, _BridgeHomeDeleteDart>('bridge_c_home_entity_delete');
     _homeControl = _lib.lookupFunction<_BridgeHomeControlC, _BridgeHomeControlDart>('bridge_c_home_entity_control');
+    _rotateMasterKey = _lib.lookupFunction<_BridgeRotateMasterKeyC, _BridgeRotateMasterKeyDart>('bridge_c_rotate_master_key');
+    _deviceRevoke = _lib.lookupFunction<_BridgeDeviceRevokeC, _BridgeDeviceRevokeDart>('bridge_c_device_revoke');
+    _emergencyLockdown = _lib.lookupFunction<_BridgeEmergencyLockdownC, _BridgeEmergencyLockdownDart>('bridge_c_emergency_lockdown');
+    _liftEmergencyLockdown = _lib.lookupFunction<_BridgeLiftEmergencyLockdownC, _BridgeLiftEmergencyLockdownDart>('bridge_c_lift_emergency_lockdown');
+    _isLockdownActive = _lib.lookupFunction<_BridgeIsLockdownActiveC, _BridgeIsLockdownActiveDart>('bridge_c_is_lockdown_active');
     _freeString = _lib.lookupFunction<_BridgeFreeStringC, _BridgeFreeStringDart>('bridge_c_free_string');
   }
 
@@ -1555,6 +1585,112 @@ class NativeFfiBridge implements AissistantBridge {
       }
     } finally {
       malloc.free(jsonPtr);
+    }
+  }
+
+  @override
+  void rotateMasterKey() {
+    final ptr = _rotateMasterKey();
+    if (ptr.address != 0) {
+      try {
+        final res = ptr.toDartString();
+        if (res != 'null') {
+          final map = jsonDecode(res);
+          if (map is Map<String, dynamic> &&
+              (map.containsKey('code') || map.containsKey('error'))) {
+            throw StateError(
+              (map['message'] ?? 'Failed to rotate master key').toString(),
+            );
+          }
+        }
+      } finally {
+        _freeString(ptr);
+      }
+    }
+  }
+
+  @override
+  void revokeDevice(String deviceId) {
+    final idPtr = deviceId.toNativeUtf8();
+    try {
+      final ptr = _deviceRevoke(idPtr);
+      if (ptr.address != 0) {
+        try {
+          final res = ptr.toDartString();
+          if (res != 'null') {
+            final map = jsonDecode(res);
+            if (map is Map<String, dynamic> &&
+                (map.containsKey('code') || map.containsKey('error'))) {
+              throw StateError(
+                (map['message'] ?? 'Failed to revoke device').toString(),
+              );
+            }
+          }
+        } finally {
+          _freeString(ptr);
+        }
+      }
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  void triggerEmergencyLockdown(String reason) {
+    final reasonPtr = reason.toNativeUtf8();
+    try {
+      final ptr = _emergencyLockdown(reasonPtr);
+      if (ptr.address != 0) {
+        try {
+          final res = ptr.toDartString();
+          if (res != 'null') {
+            final map = jsonDecode(res);
+            if (map is Map<String, dynamic> &&
+                (map.containsKey('code') || map.containsKey('error'))) {
+              throw StateError(
+                (map['message'] ?? 'Failed to trigger emergency lockdown').toString(),
+              );
+            }
+          }
+        } finally {
+          _freeString(ptr);
+        }
+      }
+    } finally {
+      malloc.free(reasonPtr);
+    }
+  }
+
+  @override
+  void liftEmergencyLockdown() {
+    final ptr = _liftEmergencyLockdown();
+    if (ptr.address != 0) {
+      try {
+        final res = ptr.toDartString();
+        if (res != 'null') {
+          final map = jsonDecode(res);
+          if (map is Map<String, dynamic> &&
+              (map.containsKey('code') || map.containsKey('error'))) {
+            throw StateError(
+              (map['message'] ?? 'Failed to lift emergency lockdown').toString(),
+            );
+          }
+        }
+      } finally {
+        _freeString(ptr);
+      }
+    }
+  }
+
+  @override
+  bool isLockdownActive() {
+    final ptr = _isLockdownActive();
+    if (ptr.address == 0) return false;
+    try {
+      final res = ptr.toDartString();
+      return res == 'true';
+    } finally {
+      _freeString(ptr);
     }
   }
 }
@@ -2739,4 +2875,47 @@ class TestHarnessBridge implements AissistantBridge {
       newStateJson: jsonEncode(newState),
     );
   }
+
+  bool _isLockdownActive = false;
+
+  @override
+  void rotateMasterKey() {
+    _eventController.add(KeyRotatedEvent(timestampMs: DateTime.now().millisecondsSinceEpoch));
+  }
+
+  @override
+  void revokeDevice(String deviceId) {
+    final idx = _pairedDevices.indexWhere((d) => d.deviceId == deviceId);
+    if (idx != -1) {
+      final dev = _pairedDevices[idx];
+      _pairedDevices[idx] = PairedDeviceItem(
+        deviceId: dev.deviceId,
+        name: dev.name,
+        platform: dev.platform,
+        fingerprint: dev.fingerprint,
+        trustState: 'revoked',
+        lastEndpoint: dev.lastEndpoint,
+        lastSeenMs: dev.lastSeenMs,
+        pairedAtMs: dev.pairedAtMs,
+        permissions: dev.permissions,
+      );
+    }
+    _eventController.add(DeviceRevokedEvent(deviceId: deviceId));
+  }
+
+  @override
+  void triggerEmergencyLockdown(String reason) {
+    _isLockdownActive = true;
+    _activePairing = null;
+    _eventController.add(EmergencyLockdownEvent(active: true, reason: reason));
+  }
+
+  @override
+  void liftEmergencyLockdown() {
+    _isLockdownActive = false;
+    _eventController.add(const EmergencyLockdownEvent(active: false, reason: 'lifted_by_user'));
+  }
+
+  @override
+  bool isLockdownActive() => _isLockdownActive;
 }

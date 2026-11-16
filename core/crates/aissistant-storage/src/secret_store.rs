@@ -3,7 +3,7 @@
 use aissistant_security::AeadKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::StorageError;
@@ -13,7 +13,7 @@ use crate::pool::SqliteDb;
 #[derive(Debug, Clone)]
 pub struct SecretStore {
     db: SqliteDb,
-    key: Arc<AeadKey>,
+    key: Arc<RwLock<AeadKey>>,
 }
 
 impl SecretStore {
@@ -22,13 +22,13 @@ impl SecretStore {
     pub fn new(db: SqliteDb, master_key: AeadKey) -> Self {
         Self {
             db,
-            key: Arc::new(master_key),
+            key: Arc::new(RwLock::new(master_key)),
         }
     }
 
-    /// Creates a new secret store using an existing shared `AeadKey`.
+    /// Creates a new secret store using an existing shared `RwLock<AeadKey>`.
     #[must_use]
-    pub const fn with_shared_key(db: SqliteDb, key: Arc<AeadKey>) -> Self {
+    pub fn with_shared_key(db: SqliteDb, key: Arc<RwLock<AeadKey>>) -> Self {
         Self { db, key }
     }
 
@@ -37,8 +37,10 @@ impl SecretStore {
         let plaintext_json = serde_json::to_vec(secret)?;
         // Authenticate the key name itself as Associated Authenticated Data (AAD)
         // to prevent ciphertext swapping across distinct keys.
-        let ciphertext = self
-            .key
+        let key_guard = self.key.read().map_err(|e| StorageError::Serialization {
+            message: format!("SecretStore lock poisoned: {e}"),
+        })?;
+        let ciphertext = key_guard
             .encrypt(&plaintext_json, key.as_bytes())
             .map_err(|e| StorageError::Serialization {
                 message: e.to_string(),
@@ -71,11 +73,14 @@ impl SecretStore {
 
             if let Some(row) = rows.next()? {
                 let ciphertext: Vec<u8> = row.get(0)?;
-                let plaintext = self.key.decrypt(&ciphertext, key.as_bytes()).map_err(|e| {
-                    StorageError::CorruptAuditChain {
-                        reason: format!("Secret decryption failed for key '{key}': {e}"),
-                    }
+                let key_guard = self.key.read().map_err(|e| StorageError::Serialization {
+                    message: format!("SecretStore lock poisoned: {e}"),
                 })?;
+                let plaintext = key_guard
+                    .decrypt(&ciphertext, key.as_bytes())
+                    .map_err(|e| StorageError::CorruptAuditChain {
+                        reason: format!("Secret decryption failed for key '{key}': {e}"),
+                    })?;
 
                 let value: T = serde_json::from_slice(&plaintext)?;
                 Ok(Some(value))
@@ -110,22 +115,25 @@ impl SecretStore {
     }
 
     /// Atomically rotates the master AEAD key by re-encrypting all stored records.
-    pub fn rotate_key(&mut self, new_key: AeadKey) -> Result<(), StorageError> {
-        let new_key = Arc::new(new_key);
+    pub fn rotate_key(&self, new_key: AeadKey) -> Result<(), StorageError> {
         let current_keys = self.list_keys()?;
 
         self.db.transaction(|tx| {
+            let current_key = self.key.read().map_err(|e| StorageError::Serialization {
+                message: format!("SecretStore lock poisoned: {e}"),
+            })?;
+
             for key in &current_keys {
                 let mut stmt =
                     tx.prepare("SELECT ciphertext_blob FROM encrypted_secrets WHERE key = ?1;")?;
                 let ciphertext: Vec<u8> =
                     stmt.query_row(rusqlite::params![key], |row| row.get(0))?;
 
-                let plaintext = self.key.decrypt(&ciphertext, key.as_bytes()).map_err(|e| {
-                    StorageError::CorruptAuditChain {
+                let plaintext = current_key
+                    .decrypt(&ciphertext, key.as_bytes())
+                    .map_err(|e| StorageError::CorruptAuditChain {
                         reason: format!("Key rotation decryption failed for '{key}': {e}"),
-                    }
-                })?;
+                    })?;
 
                 let new_ciphertext = new_key.encrypt(&plaintext, key.as_bytes()).map_err(|e| {
                     StorageError::Serialization {
@@ -141,7 +149,10 @@ impl SecretStore {
             Ok(())
         })?;
 
-        self.key = new_key;
+        let mut write_guard = self.key.write().map_err(|e| StorageError::Serialization {
+            message: format!("SecretStore lock poisoned: {e}"),
+        })?;
+        *write_guard = new_key;
         Ok(())
     }
 }
@@ -212,7 +223,7 @@ mod tests {
     fn test_key_rotation() {
         let db = SqliteDb::open_in_memory().unwrap();
         let key1 = AeadKey::generate();
-        let mut store = SecretStore::new(db, key1);
+        let store = SecretStore::new(db, key1);
 
         store.set("secret1", &"value1".to_string()).unwrap();
         store.set("secret2", &"value2".to_string()).unwrap();

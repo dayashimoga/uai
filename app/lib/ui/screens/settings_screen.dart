@@ -19,6 +19,45 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: <Widget>[
+          if (controller.isLockdownActive) ...<Widget>[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.withAlpha(30),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red, width: 2),
+              ),
+              child: Row(
+                children: <Widget>[
+                  const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 36),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          'EMERGENCY LOCKDOWN ACTIVE',
+                          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'All peer mesh networking and automation triggers are frozen.',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  FilledButton(
+                    key: const Key('lift_lockdown_button'),
+                    style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                    onPressed: () => controller.liftEmergencyLockdown(),
+                    child: const Text('Lift Lockdown'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Text(
             'Appearance & Display',
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -93,6 +132,85 @@ class SettingsScreen extends StatelessWidget {
                   leading: Icon(Icons.history_edu_outlined),
                   title: Text('Audit Log Cryptography'),
                   subtitle: Text('BLAKE3 Hash Chained, Append-Only'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.key_outlined, color: Colors.blue),
+                  title: const Text('Master Encryption Key'),
+                  subtitle: const Text('Re-encrypts all stored secrets with newly generated AEAD key'),
+                  trailing: OutlinedButton(
+                    key: const Key('rotate_key_button'),
+                    onPressed: () {
+                      showDialog<void>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Rotate Master Key?'),
+                          content: const Text(
+                            'This will generate a new 256-bit XChaCha20-Poly1305 key and atomically '
+                            're-encrypt all secrets at rest. The old key will be permanently purged.',
+                          ),
+                          actions: <Widget>[
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () {
+                                Navigator.of(ctx).pop();
+                                controller.rotateMasterKey();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Master key rotated successfully.')),
+                                );
+                              },
+                              child: const Text('Rotate Key'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    child: const Text('Rotate'),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.emergency_outlined, color: Colors.red),
+                  title: const Text('Emergency Security Lockdown'),
+                  subtitle: const Text('Immediately sever all peer connections and freeze automations'),
+                  trailing: FilledButton(
+                    key: const Key('emergency_lockdown_button'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: controller.isLockdownActive ? Colors.grey : Colors.red,
+                    ),
+                    onPressed: controller.isLockdownActive
+                        ? () => controller.liftEmergencyLockdown()
+                        : () {
+                            showDialog<void>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Engage Emergency Lockdown?'),
+                                content: const Text(
+                                  'This will immediately terminate all active peer sessions, drop discovery, '
+                                  'and freeze background automations until manually lifted.',
+                                ),
+                                actions: <Widget>[
+                                  TextButton(
+                                    onPressed: () => Navigator.of(ctx).pop(),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  FilledButton(
+                                    style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                                    onPressed: () {
+                                      Navigator.of(ctx).pop();
+                                      controller.triggerEmergencyLockdown('manual_panic_button');
+                                    },
+                                    child: const Text('Lockdown Now'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                    child: Text(controller.isLockdownActive ? 'Lift' : 'Lockdown'),
+                  ),
                 ),
                 const Divider(height: 1),
                 ListTile(

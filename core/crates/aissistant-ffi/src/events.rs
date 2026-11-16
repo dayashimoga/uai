@@ -158,6 +158,26 @@ pub enum BridgeEvent {
         /// Error message if failed.
         error: Option<String>,
     },
+
+    /// Master AEAD key rotated across the encrypted secret store.
+    KeyRotated {
+        /// Epoch timestamp in milliseconds.
+        timestamp_ms: u64,
+    },
+
+    /// Cryptographic trust revoked for a paired peer device.
+    DeviceRevoked {
+        /// Device identifier of the revoked peer.
+        device_id: String,
+    },
+
+    /// Emergency lockdown triggered or lifted.
+    EmergencyLockdown {
+        /// Whether lockdown is currently engaged.
+        active: bool,
+        /// Reason or trigger description.
+        reason: String,
+    },
 }
 
 type CallbackFn = Box<dyn Fn(&BridgeEvent) + Send + Sync + 'static>;
