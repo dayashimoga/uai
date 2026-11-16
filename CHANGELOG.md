@@ -2138,6 +2138,31 @@
 - `Set-Location app; C:\flutter\bin\flutter.bat test` passed: 122 tests (0 failures across 19 test suites).
 - Commit reference: `d79e94c`.
 
+---
+
+## [2026-11-16] — S11.P2.1: Full Acceptance Matrix Verification, SBOM & SHA-256 Manifests
+
+### Added & Modified
+- `docs/ACCEPTANCE_MATRIX.md`:
+  - Created complete requirement traceability and verification matrix covering 100% of all 30 formal requirements (`FR-1.1`..`FR-5.6`, `NFR-1`..`NFR-8`, `SEC-1`..`SEC-6`, `PRIV-1`..`PRIV-4`) mapped to implementing crates, source files, automated test suites, and empirical benchmarks.
+- `scripts/generate_sbom.py`:
+  - Implemented zero-dependency Python SPDX 2.3 SBOM generator parsing Rust dependencies via built-in `tomllib` (`core/Cargo.lock`) and Flutter dependencies (`app/pubspec.lock`), outputting standard JSON documents for Rust (`dist/sbom/rust-sbom.spdx.json`), Flutter (`dist/sbom/flutter-sbom.spdx.json`), and the unified stack (`dist/sbom/unified-sbom.spdx.json`).
+- `scripts/verify_release_checksums.py`:
+  - Created automated release artifact checksum aggregator and cryptographic SHA-256 verification utility generating `dist/SHA256SUMS.txt`.
+- `.gitignore`:
+  - Added distribution binary release patterns (`dist/*.exe`, `dist/*.zip`, `dist/*.deb`, `dist/*.apk`, etc.) to keep git history clean while tracking release manifests and SBOMs.
+- `app/test/acceptance_matrix_test.dart`:
+  - Created automated Flutter integration test asserting acceptance matrix requirement coverage, SPDX 2.3 JSON schema validity, package relationships, and checksum manifest verification (3/3 tests passing).
+
+### Verification
+- `python scripts/generate_sbom.py` generated 279 total package entries across Rust and Flutter.
+- `python scripts/verify_release_checksums.py --verify` passed with 100% SHA-256 match.
+- `Set-Location app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `Set-Location app; C:\flutter\bin\flutter.bat test test/acceptance_matrix_test.dart` passed: 3 tests (0 failures).
+- `Set-Location app; C:\flutter\bin\flutter.bat test` passed: 125 tests (0 failures across 20 test suites).
+- Commit reference: `13628bf`.
+
+
 
 
 
