@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'ffi_bridge.dart';
 import 'models/audit_item.dart';
+import 'models/automation_models.dart';
 import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
 import 'models/device_models.dart';
@@ -51,6 +52,11 @@ class AssistantController extends ChangeNotifier {
   List<UserPreferenceItem> _preferences = <UserPreferenceItem>[];
   bool _isPersonaLoading = false;
   String? _personaError;
+  List<AutomationRuleItem> _automations = <AutomationRuleItem>[];
+  List<AutomationHistoryItem> _automationHistory = <AutomationHistoryItem>[];
+  bool _isAutomationLoading = false;
+  String? _automationError;
+  WorkflowExecutionReportItem? _lastWorkflowReport;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -92,6 +98,12 @@ class AssistantController extends ChangeNotifier {
   List<UserPreferenceItem> get preferences => List<UserPreferenceItem>.unmodifiable(_preferences);
   bool get isPersonaLoading => _isPersonaLoading;
   String? get personaError => _personaError;
+  List<AutomationRuleItem> get automations => List<AutomationRuleItem>.unmodifiable(_automations);
+  List<AutomationHistoryItem> get automationHistory =>
+      List<AutomationHistoryItem>.unmodifiable(_automationHistory);
+  bool get isAutomationLoading => _isAutomationLoading;
+  String? get automationError => _automationError;
+  WorkflowExecutionReportItem? get lastWorkflowReport => _lastWorkflowReport;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -120,6 +132,8 @@ class AssistantController extends ChangeNotifier {
       _activePersona = _bridge.getActivePersona();
       _personas = List<UserPersonaItem>.from(_bridge.listPersonas());
       _preferences = List<UserPreferenceItem>.from(_bridge.listPreferences());
+      _automations = List<AutomationRuleItem>.from(_bridge.listAutomations());
+      _automationHistory = List<AutomationHistoryItem>.from(_bridge.listAutomationHistory());
 
       // Read persisted theme mode
       final savedTheme = _bridge.getSetting('assistant.theme_mode');
@@ -536,6 +550,8 @@ class AssistantController extends ChangeNotifier {
       _activePersona = _bridge.getActivePersona();
       _personas = List<UserPersonaItem>.from(_bridge.listPersonas());
       _preferences = List<UserPreferenceItem>.from(_bridge.listPreferences());
+      _automations = List<AutomationRuleItem>.from(_bridge.listAutomations());
+      _automationHistory = List<AutomationHistoryItem>.from(_bridge.listAutomationHistory());
       notifyListeners();
     } catch (e) {
       _errorMessage = 'Failed to refresh documents: $e';
@@ -858,6 +874,128 @@ class AssistantController extends ChangeNotifier {
       return false;
     } finally {
       _isPersonaLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Workflow Automation Management
+
+  Future<void> loadAutomations({bool enabledOnly = false}) async {
+    _isAutomationLoading = true;
+    _automationError = null;
+    notifyListeners();
+    try {
+      _automations = List<AutomationRuleItem>.from(
+        _bridge.listAutomations(enabledOnly: enabledOnly),
+      );
+    } catch (e) {
+      _automationError = 'Failed to load automations: $e';
+    } finally {
+      _isAutomationLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> saveAutomation(AutomationRuleItem rule) async {
+    _isAutomationLoading = true;
+    _automationError = null;
+    notifyListeners();
+    try {
+      _bridge.saveAutomation(rule);
+      _automations = List<AutomationRuleItem>.from(_bridge.listAutomations());
+    } catch (e) {
+      _automationError = 'Failed to save automation: $e';
+    } finally {
+      _isAutomationLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> toggleAutomation(String id, bool enabled) async {
+    _isAutomationLoading = true;
+    _automationError = null;
+    notifyListeners();
+    try {
+      final res = _bridge.toggleAutomation(id, enabled);
+      _automations = List<AutomationRuleItem>.from(_bridge.listAutomations());
+      return res;
+    } catch (e) {
+      _automationError = 'Failed to toggle automation: $e';
+      return false;
+    } finally {
+      _isAutomationLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> deleteAutomation(String id) async {
+    _isAutomationLoading = true;
+    _automationError = null;
+    notifyListeners();
+    try {
+      final res = _bridge.deleteAutomation(id);
+      _automations = List<AutomationRuleItem>.from(_bridge.listAutomations());
+      _automationHistory = List<AutomationHistoryItem>.from(_bridge.listAutomationHistory());
+      return res;
+    } catch (e) {
+      _automationError = 'Failed to delete automation: $e';
+      return false;
+    } finally {
+      _isAutomationLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<WorkflowExecutionReportItem?> triggerAutomation(String id) async {
+    _isAutomationLoading = true;
+    _automationError = null;
+    notifyListeners();
+    try {
+      final report = _bridge.triggerAutomation(id);
+      _lastWorkflowReport = report;
+      _automations = List<AutomationRuleItem>.from(_bridge.listAutomations());
+      _automationHistory = List<AutomationHistoryItem>.from(_bridge.listAutomationHistory());
+      return report;
+    } catch (e) {
+      _automationError = 'Failed to trigger automation: $e';
+      return null;
+    } finally {
+      _isAutomationLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadAutomationHistory({String? automationId, int limit = 50}) async {
+    _isAutomationLoading = true;
+    _automationError = null;
+    notifyListeners();
+    try {
+      _automationHistory = List<AutomationHistoryItem>.from(
+        _bridge.listAutomationHistory(automationId: automationId, limit: limit),
+      );
+    } catch (e) {
+      _automationError = 'Failed to load automation history: $e';
+    } finally {
+      _isAutomationLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<int> clearAutomationHistory({String? automationId}) async {
+    _isAutomationLoading = true;
+    _automationError = null;
+    notifyListeners();
+    try {
+      final count = _bridge.clearAutomationHistory(automationId: automationId);
+      _automationHistory = List<AutomationHistoryItem>.from(
+        _bridge.listAutomationHistory(automationId: automationId),
+      );
+      return count;
+    } catch (e) {
+      _automationError = 'Failed to clear automation history: $e';
+      return 0;
+    } finally {
+      _isAutomationLoading = false;
       notifyListeners();
     }
   }

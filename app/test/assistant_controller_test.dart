@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aissistant/core/assistant_controller.dart';
 import 'package:aissistant/core/ffi_bridge.dart';
+import 'package:aissistant/core/models/automation_models.dart';
 import 'package:aissistant/core/models/device_models.dart';
 import 'package:aissistant/core/models/health_report.dart';
 import 'package:aissistant/core/models/voice_state.dart';
@@ -166,6 +167,55 @@ void main() {
       );
       controller.simulateDiscoveredPeer(sim);
       expect(controller.discoveredPeers.any((p) => p.instanceName == 'sim-device'), isTrue);
+    });
+
+    test('manages automations: lists, saves, toggles, triggers and deletes workflow rules', () async {
+      await controller.initialize();
+
+      // 1. Initial list
+      expect(controller.automations.length, 2);
+      expect(controller.automations.first.id, 'auto_morning_brief');
+
+      // 2. Toggle rule
+      final toggled = await controller.toggleAutomation('auto_morning_brief', false);
+      expect(toggled, isTrue);
+      expect(
+        controller.automations.firstWhere((r) => r.id == 'auto_morning_brief').enabled,
+        isFalse,
+      );
+
+      // 3. Save new rule
+      const newRule = AutomationRuleItem(
+        id: 'auto_test_custom',
+        name: 'Custom Test Rule',
+        enabled: true,
+        triggerType: 'manual',
+        triggerConfigJson: '{"type":"manual"}',
+        actionsJson: '[]',
+        createdAtMs: 100,
+        updatedAtMs: 100,
+      );
+      await controller.saveAutomation(newRule);
+      expect(controller.automations.length, 3);
+      expect(controller.automations.any((r) => r.id == 'auto_test_custom'), isTrue);
+
+      // 4. Trigger automation
+      final report = await controller.triggerAutomation('auto_test_custom');
+      expect(report, isNotNull);
+      expect(report!.status, 'success');
+      expect(controller.lastWorkflowReport?.automationId, 'auto_test_custom');
+      expect(controller.automationHistory.isNotEmpty, isTrue);
+
+      // 5. Query history
+      await controller.loadAutomationHistory(automationId: 'auto_test_custom');
+      expect(controller.automationHistory.length, 1);
+      expect(controller.automationHistory.first.automationId, 'auto_test_custom');
+
+      // 6. Delete automation
+      final deleted = await controller.deleteAutomation('auto_test_custom');
+      expect(deleted, isTrue);
+      expect(controller.automations.length, 2);
+      expect(controller.automations.any((r) => r.id == 'auto_test_custom'), isFalse);
     });
   });
 }

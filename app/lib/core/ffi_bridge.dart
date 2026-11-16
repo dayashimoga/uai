@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:ffi/ffi.dart';
 
 import 'models/audit_item.dart';
+import 'models/automation_models.dart';
 import 'models/bridge_event.dart';
 import 'models/capability_item.dart';
 import 'models/device_models.dart';
@@ -81,6 +82,14 @@ abstract class AissistantBridge {
   void setPreference(String key, String valueJson, String category);
   List<UserPreferenceItem> listPreferences({String? category});
   bool deletePreference(String key);
+  List<AutomationRuleItem> listAutomations({bool enabledOnly = false});
+  AutomationRuleItem? getAutomation(String id);
+  void saveAutomation(AutomationRuleItem rule);
+  bool toggleAutomation(String id, bool enabled);
+  bool deleteAutomation(String id);
+  WorkflowExecutionReportItem triggerAutomation(String id);
+  List<AutomationHistoryItem> listAutomationHistory({String? automationId, int limit = 50});
+  int clearAutomationHistory({String? automationId});
   Stream<BridgeEvent> get eventStream;
 }
 
@@ -266,6 +275,30 @@ typedef _BridgePreferenceListDart = Pointer<Utf8> Function(Pointer<Utf8> categor
 typedef _BridgePreferenceDeleteC = Pointer<Utf8> Function(Pointer<Utf8> key);
 typedef _BridgePreferenceDeleteDart = Pointer<Utf8> Function(Pointer<Utf8> key);
 
+typedef _BridgeAutomationListC = Pointer<Utf8> Function(Int32 enabledOnly);
+typedef _BridgeAutomationListDart = Pointer<Utf8> Function(int enabledOnly);
+
+typedef _BridgeAutomationGetC = Pointer<Utf8> Function(Pointer<Utf8> id);
+typedef _BridgeAutomationGetDart = Pointer<Utf8> Function(Pointer<Utf8> id);
+
+typedef _BridgeAutomationSaveC = Pointer<Utf8> Function(Pointer<Utf8> ruleJson);
+typedef _BridgeAutomationSaveDart = Pointer<Utf8> Function(Pointer<Utf8> ruleJson);
+
+typedef _BridgeAutomationToggleC = Pointer<Utf8> Function(Pointer<Utf8> id, Int32 enabled);
+typedef _BridgeAutomationToggleDart = Pointer<Utf8> Function(Pointer<Utf8> id, int enabled);
+
+typedef _BridgeAutomationDeleteC = Pointer<Utf8> Function(Pointer<Utf8> id);
+typedef _BridgeAutomationDeleteDart = Pointer<Utf8> Function(Pointer<Utf8> id);
+
+typedef _BridgeAutomationTriggerC = Pointer<Utf8> Function(Pointer<Utf8> id);
+typedef _BridgeAutomationTriggerDart = Pointer<Utf8> Function(Pointer<Utf8> id);
+
+typedef _BridgeAutomationHistoryC = Pointer<Utf8> Function(Pointer<Utf8> automationId, IntPtr limit);
+typedef _BridgeAutomationHistoryDart = Pointer<Utf8> Function(Pointer<Utf8> automationId, int limit);
+
+typedef _BridgeAutomationClearHistC = Pointer<Utf8> Function(Pointer<Utf8> automationId);
+typedef _BridgeAutomationClearHistDart = Pointer<Utf8> Function(Pointer<Utf8> automationId);
+
 /// Native FFI implementation driving aissistant-ffi C-ABI entry points.
 class NativeFfiBridge implements AissistantBridge {
   final DynamicLibrary _lib;
@@ -321,6 +354,14 @@ class NativeFfiBridge implements AissistantBridge {
   late final _BridgePreferenceSetDart _preferenceSet;
   late final _BridgePreferenceListDart _preferenceList;
   late final _BridgePreferenceDeleteDart _preferenceDelete;
+  late final _BridgeAutomationListDart _automationList;
+  late final _BridgeAutomationGetDart _automationGet;
+  late final _BridgeAutomationSaveDart _automationSave;
+  late final _BridgeAutomationToggleDart _automationToggle;
+  late final _BridgeAutomationDeleteDart _automationDelete;
+  late final _BridgeAutomationTriggerDart _automationTrigger;
+  late final _BridgeAutomationHistoryDart _automationHistory;
+  late final _BridgeAutomationClearHistDart _automationClearHistory;
   late final _BridgeFreeStringDart _freeString;
 
   NativeFfiBridge(this._lib) {
@@ -373,6 +414,14 @@ class NativeFfiBridge implements AissistantBridge {
     _preferenceSet = _lib.lookupFunction<_BridgePreferenceSetC, _BridgePreferenceSetDart>('bridge_c_preference_set');
     _preferenceList = _lib.lookupFunction<_BridgePreferenceListC, _BridgePreferenceListDart>('bridge_c_preference_list');
     _preferenceDelete = _lib.lookupFunction<_BridgePreferenceDeleteC, _BridgePreferenceDeleteDart>('bridge_c_preference_delete');
+    _automationList = _lib.lookupFunction<_BridgeAutomationListC, _BridgeAutomationListDart>('bridge_c_automation_list');
+    _automationGet = _lib.lookupFunction<_BridgeAutomationGetC, _BridgeAutomationGetDart>('bridge_c_automation_get');
+    _automationSave = _lib.lookupFunction<_BridgeAutomationSaveC, _BridgeAutomationSaveDart>('bridge_c_automation_save');
+    _automationToggle = _lib.lookupFunction<_BridgeAutomationToggleC, _BridgeAutomationToggleDart>('bridge_c_automation_toggle');
+    _automationDelete = _lib.lookupFunction<_BridgeAutomationDeleteC, _BridgeAutomationDeleteDart>('bridge_c_automation_delete');
+    _automationTrigger = _lib.lookupFunction<_BridgeAutomationTriggerC, _BridgeAutomationTriggerDart>('bridge_c_automation_trigger');
+    _automationHistory = _lib.lookupFunction<_BridgeAutomationHistoryC, _BridgeAutomationHistoryDart>('bridge_c_automation_history');
+    _automationClearHistory = _lib.lookupFunction<_BridgeAutomationClearHistC, _BridgeAutomationClearHistDart>('bridge_c_automation_clear_history');
     _freeString = _lib.lookupFunction<_BridgeFreeStringC, _BridgeFreeStringDart>('bridge_c_free_string');
   }
 
@@ -1172,6 +1221,186 @@ class NativeFfiBridge implements AissistantBridge {
       }
     } finally {
       malloc.free(keyPtr);
+    }
+  }
+
+  @override
+  List<AutomationRuleItem> listAutomations({bool enabledOnly = false}) {
+    final ptr = _automationList(enabledOnly ? 1 : 0);
+    if (ptr.address == 0) return [];
+    try {
+      final jsonStr = ptr.toDartString();
+      final decoded = jsonDecode(jsonStr);
+      if (decoded is List) {
+        return decoded
+            .map((e) => AutomationRuleItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } finally {
+      _freeString(ptr);
+    }
+  }
+
+  @override
+  AutomationRuleItem? getAutomation(String id) {
+    final idPtr = id.toNativeUtf8();
+    try {
+      final ptr = _automationGet(idPtr);
+      if (ptr.address == 0) return null;
+      try {
+        final jsonStr = ptr.toDartString();
+        if (jsonStr == 'null') return null;
+        final decoded = jsonDecode(jsonStr);
+        if (decoded is Map<String, dynamic>) {
+          if (decoded.containsKey('code') || decoded.containsKey('error')) return null;
+          return AutomationRuleItem.fromJson(decoded);
+        }
+        return null;
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  void saveAutomation(AutomationRuleItem rule) {
+    final jsonStr = jsonEncode(rule.toJson());
+    final jsonPtr = jsonStr.toNativeUtf8();
+    try {
+      final ptr = _automationSave(jsonPtr);
+      if (ptr.address != 0) {
+        try {
+          final res = ptr.toDartString();
+          if (res != 'null') {
+            final map = jsonDecode(res);
+            if (map is Map<String, dynamic> &&
+                (map.containsKey('code') || map.containsKey('error'))) {
+              throw StateError(
+                (map['message'] ?? 'Failed to save automation rule').toString(),
+              );
+            }
+          }
+        } finally {
+          _freeString(ptr);
+        }
+      }
+    } finally {
+      malloc.free(jsonPtr);
+    }
+  }
+
+  @override
+  bool toggleAutomation(String id, bool enabled) {
+    final idPtr = id.toNativeUtf8();
+    try {
+      final ptr = _automationToggle(idPtr, enabled ? 1 : 0);
+      if (ptr.address == 0) return false;
+      try {
+        final res = ptr.toDartString();
+        final decoded = jsonDecode(res);
+        if (decoded is bool) return decoded;
+        return false;
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  bool deleteAutomation(String id) {
+    final idPtr = id.toNativeUtf8();
+    try {
+      final ptr = _automationDelete(idPtr);
+      if (ptr.address == 0) return false;
+      try {
+        final res = ptr.toDartString();
+        final decoded = jsonDecode(res);
+        if (decoded is bool) return decoded;
+        return false;
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  WorkflowExecutionReportItem triggerAutomation(String id) {
+    final idPtr = id.toNativeUtf8();
+    try {
+      final ptr = _automationTrigger(idPtr);
+      if (ptr.address == 0) {
+        throw StateError('Trigger automation returned null pointer');
+      }
+      try {
+        final res = ptr.toDartString();
+        final map = jsonDecode(res);
+        if (map is Map<String, dynamic>) {
+          if (map.containsKey('code') || map.containsKey('error')) {
+            throw StateError(
+              (map['message'] ?? 'Failed to trigger automation').toString(),
+            );
+          }
+          return WorkflowExecutionReportItem.fromJson(map);
+        }
+        throw StateError('Invalid execution report response');
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      malloc.free(idPtr);
+    }
+  }
+
+  @override
+  List<AutomationHistoryItem> listAutomationHistory({String? automationId, int limit = 50}) {
+    final idPtr = automationId != null ? automationId.toNativeUtf8() : Pointer<Utf8>.fromAddress(0);
+    try {
+      final ptr = _automationHistory(idPtr, limit);
+      if (ptr.address == 0) return [];
+      try {
+        final res = ptr.toDartString();
+        final decoded = jsonDecode(res);
+        if (decoded is List) {
+          return decoded
+              .map((e) => AutomationHistoryItem.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        return [];
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      if (automationId != null) {
+        malloc.free(idPtr);
+      }
+    }
+  }
+
+  @override
+  int clearAutomationHistory({String? automationId}) {
+    final idPtr = automationId != null ? automationId.toNativeUtf8() : Pointer<Utf8>.fromAddress(0);
+    try {
+      final ptr = _automationClearHistory(idPtr);
+      if (ptr.address == 0) return 0;
+      try {
+        final res = ptr.toDartString();
+        final decoded = jsonDecode(res);
+        if (decoded is int) return decoded;
+        return 0;
+      } finally {
+        _freeString(ptr);
+      }
+    } finally {
+      if (automationId != null) {
+        malloc.free(idPtr);
+      }
     }
   }
 }
@@ -2020,6 +2249,43 @@ class TestHarnessBridge implements AissistantBridge {
     ),
   ];
 
+  final List<AutomationRuleItem> _automations = [
+    const AutomationRuleItem(
+      id: 'auto_morning_brief',
+      name: 'Daily Morning Brief',
+      enabled: true,
+      triggerType: 'cron',
+      triggerConfigJson: '{"type":"cron","expression":"@daily"}',
+      actionsJson: '[{"action_type":"notification","title":"Morning Brief","message":"Weather and top news are ready."}]',
+      lastExecutedMs: 1731670000000,
+      createdAtMs: 1731670000000,
+      updatedAtMs: 1731670000000,
+    ),
+    const AutomationRuleItem(
+      id: 'auto_battery_saver',
+      name: 'Low Battery Auto-Mute',
+      enabled: true,
+      triggerType: 'event',
+      triggerConfigJson: '{"type":"event","event_name":"battery_low","filter_json":"{\\"threshold\\":15}"}',
+      actionsJson: '[{"action_type":"notification","title":"Battery Saver","message":"Battery below 15%."}]',
+      lastExecutedMs: null,
+      createdAtMs: 1731670000000,
+      updatedAtMs: 1731670000000,
+    ),
+  ];
+
+  final List<AutomationHistoryItem> _automationHistory = [
+    const AutomationHistoryItem(
+      id: 'hist_mock_01',
+      automationId: 'auto_morning_brief',
+      status: 'success',
+      triggeredBy: 'cron_scheduler',
+      executedAtMs: 1731670000000,
+      durationMs: 45,
+      resultJson: '[{"action_index":0,"action_type":"notification","success":true,"duration_ms":45}]',
+    ),
+  ];
+
   @override
   UserPersonaItem? getActivePersona() {
     return _personas.cast<UserPersonaItem?>().firstWhere(
@@ -2112,5 +2378,104 @@ class TestHarnessBridge implements AissistantBridge {
       return true;
     }
     return false;
+  }
+
+  @override
+  List<AutomationRuleItem> listAutomations({bool enabledOnly = false}) {
+    if (enabledOnly) {
+      return _automations.where((r) => r.enabled).toList();
+    }
+    return List.unmodifiable(_automations);
+  }
+
+  @override
+  AutomationRuleItem? getAutomation(String id) {
+    return _automations.cast<AutomationRuleItem?>().firstWhere(
+      (r) => r?.id == id,
+      orElse: () => null,
+    );
+  }
+
+  @override
+  void saveAutomation(AutomationRuleItem rule) {
+    final idx = _automations.indexWhere((r) => r.id == rule.id);
+    if (idx >= 0) {
+      _automations[idx] = rule;
+    } else {
+      _automations.add(rule);
+    }
+  }
+
+  @override
+  bool toggleAutomation(String id, bool enabled) {
+    final idx = _automations.indexWhere((r) => r.id == id);
+    if (idx >= 0) {
+      _automations[idx] = _automations[idx].copyWith(enabled: enabled);
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  bool deleteAutomation(String id) {
+    final idx = _automations.indexWhere((r) => r.id == id);
+    if (idx >= 0) {
+      _automations.removeAt(idx);
+      _automationHistory.removeWhere((h) => h.automationId == id);
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  WorkflowExecutionReportItem triggerAutomation(String id) {
+    final rule = getAutomation(id);
+    if (rule == null) {
+      throw StateError('Automation rule $id not found');
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final report = WorkflowExecutionReportItem(
+      automationId: id,
+      status: 'success',
+      triggeredBy: 'manual_ui',
+      durationMs: 25,
+      executedAtMs: now,
+      resultJson: '[{"action_index":0,"action_type":"simulated","success":true,"duration_ms":25}]',
+    );
+    _automationHistory.insert(
+      0,
+      AutomationHistoryItem(
+        id: 'hist_$now',
+        automationId: id,
+        status: 'success',
+        triggeredBy: 'manual_ui',
+        executedAtMs: now,
+        durationMs: 25,
+        resultJson: report.resultJson,
+      ),
+    );
+    return report;
+  }
+
+  @override
+  List<AutomationHistoryItem> listAutomationHistory({String? automationId, int limit = 50}) {
+    var items = _automationHistory;
+    if (automationId != null && automationId.isNotEmpty) {
+      items = items.where((h) => h.automationId == automationId).toList();
+    }
+    return items.take(limit).toList();
+  }
+
+  @override
+  int clearAutomationHistory({String? automationId}) {
+    if (automationId != null && automationId.isNotEmpty) {
+      final initial = _automationHistory.length;
+      _automationHistory.removeWhere((h) => h.automationId == automationId);
+      return initial - _automationHistory.length;
+    } else {
+      final count = _automationHistory.length;
+      _automationHistory.clear();
+      return count;
+    }
   }
 }

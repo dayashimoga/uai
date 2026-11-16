@@ -13,6 +13,7 @@ pub mod file;
 pub mod registry;
 pub mod sandbox;
 pub mod utility;
+pub mod workflow;
 
 pub use desktop::{
     AppLaunchSkill, AppListSkill, ClipboardReadSkill, ClipboardWriteSkill, MediaTransportSkill,
@@ -27,6 +28,10 @@ pub use file::{
 pub use registry::SkillRegistry;
 pub use sandbox::{SandboxedSkill, DEFAULT_SKILL_TIMEOUT_MS};
 pub use utility::{CalcSkill, ConvertSkill, TelemetrySkill, TimeSkill, TimerSkill};
+pub use workflow::{
+    ActionResult, AutomationEngine, AutomationRule, TriggerConfig, WorkflowAction,
+    WorkflowErrorPolicy, WorkflowExecutionReport,
+};
 
 #[cfg(test)]
 mod tests {

@@ -5,16 +5,20 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
 
-use aissistant_core::{AuditEntryId, Capability, CapabilityRegistry, CapabilityStatus, SkillId};
+use aissistant_core::{
+    AuditEntryId, Capability, CapabilityRegistry, CapabilityStatus, CoreError, SkillId,
+};
 use aissistant_llm::{Language, TranslationEngine};
 use aissistant_orchestrator::{InterpreterSession, InterpreterSessionConfig};
 use aissistant_security::{
     Actor, AeadKey, AuditEntry, AuditExecutionStatus, DeviceIdentity, PolicyDecision, PolicyEngine,
     GENESIS_PREV_HASH,
 };
+use aissistant_skills::{AutomationEngine, WorkflowAction, WorkflowExecutionReport};
 use aissistant_storage::{
-    AuditStore, FileBoundKeystore, KeystoreProvider, PersonaStore, PersonaTone, ResponseVerbosity,
-    SecretStore, SettingsStore, SqliteDb, UserPersona, UserPreference,
+    AuditStore, AutomationHistoryRecord, AutomationRuleRecord, AutomationStore,
+    AutomationTriggerType, FileBoundKeystore, KeystoreProvider, PersonaStore, PersonaTone,
+    ResponseVerbosity, SecretStore, SettingsStore, SqliteDb, UserPersona, UserPreference,
 };
 use serde::{Deserialize, Serialize};
 
@@ -338,6 +342,185 @@ impl From<UserPreference> for UserPreferenceItem {
     }
 }
 
+/// FFI view of an action within an automated workflow.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkflowActionItem {
+    pub action_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peer_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_json: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+impl From<WorkflowAction> for WorkflowActionItem {
+    fn from(action: WorkflowAction) -> Self {
+        match action {
+            WorkflowAction::LocalSkill {
+                skill_id,
+                payload_json,
+            } => Self {
+                action_type: "local_skill".to_string(),
+                skill_id: Some(skill_id),
+                peer_id: None,
+                payload_json: Some(payload_json),
+                title: None,
+                message: None,
+            },
+            WorkflowAction::RemoteSkill {
+                peer_id,
+                skill_id,
+                payload_json,
+            } => Self {
+                action_type: "remote_skill".to_string(),
+                skill_id: Some(skill_id),
+                peer_id: Some(peer_id),
+                payload_json: Some(payload_json),
+                title: None,
+                message: None,
+            },
+            WorkflowAction::Notification { title, message } => Self {
+                action_type: "notification".to_string(),
+                skill_id: None,
+                peer_id: None,
+                payload_json: None,
+                title: Some(title),
+                message: Some(message),
+            },
+        }
+    }
+}
+
+impl TryFrom<WorkflowActionItem> for WorkflowAction {
+    type Error = FfiError;
+
+    fn try_from(item: WorkflowActionItem) -> Result<Self, Self::Error> {
+        match item.action_type.as_str() {
+            "local_skill" => Ok(Self::LocalSkill {
+                skill_id: item.skill_id.unwrap_or_default(),
+                payload_json: item.payload_json.unwrap_or_default(),
+            }),
+            "remote_skill" => Ok(Self::RemoteSkill {
+                peer_id: item.peer_id.unwrap_or_default(),
+                skill_id: item.skill_id.unwrap_or_default(),
+                payload_json: item.payload_json.unwrap_or_default(),
+            }),
+            "notification" => Ok(Self::Notification {
+                title: item.title.unwrap_or_default(),
+                message: item.message.unwrap_or_default(),
+            }),
+            other => Err(FfiError::InvalidParameter(format!(
+                "Unknown workflow action type: '{other}'"
+            ))),
+        }
+    }
+}
+
+/// FFI view of an automated workflow rule.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutomationRuleItem {
+    pub id: String,
+    pub name: String,
+    pub enabled: bool,
+    pub trigger_type: String,
+    pub trigger_config_json: String,
+    pub actions_json: String,
+    pub last_executed_ms: Option<i64>,
+    pub created_at_ms: i64,
+    pub updated_at_ms: i64,
+}
+
+impl From<AutomationRuleRecord> for AutomationRuleItem {
+    fn from(r: AutomationRuleRecord) -> Self {
+        Self {
+            id: r.id,
+            name: r.name,
+            enabled: r.enabled,
+            trigger_type: r.trigger_type.as_str().to_string(),
+            trigger_config_json: r.trigger_config_json,
+            actions_json: r.actions_json,
+            last_executed_ms: r.last_executed_ms,
+            created_at_ms: r.created_at_ms,
+            updated_at_ms: r.updated_at_ms,
+        }
+    }
+}
+
+impl TryFrom<AutomationRuleItem> for AutomationRuleRecord {
+    type Error = FfiError;
+
+    fn try_from(item: AutomationRuleItem) -> Result<Self, Self::Error> {
+        let trigger_type = AutomationTriggerType::from_str(&item.trigger_type)
+            .map_err(|e| FfiError::InvalidParameter(e.to_string()))?;
+        Ok(Self {
+            id: item.id,
+            name: item.name,
+            enabled: item.enabled,
+            trigger_type,
+            trigger_config_json: item.trigger_config_json,
+            actions_json: item.actions_json,
+            last_executed_ms: item.last_executed_ms,
+            created_at_ms: item.created_at_ms,
+            updated_at_ms: item.updated_at_ms,
+        })
+    }
+}
+
+/// FFI view of an automation execution history entry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutomationHistoryItem {
+    pub id: String,
+    pub automation_id: String,
+    pub status: String,
+    pub triggered_by: String,
+    pub executed_at_ms: i64,
+    pub duration_ms: u64,
+    pub result_json: String,
+}
+
+impl From<AutomationHistoryRecord> for AutomationHistoryItem {
+    fn from(h: AutomationHistoryRecord) -> Self {
+        Self {
+            id: h.id,
+            automation_id: h.automation_id,
+            status: h.status.as_str().to_string(),
+            triggered_by: h.triggered_by,
+            executed_at_ms: h.executed_at_ms,
+            duration_ms: h.duration_ms,
+            result_json: h.result_json,
+        }
+    }
+}
+
+/// FFI view of an automation workflow execution report.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkflowExecutionReportItem {
+    pub automation_id: String,
+    pub status: String,
+    pub triggered_by: String,
+    pub duration_ms: u64,
+    pub executed_at_ms: i64,
+    pub result_json: String,
+}
+
+impl From<WorkflowExecutionReport> for WorkflowExecutionReportItem {
+    fn from(r: WorkflowExecutionReport) -> Self {
+        Self {
+            automation_id: r.automation_id,
+            status: r.status.as_str().to_string(),
+            triggered_by: r.triggered_by,
+            duration_ms: r.duration_ms,
+            executed_at_ms: r.executed_at_ms,
+            result_json: serde_json::to_string(&r.action_results).unwrap_or_default(),
+        }
+    }
+}
+
 /// Core bridge orchestrating subsystem access and safe FFI dispatch.
 pub struct CoreBridge {
     db: SqliteDb,
@@ -345,6 +528,7 @@ pub struct CoreBridge {
     settings_store: SettingsStore,
     secret_store: SecretStore,
     persona_store: PersonaStore,
+    pub(crate) automation_store: AutomationStore,
     capability_registry: RwLock<CapabilityRegistry>,
     policy_engine: RwLock<PolicyEngine>,
     event_sink: Arc<EventStreamSink>,
@@ -386,6 +570,7 @@ impl CoreBridge {
         let master_key = AeadKey::generate();
         let secret_store = SecretStore::new(db.clone(), master_key);
         let persona_store = PersonaStore::new(db.clone());
+        let automation_store = AutomationStore::new(db.clone());
         let capability_registry = RwLock::new(CapabilityRegistry::for_current_host());
         let policy_engine = RwLock::new(PolicyEngine::new());
         let identity = DeviceIdentity::generate();
@@ -411,6 +596,7 @@ impl CoreBridge {
             settings_store,
             secret_store,
             persona_store,
+            automation_store,
             capability_registry,
             policy_engine,
             event_sink,
@@ -453,6 +639,7 @@ impl CoreBridge {
         };
         let secret_store = SecretStore::new(db.clone(), master_key);
         let persona_store = PersonaStore::new(db.clone());
+        let automation_store = AutomationStore::new(db.clone());
 
         let capability_registry = RwLock::new(CapabilityRegistry::for_current_host());
         let policy_engine = RwLock::new(PolicyEngine::new());
@@ -479,6 +666,7 @@ impl CoreBridge {
             settings_store,
             secret_store,
             persona_store,
+            automation_store,
             capability_registry,
             policy_engine,
             event_sink,
@@ -1412,6 +1600,68 @@ impl CoreBridge {
         let deleted = self.persona_store.delete_preference(key)?;
         Ok(deleted)
     }
+
+    // Workflow Automation Engine
+
+    /// Lists automation rules, optionally filtering for enabled rules only.
+    pub fn list_automations(&self, enabled_only: bool) -> FfiResult<Vec<AutomationRuleItem>> {
+        let rules = self.automation_store.list_automations(enabled_only)?;
+        Ok(rules.into_iter().map(Into::into).collect())
+    }
+
+    /// Retrieves an automation rule by ID.
+    pub fn get_automation(&self, id: &str) -> FfiResult<Option<AutomationRuleItem>> {
+        let rule = self.automation_store.get_automation(id)?;
+        Ok(rule.map(Into::into))
+    }
+
+    /// Saves or updates an automation rule.
+    pub fn save_automation(&self, item: AutomationRuleItem) -> FfiResult<()> {
+        let record: AutomationRuleRecord = item.try_into()?;
+        self.automation_store.save_automation(&record)?;
+        Ok(())
+    }
+
+    /// Toggles the enabled state of an automation rule.
+    pub fn toggle_automation(&self, id: &str, enabled: bool) -> FfiResult<bool> {
+        let updated = self.automation_store.toggle_automation(id, enabled)?;
+        Ok(updated)
+    }
+
+    /// Deletes an automation rule and cascades to its execution history.
+    pub fn delete_automation(&self, id: &str) -> FfiResult<bool> {
+        let deleted = self.automation_store.delete_automation(id)?;
+        Ok(deleted)
+    }
+
+    /// Manually triggers execution of an automation rule.
+    pub fn trigger_automation(&self, id: &str) -> FfiResult<WorkflowExecutionReportItem> {
+        let engine = AutomationEngine::new(Arc::new(self.automation_store.clone()));
+        let report = engine
+            .execute_rule_by_id(id, "manual_ui", None)
+            .map_err(|e| {
+                FfiError::Core(CoreError::Internal {
+                    message: e.to_string(),
+                })
+            })?;
+        Ok(report.into())
+    }
+
+    /// Lists execution history records, optionally filtered by automation rule ID.
+    pub fn list_automation_history(
+        &self,
+        automation_id: Option<&str>,
+        limit: usize,
+    ) -> FfiResult<Vec<AutomationHistoryItem>> {
+        let history = self.automation_store.list_history(automation_id, limit)?;
+        Ok(history.into_iter().map(Into::into).collect())
+    }
+
+    /// Clears execution history records, optionally filtered by automation rule ID.
+    pub fn clear_automation_history(&self, automation_id: Option<&str>) -> FfiResult<usize> {
+        let count = self.automation_store.clear_history(automation_id)?;
+        Ok(count)
+    }
 }
 
 // Global Singleton Bridge Management
@@ -1771,6 +2021,57 @@ pub fn bridge_list_preferences(category: Option<&str>) -> FfiResult<Vec<UserPref
 pub fn bridge_delete_preference(key: &str) -> FfiResult<bool> {
     let bridge = get_bridge()?;
     bridge.delete_preference(key)
+}
+
+/// Convenience entry point: lists automation rules.
+pub fn bridge_automation_list(enabled_only: bool) -> FfiResult<Vec<AutomationRuleItem>> {
+    let bridge = get_bridge()?;
+    bridge.list_automations(enabled_only)
+}
+
+/// Convenience entry point: gets an automation rule by ID.
+pub fn bridge_automation_get(id: &str) -> FfiResult<Option<AutomationRuleItem>> {
+    let bridge = get_bridge()?;
+    bridge.get_automation(id)
+}
+
+/// Convenience entry point: saves or updates an automation rule.
+pub fn bridge_automation_save(item: AutomationRuleItem) -> FfiResult<()> {
+    let bridge = get_bridge()?;
+    bridge.save_automation(item)
+}
+
+/// Convenience entry point: toggles an automation rule enabled state.
+pub fn bridge_automation_toggle(id: &str, enabled: bool) -> FfiResult<bool> {
+    let bridge = get_bridge()?;
+    bridge.toggle_automation(id, enabled)
+}
+
+/// Convenience entry point: deletes an automation rule.
+pub fn bridge_automation_delete(id: &str) -> FfiResult<bool> {
+    let bridge = get_bridge()?;
+    bridge.delete_automation(id)
+}
+
+/// Convenience entry point: triggers an automation rule manually.
+pub fn bridge_automation_trigger(id: &str) -> FfiResult<WorkflowExecutionReportItem> {
+    let bridge = get_bridge()?;
+    bridge.trigger_automation(id)
+}
+
+/// Convenience entry point: lists execution history.
+pub fn bridge_automation_history(
+    automation_id: Option<&str>,
+    limit: usize,
+) -> FfiResult<Vec<AutomationHistoryItem>> {
+    let bridge = get_bridge()?;
+    bridge.list_automation_history(automation_id, limit)
+}
+
+/// Convenience entry point: clears execution history.
+pub fn bridge_automation_clear_history(automation_id: Option<&str>) -> FfiResult<usize> {
+    let bridge = get_bridge()?;
+    bridge.clear_automation_history(automation_id)
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

@@ -79,6 +79,10 @@ pub enum SkillError {
     #[error("Orchestrator error: {0}")]
     Orchestrator(#[from] aissistant_orchestrator::OrchestratorError),
 
+    /// Storage error during workflow automation or persistence.
+    #[error("Storage error: {0}")]
+    Storage(#[from] aissistant_storage::StorageError),
+
     /// JSON serialization or deserialization failure.
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
@@ -131,6 +135,9 @@ impl SkillError {
                 message: format!("Archive error: {err}"),
             },
             Self::Orchestrator(err) => err.to_core_error(),
+            Self::Storage(err) => CoreError::Internal {
+                message: format!("Storage error: {err}"),
+            },
             Self::Serialization(err) => CoreError::Serialization {
                 message: err.to_string(),
             },

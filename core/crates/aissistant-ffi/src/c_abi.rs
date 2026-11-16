@@ -12,10 +12,13 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use aissistant_core::ErrorDescriptor;
 
 use crate::api::{
-    bridge_delete_persona, bridge_delete_preference, bridge_device_cancel_pairing,
-    bridge_device_confirm_pairing, bridge_device_discovered_peers, bridge_device_paired_list,
-    bridge_device_set_permission, bridge_device_simulate_peer, bridge_device_start_pairing,
-    bridge_device_unpair, bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
+    bridge_automation_clear_history, bridge_automation_delete, bridge_automation_get,
+    bridge_automation_history, bridge_automation_list, bridge_automation_save,
+    bridge_automation_toggle, bridge_automation_trigger, bridge_delete_persona,
+    bridge_delete_preference, bridge_device_cancel_pairing, bridge_device_confirm_pairing,
+    bridge_device_discovered_peers, bridge_device_paired_list, bridge_device_set_permission,
+    bridge_device_simulate_peer, bridge_device_start_pairing, bridge_device_unpair,
+    bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
     bridge_get_lifecycle_state, bridge_get_preference, bridge_get_setting,
     bridge_interpreter_clear_session, bridge_interpreter_get_turns,
     bridge_interpreter_start_session, bridge_interpreter_submit_turn,
@@ -27,7 +30,7 @@ use crate::api::{
     bridge_set_setting, bridge_translate_text, bridge_update_permission, bridge_verify_audit,
     bridge_vision_ocr_extract, bridge_voice_inject_audio, bridge_voice_set_keywords,
     bridge_voice_set_mode, bridge_voice_start_listening, bridge_voice_stop_listening, init_bridge,
-    shutdown_bridge, UserPersonaItem,
+    shutdown_bridge, AutomationRuleItem, UserPersonaItem,
 };
 use crate::device_bridge::DiscoveredPeerItem;
 use crate::error::FfiError;
@@ -935,6 +938,165 @@ pub unsafe extern "C" fn bridge_c_preference_delete(key: *const c_char) -> *mut 
     serialize_to_c_json(result.unwrap_or_else(|_| {
         Err(FfiError::PanicCaught(
             "Panic in bridge_c_preference_delete".into(),
+        ))
+    }))
+}
+
+/// Lists automated workflow rules.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// Caller must free returned pointer with `bridge_c_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_automation_list(enabled_only: bool) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| bridge_automation_list(enabled_only)));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_automation_list".into(),
+        ))
+    }))
+}
+
+/// Retrieves an automated workflow rule by ID.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_automation_get(id: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(id) }?;
+        bridge_automation_get(id_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_automation_get".into(),
+        ))
+    }))
+}
+
+/// Saves or updates an automated workflow rule from serialized JSON.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `rule_json` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_automation_save(rule_json: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let json_str = unsafe { c_char_to_str(rule_json) }?;
+        let item: AutomationRuleItem =
+            serde_json::from_str(json_str).map_err(|e| FfiError::Serialization(e.to_string()))?;
+        bridge_automation_save(item)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_automation_save".into(),
+        ))
+    }))
+}
+
+/// Toggles the enabled state of an automated workflow rule.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_automation_toggle(
+    id: *const c_char,
+    enabled: bool,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(id) }?;
+        bridge_automation_toggle(id_str, enabled)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_automation_toggle".into(),
+        ))
+    }))
+}
+
+/// Deletes an automated workflow rule.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_automation_delete(id: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(id) }?;
+        bridge_automation_delete(id_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_automation_delete".into(),
+        ))
+    }))
+}
+
+/// Triggers manual execution of an automated workflow rule.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `id` must point to a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_automation_trigger(id: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let id_str = unsafe { c_char_to_str(id) }?;
+        bridge_automation_trigger(id_str)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_automation_trigger".into(),
+        ))
+    }))
+}
+
+/// Lists execution history for an automation rule.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `automation_id` can be null or a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_automation_history(
+    automation_id: *const c_char,
+    limit: usize,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let auto_id = if automation_id.is_null() {
+            None
+        } else {
+            Some(unsafe { c_char_to_str(automation_id) }?)
+        };
+        bridge_automation_history(auto_id, limit)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_automation_history".into(),
+        ))
+    }))
+}
+
+/// Clears execution history for an automation rule.
+/// Caller must free returned pointer with `bridge_c_free_string`.
+///
+/// # Safety
+/// `automation_id` can be null or a valid null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn bridge_c_automation_clear_history(
+    automation_id: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let auto_id = if automation_id.is_null() {
+            None
+        } else {
+            Some(unsafe { c_char_to_str(automation_id) }?)
+        };
+        bridge_automation_clear_history(auto_id)
+    }));
+    serialize_to_c_json(result.unwrap_or_else(|_| {
+        Err(FfiError::PanicCaught(
+            "Panic in bridge_c_automation_clear_history".into(),
         ))
     }))
 }

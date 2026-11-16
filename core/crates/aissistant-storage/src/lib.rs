@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod audit_store;
+pub mod automation_store;
 pub mod conversation_store;
 pub mod device_registry;
 pub mod document_store;
@@ -18,6 +19,10 @@ pub mod settings_store;
 pub mod vector_store;
 
 pub use audit_store::AuditStore;
+pub use automation_store::{
+    AutomationHistoryRecord, AutomationRuleRecord, AutomationStatus, AutomationStore,
+    AutomationTriggerType,
+};
 pub use conversation_store::{
     sanitize_fts5_query, Conversation, ConversationMetadata, ConversationStore, ConversationTurn,
     EpisodicSearchResult, ExportedConversation, TurnMetadata, TurnRole,

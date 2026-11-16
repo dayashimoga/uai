@@ -10,10 +10,13 @@ pub mod model_bridge;
 pub mod voice_bridge;
 
 pub use api::{
-    bridge_delete_persona, bridge_delete_preference, bridge_device_cancel_pairing,
-    bridge_device_confirm_pairing, bridge_device_discovered_peers, bridge_device_paired_list,
-    bridge_device_set_permission, bridge_device_simulate_peer, bridge_device_start_pairing,
-    bridge_device_unpair, bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
+    bridge_automation_clear_history, bridge_automation_delete, bridge_automation_get,
+    bridge_automation_history, bridge_automation_list, bridge_automation_save,
+    bridge_automation_toggle, bridge_automation_trigger, bridge_delete_persona,
+    bridge_delete_preference, bridge_device_cancel_pairing, bridge_device_confirm_pairing,
+    bridge_device_discovered_peers, bridge_device_paired_list, bridge_device_set_permission,
+    bridge_device_simulate_peer, bridge_device_start_pairing, bridge_device_unpair,
+    bridge_get_active_persona, bridge_get_capabilities, bridge_get_health,
     bridge_get_lifecycle_state, bridge_get_preference, bridge_get_setting,
     bridge_interpreter_clear_session, bridge_interpreter_get_turns,
     bridge_interpreter_start_session, bridge_interpreter_submit_turn,
@@ -25,10 +28,11 @@ pub use api::{
     bridge_set_setting, bridge_translate_text, bridge_update_permission, bridge_verify_audit,
     bridge_vision_ocr_extract, bridge_voice_inject_audio, bridge_voice_set_keywords,
     bridge_voice_set_mode, get_bridge, init_bridge, shutdown_bridge, AuditIntegrityReport,
-    AuditItem, CapabilityItem, CoreBridge, DocumentRecordItem, HealthReport, HealthStatus,
-    InterpreterSessionStatusItem, InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem,
-    OcrDocumentItem, OcrTextLineItem, OcrWordItem, TranslationResultItem, UserPersonaItem,
-    UserPreferenceItem,
+    AuditItem, AutomationHistoryItem, AutomationRuleItem, CapabilityItem, CoreBridge,
+    DocumentRecordItem, HealthReport, HealthStatus, InterpreterSessionStatusItem,
+    InterpreterTurnItem, KnowledgeCitationItem, OcrBoundingBoxItem, OcrDocumentItem,
+    OcrTextLineItem, OcrWordItem, TranslationResultItem, UserPersonaItem, UserPreferenceItem,
+    WorkflowActionItem, WorkflowExecutionReportItem,
 };
 pub use device_bridge::{
     DeviceSupervisor, DiscoveredPeerItem, PairedDeviceItem, PairingSessionInfo,
@@ -1159,6 +1163,94 @@ mod tests {
         let del_pref_str = unsafe { CStr::from_ptr(del_pref_ptr) }.to_str().unwrap();
         assert_eq!(del_pref_str, "true");
         unsafe { c_abi::bridge_c_free_string(del_pref_ptr) };
+
+        let cleanup = c_abi::bridge_c_shutdown();
+        assert_eq!(cleanup, 0);
+    }
+
+    #[test]
+    fn test_automation_workflow_c_abi() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap();
+        let _ = c_abi::bridge_c_shutdown();
+        let res = unsafe { c_abi::bridge_c_init(std::ptr::null()) };
+        assert_eq!(res, 0);
+
+        // 1. Initial list of automations (empty)
+        let list_ptr = unsafe { c_abi::bridge_c_automation_list(false) };
+        let list_str = unsafe { CStr::from_ptr(list_ptr) }.to_str().unwrap();
+        let list: Vec<AutomationRuleItem> = serde_json::from_str(list_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(list_ptr) };
+        assert!(list.is_empty());
+
+        // 2. Save new automation rule
+        let rule = AutomationRuleItem {
+            id: "auto_c_test_1".to_string(),
+            name: "Morning News & Audio".to_string(),
+            enabled: true,
+            trigger_type: "manual".to_string(),
+            trigger_config_json: "{\"type\":\"manual\"}".to_string(),
+            actions_json: serde_json::json!([
+                {
+                    "action_type": "notification",
+                    "title": "Good Morning",
+                    "message": "Starting routine"
+                }
+            ])
+            .to_string(),
+            last_executed_ms: None,
+            created_at_ms: 1000,
+            updated_at_ms: 1000,
+        };
+        let rule_json = serde_json::to_string(&rule).unwrap();
+        let rule_c = CString::new(rule_json).unwrap();
+        let save_ptr = unsafe { c_abi::bridge_c_automation_save(rule_c.as_ptr()) };
+        let save_str = unsafe { CStr::from_ptr(save_ptr) }.to_str().unwrap();
+        assert_eq!(save_str, "null");
+        unsafe { c_abi::bridge_c_free_string(save_ptr) };
+
+        // 3. Get automation rule
+        let id_c = CString::new("auto_c_test_1").unwrap();
+        let get_ptr = unsafe { c_abi::bridge_c_automation_get(id_c.as_ptr()) };
+        let get_str = unsafe { CStr::from_ptr(get_ptr) }.to_str().unwrap();
+        let fetched: Option<AutomationRuleItem> = serde_json::from_str(get_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(get_ptr) };
+        assert!(fetched.is_some());
+        assert_eq!(fetched.unwrap().name, "Morning News & Audio");
+
+        // 4. Trigger automation rule manually
+        let trig_ptr = unsafe { c_abi::bridge_c_automation_trigger(id_c.as_ptr()) };
+        let trig_str = unsafe { CStr::from_ptr(trig_ptr) }.to_str().unwrap();
+        let report: WorkflowExecutionReportItem = serde_json::from_str(trig_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(trig_ptr) };
+        assert_eq!(report.automation_id, "auto_c_test_1");
+        assert_eq!(report.status, "success");
+
+        // 5. Query execution history
+        let hist_ptr = unsafe { c_abi::bridge_c_automation_history(id_c.as_ptr(), 10) };
+        let hist_str = unsafe { CStr::from_ptr(hist_ptr) }.to_str().unwrap();
+        let history: Vec<AutomationHistoryItem> = serde_json::from_str(hist_str).unwrap();
+        unsafe { c_abi::bridge_c_free_string(hist_ptr) };
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].status, "success");
+
+        // 6. Toggle automation rule
+        let toggle_ptr = unsafe { c_abi::bridge_c_automation_toggle(id_c.as_ptr(), false) };
+        let toggle_str = unsafe { CStr::from_ptr(toggle_ptr) }.to_str().unwrap();
+        assert_eq!(toggle_str, "true");
+        unsafe { c_abi::bridge_c_free_string(toggle_ptr) };
+
+        // Check enabled is false
+        let get_ptr2 = unsafe { c_abi::bridge_c_automation_get(id_c.as_ptr()) };
+        let get_str2 = unsafe { CStr::from_ptr(get_ptr2) }.to_str().unwrap();
+        let fetched2: Option<AutomationRuleItem> = serde_json::from_str(get_str2).unwrap();
+        unsafe { c_abi::bridge_c_free_string(get_ptr2) };
+        assert!(!fetched2.unwrap().enabled);
+
+        // 7. Delete automation rule
+        let del_ptr = unsafe { c_abi::bridge_c_automation_delete(id_c.as_ptr()) };
+        let del_str = unsafe { CStr::from_ptr(del_ptr) }.to_str().unwrap();
+        assert_eq!(del_str, "true");
+        unsafe { c_abi::bridge_c_free_string(del_ptr) };
 
         let cleanup = c_abi::bridge_c_shutdown();
         assert_eq!(cleanup, 0);

@@ -279,6 +279,40 @@ const MIGRATIONS: &[Migration] = &[
             CREATE INDEX IF NOT EXISTS idx_user_preferences_category ON user_preferences(category);
         ",
     },
+    Migration {
+        version: 8,
+        description: "Create automations and automation execution history tables",
+        sql: "
+            CREATE TABLE IF NOT EXISTS automations (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                trigger_type TEXT NOT NULL,
+                trigger_config_json TEXT NOT NULL,
+                actions_json TEXT NOT NULL,
+                last_executed_ms INTEGER,
+                created_at_ms INTEGER NOT NULL,
+                updated_at_ms INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_automations_enabled ON automations(enabled);
+            CREATE INDEX IF NOT EXISTS idx_automations_trigger_type ON automations(trigger_type);
+
+            CREATE TABLE IF NOT EXISTS automation_history (
+                id TEXT PRIMARY KEY,
+                automation_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                triggered_by TEXT NOT NULL,
+                executed_at_ms INTEGER NOT NULL,
+                duration_ms INTEGER NOT NULL,
+                result_json TEXT NOT NULL,
+                FOREIGN KEY (automation_id) REFERENCES automations(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_automation_history_automation_id ON automation_history(automation_id);
+            CREATE INDEX IF NOT EXISTS idx_automation_history_executed_at ON automation_history(executed_at_ms);
+        ",
+    },
 ];
 
 /// Migration runner applying incremental DDL changes within ACID transactions.
@@ -351,21 +385,21 @@ mod tests {
 
         // Initial run
         let version = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version, 7);
-        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 7);
+        assert_eq!(version, 8);
+        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 8);
 
         // Verify tables exist
         let tables_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts', 'semantic_embeddings', 'paired_devices', 'peer_permissions', 'documents', 'document_chunks', 'document_chunks_fts', 'user_personas', 'user_preferences');",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings', 'security_audit_log', 'encrypted_secrets', 'schema_migrations', 'conversations', 'conversation_turns', 'conversation_turns_fts', 'semantic_embeddings', 'paired_devices', 'peer_permissions', 'documents', 'document_chunks', 'document_chunks_fts', 'user_personas', 'user_preferences', 'automations', 'automation_history');",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(tables_count, 15);
+        assert_eq!(tables_count, 17);
 
         // Second run must be a no-op
         let version_again = MigrationRunner::run_migrations(&mut conn).unwrap();
-        assert_eq!(version_again, 7);
+        assert_eq!(version_again, 8);
     }
 }
