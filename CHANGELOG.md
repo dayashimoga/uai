@@ -1877,3 +1877,48 @@
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 103 unit and widget tests (0 failures across 15 test suites).
 - Commit reference: `a0cdfde`.
+
+---
+
+## [2026-11-16] — S10.P1.1: Comprehensive Prompt-Injection, Sandbox Escape & Fuzzing Suite
+
+### Added & Modified
+- `core/Cargo.toml` & `core/Cargo.lock`:
+  - Added `proptest = "1.6"` to workspace dependencies.
+- `core/crates/aissistant-security/Cargo.toml`:
+  - Added `proptest.workspace = true` to `[dev-dependencies]`.
+- `core/crates/aissistant-security/src/adversarial.rs`:
+  - Implemented `AdversarialScanner` and `InjectionCategory` (`InstructionOverride`, `JailbreakRoleplay`, `DelimiterSmuggling`, `ExfiltrationVector`, `ObfuscatedPayload`).
+  - Implemented pattern-based adversarial detection covering instruction resets, developer/DAN roleplay bypasses, XML/Markdown delimiter smuggling, exfiltration image URLs, zero-width obfuscation, and base64-smuggled instructions.
+  - Implemented `sanitize_wrapping` to strip zero-width characters and securely isolate external data inside `<untrusted_external_data>` containment boundaries.
+  - Added unit test suite and `proptest` property-based fuzzing tests (`test_adversarial_scanner_proptest_never_panics`, `test_adversarial_scanner_proptest_detects_embedded_injection`).
+- `core/crates/aissistant-security/src/lib.rs`:
+  - Exposed `pub mod adversarial;` and re-exported `AdversarialScanner`, `AdversarialMatch`, and `InjectionCategory`.
+- `core/crates/aissistant-skills/Cargo.toml` & `tests/sandbox_escape_fuzz_test.rs`:
+  - Added `proptest.workspace = true` to `[dev-dependencies]`.
+  - Implemented `sandbox_escape_fuzz_test.rs` running 200 proptest property tests per scenario:
+    - Arbitrary string paths never panic and never escape canonical root.
+    - Adversarial traversal paths (`..`, DOS devices `CON`, `NUL`, `AUX`, namespaces `\\?\C:`) are strictly rejected or confined.
+    - Zip-slip archive entries are rejected.
+- `core/crates/aissistant-llm/Cargo.toml` & `tests/gguf_parser_fuzz_test.rs`:
+  - Added `proptest.workspace = true` to `[dev-dependencies]`.
+  - Implemented `gguf_parser_fuzz_test.rs` running 500 proptest property tests per scenario:
+    - Arbitrary binary buffers never panic or abort.
+    - Mutated valid magic headers with random counts and trailing garbage cleanly fail with `GgufParseError`.
+    - Truncated short buffers are handled safely.
+- `core/crates/aissistant-network/Cargo.toml` & `tests/wire_fuzz_test.rs`:
+  - Added `proptest = { workspace = true }` to `[dev-dependencies]`.
+  - Implemented `wire_fuzz_test.rs` running 500 proptest property tests per scenario:
+    - Arbitrary network bytes never panic and cleanly return `NetworkError::PacketMalformed`.
+    - Random headers and payloads are safely parsed.
+    - Mutated and truncated valid DNS packets never panic.
+    - Self-referencing pointer compression loops are caught within cycle bounds and cleanly rejected.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed cleanly.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across workspace.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 396 unit, integration, and fuzzing tests (0 failures).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 103 unit and widget tests (0 failures across 15 test suites).
+- Commit reference: `077c3cb`.
+
