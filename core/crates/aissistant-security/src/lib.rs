@@ -2,11 +2,13 @@
 
 #![forbid(unsafe_code)]
 
+pub mod adversarial;
 pub mod audit;
 pub mod crypto;
 pub mod policy;
 pub mod taint;
 
+pub use adversarial::{AdversarialMatch, AdversarialScanner, InjectionCategory};
 pub use audit::{
     AuditChainVerifier, AuditEntry, AuditExecutionStatus, NewAuditEntry, GENESIS_PREV_HASH,
 };
