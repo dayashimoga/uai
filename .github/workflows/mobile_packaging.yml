@@ -1,0 +1,127 @@
+name: Mobile Release Packaging
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic version tag (e.g. 1.0.0)'
+        required: false
+        default: '1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-android-packages:
+    name: Package Android (APK & AAB)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26b
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Setup Flutter Environment
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Package Android Artifacts
+        run: |
+          VER="${{ github.event.inputs.version || github.ref_name }}"
+          VER="${VER#v}"
+          chmod +x packaging/mobile/android/package_android.sh
+          ./packaging/mobile/android/package_android.sh "${VER}"
+
+      - name: Upload Android Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aissistant-mobile-android
+          path: |
+            dist/*.apk
+            dist/*.aab
+            dist/SHA256SUMS_ANDROID.txt
+
+  build-ios-packages:
+    name: Package iOS (IPA Bundle)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Setup Flutter Environment
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Package iOS Artifacts
+        run: |
+          VER="${{ github.event.inputs.version || github.ref_name }}"
+          VER="${VER#v}"
+          chmod +x packaging/mobile/ios/package_ios.sh
+          ./packaging/mobile/ios/package_ios.sh "${VER}"
+
+      - name: Upload iOS Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aissistant-mobile-ios
+          path: |
+            dist/*.ipa
+            dist/SHA256SUMS_IOS.txt
+
+  publish-mobile-manifest:
+    name: Aggregate Mobile Checksum Manifest
+    needs: [build-android-packages, build-ios-packages]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Android Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aissistant-mobile-android
+          path: mobile-dist/
+
+      - name: Download iOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: aissistant-mobile-ios
+          path: mobile-dist/
+
+      - name: Assemble Unified SHA-256 Manifest
+        run: |
+          cd mobile-dist
+          cat SHA256SUMS_ANDROID.txt SHA256SUMS_IOS.txt > SHA256SUMS_MOBILE.txt
+          echo "Unified Mobile Release Manifest:"
+          cat SHA256SUMS_MOBILE.txt
+
+      - name: Upload Final Mobile Checksum Manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: aissistant-mobile-manifest
+          path: mobile-dist/SHA256SUMS_MOBILE.txt
