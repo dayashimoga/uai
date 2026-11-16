@@ -107,6 +107,6 @@
 
 ## Stage 9 Queue (Personalization, Workflows & Proactive Automation)
 - [x] `[S9.P1.1]` User Persona, Voice Profile & Explicit Preference Manager *(Completed 2026-11-15)*
-- [ ] `[S9.P1.2]` Cron, Event-Triggered & Cross-Device Workflow Automation Engine
+- [x] `[S9.P1.2]` Cron, Event-Triggered & Cross-Device Workflow Automation Engine *(Completed 2026-11-16)*
 - [ ] `[S9.P2.1]` Local MQTT & Home Assistant / Matter-Bridge Offline Integration
 - [ ] `[S9.P2.2]` Automation Builder UI & Execution History Inspector

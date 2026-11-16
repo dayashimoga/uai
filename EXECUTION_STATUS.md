@@ -1,8 +1,8 @@
 # EXECUTION_STATUS.md — Authoritative Live Completion Tracker
 
-**Last Updated:** 2026-11-15  
+**Last Updated:** 2026-11-16  
 **Current Project Phase:** Stage 9 — Personalization, Workflows & Proactive Automation  
-**Next Subphase in Queue:** `S9.P1.2` (Cron, Event-Triggered & Cross-Device Workflow Automation Engine)
+**Next Subphase in Queue:** `S9.P2.1` (Local MQTT & Home Assistant / Matter-Bridge Offline Integration)
 
 ---
 
@@ -77,7 +77,7 @@ Status Legend:
 | **Stage 8** | `S8.P2.1` | Offline OCR & Multimodal Vision Model Integration | `S8.P1.2` | `COMPLETED` | Verified [Commit `23e6d9d`]: 351 Rust workspace unit tests passing (13 in `aissistant-llm`, 28 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 82 Flutter tests passing (100%), `flutter analyze` zero issues, offline `ImageBuffer` & `VisionPreprocessor` (PNG/JPEG headers, bilinear interpolation, aspect-ratio preservation, ImageNet normalization, patch extraction), `OfflineOcrEngine` (contrast projection profiling, bounding box IoU calculation, confidence scoring), safe FFI & C-ABI exports, reactive `AssistantController` vision state, and responsive `VisionScreen` UI with sample inspection, metrics, full text clipboard copy, and bounding box layout breakdown verified. |
 | **Stage 8** | `S8.P2.2` | Offline Multilingual Translation & Live Voice Interpreter Mode | `S8.P2.1` | `COMPLETED` | Verified [Commit `3719f45`]: 356 Rust workspace unit tests passing (40 in `aissistant-llm`, 24 in `aissistant-orchestrator`, 29 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 89 Flutter tests passing (100%), `flutter analyze` zero issues, offline `Language` & `LanguagePair` (ISO 639-1: en, es, fr, de, zh, ja, it, pt, ru, ko), `TranslationPromptTemplate`, `TranslationEngine` (fast verified phrasebook, casing match, hybrid fallback), `InterpreterSession` & `InterpreterTurn` bi-directional dialogue manager with auto-alternating speakers, safe FFI & C-ABI exports, reactive `AssistantController` interpreter state, and responsive `InterpreterScreen` UI with participant cards, active turn indicator, quick phrase chips, and transcript history verified. |
 | **Stage 9** | `S9.P1.1` | User Persona, Voice Profile & Explicit Preference Manager | `S8.P2.2` | `COMPLETED` | Verified [Commit `aea67e1`]: 367 Rust workspace unit tests passing (46 in `aissistant-storage`, 28 in `aissistant-orchestrator`, 30 in `aissistant-ffi`), clippy zero warnings, fmt check passed, 93 Flutter tests passing (100%), `flutter analyze` zero issues, Migration 7 schema runner, PersonaStore CRUD with active exclusivity and default persona protection, PersonaPromptInjector prompt assembly, safe FFI and C-ABI exports, reactive AssistantController state, and responsive PersonaScreen UI with voice tuning verified. |
-| **Stage 9** | `S9.P1.2` | Cron, Event-Triggered & Cross-Device Workflow Automation Engine | `S9.P1.1` | `PENDING` | — |
+| **Stage 9** | `S9.P1.2` | Cron, Event-Triggered & Cross-Device Workflow Automation Engine | `S9.P1.1` | `COMPLETED` | `dbd8e6c` |
 | **Stage 9** | `S9.P2.1` | Local MQTT & Home Assistant / Matter-Bridge Offline Integration | `S9.P1.2` | `PENDING` | — |
 | **Stage 9** | `S9.P2.2` | Automation Builder UI & Execution History Inspector | `S9.P2.1` | `PENDING` | — |
 | **Stage 10** | `S10.P1.1` | Comprehensive Prompt-Injection, Sandbox Escape & Fuzzing Suite | `S9.P2.2` | `PENDING` | — |
@@ -1046,6 +1046,31 @@ Status Legend:
   - `persona_screen_test::navigates to PersonaScreen via AdaptiveShell`: Verified navigation via `AdaptiveShell` NavigationRail on desktop and NavigationBar on mobile.
 - **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
 - **Commit Reference:** `aea67e1`
+
+### Verification Evidence — S9.P1.2 (Cron, Event-Triggered & Cross-Device Workflow Automation Engine)
+- **Subphase:** `S9.P1.2`
+- **Execution Date:** 2026-11-16
+- **Status:** `COMPLETED`
+- **Commands Executed:**
+  1. `cargo fmt --manifest-path core/Cargo.toml --all -- --check` -> Exit 0 (Clean formatting across all 11 crates)
+  2. `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` -> Exit 0 (0 warnings across workspace)
+  3. `cargo test --manifest-path core/Cargo.toml --workspace` -> Exit 0 (368 passed across 11 crates; 49 in `aissistant-storage`, 44 in `aissistant-skills`, 31 in `aissistant-ffi`)
+  4. `cd app; C:\flutter\bin\flutter.bat analyze` -> Exit 0 (No issues found)
+  5. `cd app; C:\flutter\bin\flutter.bat test` -> Exit 0 (94 passed across 14 Flutter test suites)
+- **Test Summary:**
+  - `migration::tests::test_migration_runner_applies_v1_and_is_idempotent`: Verified `Migration 8` creating `automations` and `automation_history` schema tables, indices on `enabled`, `trigger_type`, `automation_id`, and `executed_at_ms`, with schema version `8` and table count `17`.
+  - `automation_store::tests::test_automation_enums_serde_and_parsing`: Verified serde and FromStr parsing for `AutomationTriggerType` (`cron`, `event`, `manual`) and `AutomationStatus` (`success`, `failed`, `cancelled`).
+  - `automation_store::tests::test_automation_store_crud_and_history`: Verified automation rule persistence, retrieval, list filtering (enabled/disabled), enabled toggling, last executed timestamp updates, cascading history deletion on rule deletion, and history listing ordered by `executed_at_ms DESC`.
+  - `automation_store::tests::test_automation_store_validation_and_errors`: Verified validation constraints rejecting empty rule IDs, names, and trigger configs.
+  - `workflow::tests::test_cron_due_calculation_intervals`: Verified interval calculation for seconds (`interval:10s`), minutes (`interval:5m`), hours (`interval:2h`), `@hourly`, `@daily`, standard cron minute patterns (`*/15 * * * *`, `* * * * *`), immediate execution on never-run rules, and clock skew resilience.
+  - `workflow::tests::test_event_matching_and_filter`: Verified payload filtering matching key-value pairs, wildcard event matching when filter is absent, event name discrimination, and rejection of disabled rules.
+  - `workflow::tests::test_workflow_execution_local_skill_remote_and_notification`: Verified end-to-end execution of a multi-step workflow pipeline with local skills (`system.calc`), remote cross-device dispatch formatting (`app.launch`), and notifications, updating `last_executed_ms` and recording execution history.
+  - `workflow::tests::test_workflow_error_policy_fail_fast_vs_continue_on_error`: Verified immediate abortion on first failure under `FailFast` policy vs complete execution of subsequent steps under `ContinueOnError` policy.
+  - `workflow::tests::test_evaluate_and_trigger_cron_and_events`: Verified scheduler batch evaluation triggering due cron rules and event dispatcher triggering matching event rules.
+  - `tests::test_automation_workflow_c_abi`: Verified C-ABI functions (`bridge_c_automation_list`, `bridge_c_automation_get`, `bridge_c_automation_save`, `bridge_c_automation_toggle`, `bridge_c_automation_delete`, `bridge_c_automation_trigger`, `bridge_c_automation_history`, `bridge_c_automation_clear_history`), JSON roundtrips, and safe C string deallocation via `bridge_c_free_string`.
+  - `assistant_controller_test::manages automations: lists, saves, toggles, triggers and deletes workflow rules`: Verified Flutter controller reactive state, automation loading, toggling, rule persistence, manual execution triggering, history queries, and rule deletion.
+- **Platform Certification Status:** `HOST_VERIFIED` (Windows GNU); CI matrix pipeline covers Ubuntu, Windows, Android, and macOS/iOS runners.
+- **Commit Reference:** `dbd8e6c`
 
 
 

@@ -1760,3 +1760,48 @@
 - `cargo test --manifest-path core/Cargo.toml --workspace` passed: 367 unit and integration tests (0 failures; 46 in `aissistant-storage`, 28 in `aissistant-orchestrator`, 30 in `aissistant-ffi`).
 - `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
 - `cd app; C:\flutter\bin\flutter.bat test` passed: 93 unit and widget tests (0 failures).
+
+---
+
+## [2026-11-16] — Stage 9 Phase 1 Subphase 2 (`S9.P1.2`)
+
+### Added
+- `core/crates/aissistant-storage/src/migration.rs`:
+  - Added `Migration 8` defining `automations` and `automation_history` schema tables, indices on `enabled`, `trigger_type`, `automation_id`, and `executed_at_ms`.
+  - Updated schema version to 8 and table count to 17.
+- `core/crates/aissistant-storage/src/automation_store.rs`:
+  - Implemented `AutomationStore` with models `AutomationRuleRecord`, `AutomationHistoryRecord`, `AutomationTriggerType` (`cron`, `event`, `manual`), and `AutomationStatus` (`success`, `failed`, `cancelled`).
+  - Added CRUD and lifecycle operations: `save_automation`, `get_automation`, `list_automations` (with enabled-only filter), `toggle_automation`, `update_last_executed`, `delete_automation` (cascading to execution history), `record_history`, `list_history`, and `clear_history`.
+- `core/crates/aissistant-storage/src/lib.rs`:
+  - Exposed and re-exported `automation_store` module and types.
+- `core/crates/aissistant-skills/src/error.rs`:
+  - Added `Storage(#[from] aissistant_storage::StorageError)` variant to `SkillError` with mapping to `CoreError` and `OrchestratorError`.
+- `core/crates/aissistant-skills/src/workflow.rs`:
+  - Implemented `TriggerConfig` (`Cron`, `Event`, `Manual`), `WorkflowAction` (`LocalSkill`, `RemoteSkill`, `Notification`), `WorkflowErrorPolicy` (`FailFast`, `ContinueOnError`), `AutomationRule`, `ActionResult`, and `WorkflowExecutionReport`.
+  - Implemented `AutomationEngine` with interval and cron calculation (`is_cron_due`), payload event matching (`matches_event`), workflow sequential step execution (`execute_workflow`), rule execution by ID (`execute_rule_by_id`), scheduled cron batch triggering (`evaluate_and_trigger_all_due_cron`), and event rule batch triggering (`evaluate_and_trigger_event`).
+- `core/crates/aissistant-skills/src/lib.rs`:
+  - Exposed and re-exported `workflow` module and types.
+- `core/crates/aissistant-ffi/src/api.rs`:
+  - Added FFI models: `AutomationRuleItem`, `AutomationHistoryItem`, `WorkflowActionItem`, `WorkflowExecutionReportItem`.
+  - Integrated `AutomationStore` and `AutomationEngine` into `CoreBridge` with methods `list_automations`, `get_automation`, `save_automation`, `toggle_automation`, `delete_automation`, `trigger_automation`, `list_automation_history`, `clear_automation_history`.
+  - Added convenience entrypoints: `bridge_automation_list`, `bridge_automation_get`, `bridge_automation_save`, `bridge_automation_toggle`, `bridge_automation_delete`, `bridge_automation_trigger`, `bridge_automation_history`, `bridge_automation_clear_history`.
+- `core/crates/aissistant-ffi/src/c_abi.rs`:
+  - Added safe C-ABI functions with safety documentation and panic catching: `bridge_c_automation_list`, `bridge_c_automation_get`, `bridge_c_automation_save`, `bridge_c_automation_toggle`, `bridge_c_automation_delete`, `bridge_c_automation_trigger`, `bridge_c_automation_history`, `bridge_c_automation_clear_history`.
+- `core/crates/aissistant-ffi/src/lib.rs`:
+  - Re-exported automation types and added `test_automation_workflow_c_abi` integration test.
+- `app/lib/core/models/automation_models.dart`:
+  - Implemented Dart models `AutomationTriggerType`, `AutomationStatus`, `WorkflowActionItem`, `AutomationRuleItem`, `AutomationHistoryItem`, and `WorkflowExecutionReportItem`.
+- `app/lib/core/ffi_bridge.dart`:
+  - Wired automation methods across `AissistantBridge`, `NativeFfiBridge` (via C-ABI lookup), and `TestHarnessBridge` (with mock rule store and simulated executions).
+- `app/lib/core/assistant_controller.dart`:
+  - Added reactive automation state (`automations`, `automationHistory`, `isAutomationLoading`, `automationError`, `lastWorkflowReport`) and methods (`loadAutomations`, `saveAutomation`, `toggleAutomation`, `deleteAutomation`, `triggerAutomation`, `loadAutomationHistory`, `clearAutomationHistory`).
+- `app/test/assistant_controller_test.dart`:
+  - Added test verifying automation lifecycle: listing rules, toggling enabled state, saving custom rule, triggering manual execution, querying execution history, and deleting rule.
+
+### Verification
+- `cargo fmt --manifest-path core/Cargo.toml --all -- --check` passed cleanly.
+- `cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings` passed with 0 warnings across workspace.
+- `cargo test --manifest-path core/Cargo.toml --workspace` passed: 368 unit and integration tests (0 failures; 49 in `aissistant-storage`, 44 in `aissistant-skills`, 31 in `aissistant-ffi`).
+- `cd app; C:\flutter\bin\flutter.bat analyze` passed with 0 issues.
+- `cd app; C:\flutter\bin\flutter.bat test` passed: 94 unit and widget tests (0 failures).
+- Commit reference: `dbd8e6c`.
